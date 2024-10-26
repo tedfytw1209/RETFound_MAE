@@ -174,9 +174,11 @@ def main(args):
     
     #for weighted loss
     if args.loss_weight:
-        train_target = dataset_train.targets.numpy()
-        train_weight = np.zeros(dataset_train.classes)
-        for i in range(dataset_train.classes):
+        train_target = np.array(dataset_train.targets)
+        train_weight = np.zeros(len(dataset_train.classes))
+        print('train_target:',train_target)
+        print('train_classes:',dataset_train.classes)
+        for i in dataset_train.classes:
             train_weight[i] = np.sum(train_target == i)
         train_weight = np.sum(train_weight) / train_weight
         print('train_weight:',train_weight)
