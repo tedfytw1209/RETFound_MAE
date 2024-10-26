@@ -24,7 +24,7 @@ from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 
 import util.lr_decay as lrd
 import util.misc as misc
-from util.datasets import build_dataset
+from util.datasets import build_dataset, DistributedSamplerWrapper
 from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
@@ -141,6 +141,8 @@ def get_args_parser():
                         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
     parser.add_argument('--no_pin_mem', action='store_false', dest='pin_mem')
     parser.set_defaults(pin_mem=True)
+    parser.add_argument('--bal_sampler', action='store_true', default=False,
+                        help='Enabling balanced class sampler')
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -190,9 +192,26 @@ def main(args):
     if True:  # args.distributed:
         num_tasks = misc.get_world_size()
         global_rank = misc.get_rank()
-        sampler_train = torch.utils.data.DistributedSampler(
-            dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
-        )
+        if args.bal_sampler:
+            train_target = np.array(dataset_train.targets)
+            class_weight = np.zeros(len(dataset_train.classes))
+            class_idx = [dataset_train.class_to_idx[c] for c in dataset_train.classes]
+            print('train_target:',train_target)
+            print('train_classes idx:',class_idx)
+            for i in class_idx:
+                class_weight[i] = np.sum(train_target == i)
+            class_weight = np.sum(class_weight) / class_weight
+            print('class_weight:',class_weight)
+            sample_weight = class_weight[train_target]
+            sample_weight = sample_weight / np.sum(sample_weight)
+            bal_train_sampler = torch.utils.data.WeightedRandomSampler(sample_weight, len(sample_weight), replacement=True)
+            sampler_train = DistributedSamplerWrapper(
+                bal_train_sampler, num_replicas=num_tasks, rank=global_rank, shuffle=True
+            )
+        else:
+            sampler_train = torch.utils.data.DistributedSampler(
+                dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
+            )
         print("Sampler_train = %s" % str(sampler_train))
         if args.dist_eval:
             if len(dataset_val) % num_tasks != 0:
