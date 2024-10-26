@@ -325,7 +325,7 @@ def main(args):
     elif args.smoothing > 0.:
         criterion = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
     else:
-        criterion = torch.nn.CrossEntropyLoss(weight=torch.tensor(train_weight).to(torch.float32) if train_weight is not None else None)
+        criterion = torch.nn.CrossEntropyLoss(weight=torch.tensor(train_weight).to(torch.float32).to(device) if train_weight is not None else None)
 
     print("criterion = %s" % str(criterion))
 
