@@ -24,7 +24,8 @@ from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 
 import util.lr_decay as lrd
 import util.misc as misc
-from util.datasets import build_dataset, DistributedSamplerWrapper
+from util.datasets import build_dataset
+from catalyst.data import DistributedSamplerWrapper
 from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
