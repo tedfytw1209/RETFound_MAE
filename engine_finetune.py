@@ -43,7 +43,7 @@ def misc_measures(confusion_matrix):
         precision_ = 1.*cm1[1,1]/max(cm1[1,1]+cm1[0,1],1e-9)
         precision.append(precision_)
         G.append(np.sqrt(sensitivity_*specificity_))
-        F1_score_2.append(2*precision_*sensitivity_/(precision_+sensitivity_))
+        F1_score_2.append(2*precision_*sensitivity_/max(precision_+sensitivity_,1e-9))
         mcc = (cm1[0,0]*cm1[1,1]-cm1[0,1]*cm1[1,0])/max(np.sqrt((cm1[0,0]+cm1[0,1])*(cm1[0,0]+cm1[1,0])*(cm1[1,1]+cm1[1,0])*(cm1[1,1]+cm1[0,1])),1e-9)
         mcc_.append(mcc)
         
