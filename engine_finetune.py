@@ -32,19 +32,19 @@ def misc_measures(confusion_matrix):
     G = []
     F1_score_2 = []
     mcc_ = []
-    
+    #for avoid nan case
     for i in range(1, confusion_matrix.shape[0]):
         cm1=confusion_matrix[i]
         acc.append(1.*(cm1[0,0]+cm1[1,1])/np.sum(cm1))
-        sensitivity_ = 1.*cm1[1,1]/(cm1[1,0]+cm1[1,1])
+        sensitivity_ = 1.*cm1[1,1]/max(cm1[1,0]+cm1[1,1],1e-9)
         sensitivity.append(sensitivity_)
-        specificity_ = 1.*cm1[0,0]/(cm1[0,1]+cm1[0,0])
+        specificity_ = 1.*cm1[0,0]/max(cm1[0,1]+cm1[0,0],1e-9)
         specificity.append(specificity_)
-        precision_ = 1.*cm1[1,1]/(cm1[1,1]+cm1[0,1])
+        precision_ = 1.*cm1[1,1]/max(cm1[1,1]+cm1[0,1],1e-9)
         precision.append(precision_)
         G.append(np.sqrt(sensitivity_*specificity_))
         F1_score_2.append(2*precision_*sensitivity_/(precision_+sensitivity_))
-        mcc = (cm1[0,0]*cm1[1,1]-cm1[0,1]*cm1[1,0])/np.sqrt((cm1[0,0]+cm1[0,1])*(cm1[0,0]+cm1[1,0])*(cm1[1,1]+cm1[1,0])*(cm1[1,1]+cm1[0,1]))
+        mcc = (cm1[0,0]*cm1[1,1]-cm1[0,1]*cm1[1,0])/max(np.sqrt((cm1[0,0]+cm1[0,1])*(cm1[0,0]+cm1[1,0])*(cm1[1,1]+cm1[1,0])*(cm1[1,1]+cm1[0,1])),1e-9)
         mcc_.append(mcc)
         
     acc = np.array(acc).mean()
