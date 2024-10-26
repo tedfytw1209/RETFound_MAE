@@ -40,6 +40,8 @@ def get_args_parser():
     parser.add_argument('--epochs', default=50, type=int)
     parser.add_argument('--accum_iter', default=1, type=int,
                         help='Accumulate gradient iterations (for increasing the effective batch size under memory constraints)')
+    parser.add_argument('--loss_weight', default=0, type=int,
+                        help='Use weighted loss for imbalanced dataset. (default: 0, no weighted loss)')
 
     # Model parameters
     parser.add_argument('--model', default='vit_large_patch16', type=str, metavar='MODEL',
@@ -169,6 +171,18 @@ def main(args):
     dataset_train = build_dataset(is_train='train', args=args)
     dataset_val = build_dataset(is_train='val', args=args)
     dataset_test = build_dataset(is_train='test', args=args)
+    
+    #for weighted loss
+    if args.loss_weight:
+        train_target = dataset_train.targets.numpy()
+        train_weight = np.zeros(dataset_train.classes)
+        for i in range(dataset_train.classes):
+            train_weight[i] = np.sum(train_target == i)
+        train_weight = np.sum(train_weight) / train_weight
+        print('train_weight:',train_weight)
+    else:
+        train_weight = None
+    
 
     if True:  # args.distributed:
         num_tasks = misc.get_world_size()
@@ -308,7 +322,7 @@ def main(args):
     elif args.smoothing > 0.:
         criterion = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
     else:
-        criterion = torch.nn.CrossEntropyLoss()
+        criterion = torch.nn.CrossEntropyLoss(weight=torch.tensor(train_weight).to(device) if train_weight is not None else None)
 
     print("criterion = %s" % str(criterion))
 
