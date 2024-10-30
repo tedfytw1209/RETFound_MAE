@@ -8,13 +8,44 @@ import os
 from torchvision import datasets, transforms
 from timm.data import create_transform
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+import numpy as np
+import pandas as pd
+from torch.utils.data import Dataset
+from PIL import Image
 
+class CSV_Dataset(Dataset):
+    def __init__(self,csv_file,img_dir,is_train,transfroms=[]):
+        #common args
+        self.transfroms = transfroms
+        self.root_dir = img_dir
+        self.loader = datasets.folder.default_loader
+        data = pd.read_csv(csv_file)
+        self.annotations = data[data['split']==is_train]
+        self.classes = [str(c) for c in self.annotations['label'].unique()]
+        self.num_class = len(self.classes)
+        self.channel = 3
+
+    def __len__(self):
+        return self.input_data.shape[0]
+
+    def __getitem__(self, idx):
+        img_name = os.path.join(self.root_dir, self.annotations['OCT'][idx])
+        image = self.loader(img_name)
+        label = int(self.annotations['label'][idx].values)
+
+        for transfrom in self.transfroms:
+            image = transfrom(image)
+
+        return image, label
 
 def build_dataset(is_train, args):
-    
     transform = build_transform(is_train, args)
-    root = os.path.join(args.data_path, is_train)
-    dataset = datasets.ImageFolder(root, transform=transform)
+    img_dir = ''
+    if args.data_path.endswith('.csv'):
+        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform)
+    else:
+        root = os.path.join(args.data_path, is_train)
+        dataset = datasets.ImageFolder(root, transform=transform)
 
     return dataset
 
