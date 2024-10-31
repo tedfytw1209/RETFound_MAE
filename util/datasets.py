@@ -23,15 +23,20 @@ class CSV_Dataset(Dataset):
         self.annotations = data[data['split']==is_train]
         self.classes = [str(c) for c in self.annotations['label'].unique()]
         self.num_class = len(self.classes)
+        self.class_to_idx = {self.classes[i]: i for i in range(self.num_class)}
         self.channel = 3
+        samples = [(self.annotations['OCT'][i], self.annotations['label'][i]) for i in range(self.annotations.shape[0])]
+        self.samples = samples
+        self.targets = [s[1] for s in samples]
 
     def __len__(self):
         return self.input_data.shape[0]
 
     def __getitem__(self, idx):
-        img_name = os.path.join(self.root_dir, self.annotations['OCT'][idx])
+        sample = self.samples[idx]
+        img_name = os.path.join(self.root_dir, sample[0])
         image = self.loader(img_name)
-        label = int(self.annotations['label'][idx].values)
+        label = int(sample[1])
 
         for transfrom in self.transfroms:
             image = transfrom(image)
@@ -40,7 +45,7 @@ class CSV_Dataset(Dataset):
 
 def build_dataset(is_train, args):
     transform = build_transform(is_train, args)
-    img_dir = ''
+    img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/'
     if args.data_path.endswith('.csv'):
         dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform)
     else:
