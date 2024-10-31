@@ -38,9 +38,11 @@ elif [$SUBSTUDY="mci_control"]
 then
    Num_CLASS="2"
 else
-   Num_CLASS="3"
+   Num_CLASS="2"
 fi
 
+echo $SUBSTUDY
+echo $Num_CLASS
 
 # Modify the path to your singularity container 
 
