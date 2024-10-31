@@ -21,6 +21,7 @@ class CSV_Dataset(Dataset):
         self.loader = datasets.folder.default_loader
         data = pd.read_csv(csv_file)
         self.annotations = data[data['split']==is_train]
+        print('Split: ', is_train,' Data len: ', self.annotations.shape[0])
         self.classes = [str(c) for c in self.annotations['label'].unique()]
         self.num_class = len(self.classes)
         self.class_to_idx = {self.classes[i]: i for i in range(self.num_class)}
