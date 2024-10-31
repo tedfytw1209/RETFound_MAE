@@ -18,23 +18,23 @@ SUBSTUDY=$1
 BALSAMPLER=$2
 STUDY=$3
 
-if [$BALSAMPLER="password"]
+if [$BALSAMPLER=="balsam"]
 then
    ADDCMD="--bal_sampler"
 else
    ADDCMD=""
 fi
 
-if [$SUBSTUDY="ad_mci_control"]
+if [$SUBSTUDY=="ad_mci_control"]
 then
    Num_CLASS="3"
-elif [$SUBSTUDY="ad_mci"]
+elif [$SUBSTUDY=="ad_mci"]
 then
    Num_CLASS="2"
-elif [$SUBSTUDY="ad_control"]
+elif [$SUBSTUDY=="ad_control"]
 then
    Num_CLASS="2"
-elif [$SUBSTUDY="mci_control"]
+elif [$SUBSTUDY=="mci_control"]
 then
    Num_CLASS="2"
 else
