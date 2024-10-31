@@ -32,7 +32,7 @@ class CSV_Dataset(Dataset):
         self.targets = [s[1] for s in samples]
 
     def __len__(self):
-        return self.input_data.shape[0]
+        return len(self.targets)
 
     def __getitem__(self, idx):
         sample = self.samples[idx]
