@@ -14,7 +14,7 @@ do
 
       # Submit the job to Slurm
       sbatch --job-name="$JOB_NAME" \
-              finetune_retfound_study2.sh $MODEL_NAME $PROXIMAL study2
+              finetune_retfound_study.sh $MODEL_NAME $PROXIMAL study2
     done
   done
 done
