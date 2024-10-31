@@ -40,8 +40,7 @@ class CSV_Dataset(Dataset):
         image = self.loader(img_name)
         label = int(sample[1])
 
-        for transfrom in self.transfroms:
-            image = transfrom(image)
+        image = self.transfroms(image)
 
         return image, label
 
