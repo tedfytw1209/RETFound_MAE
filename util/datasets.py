@@ -26,7 +26,8 @@ class CSV_Dataset(Dataset):
         self.num_class = len(self.classes)
         self.class_to_idx = {self.classes[i]: i for i in range(self.num_class)}
         self.channel = 3
-        samples = [(row['OCT'], row['label']) for row in self.annotations.iterrows()]
+        image_names, labels = self.annotations['OCT'], self.annotations['label']
+        samples = [(image_name, label) for image_name,label in zip(image_names, labels)]
         self.samples = samples
         self.targets = [s[1] for s in samples]
 
