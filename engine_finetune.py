@@ -191,6 +191,7 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class):
     metric_logger.synchronize_between_processes()
     
     print('Sklearn Metrics - Acc: {:.4f} AUC-roc: {:.4f} AUC-pr: {:.4f} F1-score: {:.4f} MCC: {:.4f}'.format(acc, auc_roc, auc_pr, F1, mcc)) 
+    print('Sklearn Metrics - Recall: {:.4f} Precision: {:.4f} Specificity: {:.4f}'.format(sensitivity, precision, specificity)) 
     results_path = task+'_metrics_{}.csv'.format(mode)
     with open(results_path,mode='a',newline='',encoding='utf8') as cfa:
         wf = csv.writer(cfa)
