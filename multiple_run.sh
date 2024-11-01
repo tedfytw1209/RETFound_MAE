@@ -16,8 +16,7 @@ do
       JOB_NAME="f${FOLD_NUM}${MODEL_NAME}${NUM_CLASS}${PROXIMAL}"
       echo $JOB_NAME
       # Submit the job to Slurm
-      sbatch --job-name="$JOB_NAME" \
-              finetune_retfound_study.sh study2 $MODEL_NAME $NUM_CLASS $PROXIMAL
+      sbatch --job-name="$JOB_NAME" finetune_retfound_study.sh study2 $MODEL_NAME $NUM_CLASS $PROXIMAL
     done
   done
 done
