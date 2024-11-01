@@ -7,8 +7,8 @@ num_classes=(3 2 2 2)
 for FOLD_NUM in "${FOLD_NUMS[@]}"
 do
   for i in "${!MODEL_NAMES[@]}"
-  MODEL_NAME=${MODEL_NAMES[$i]}
-  NUM_CLASS=${num_classes[$i]}
+  MODEL_NAME=${MODEL_NAMES[i]}
+  NUM_CLASS=${num_classes[i]}
   do
     for PROXIMAL in "${PROXIMALS[@]}"
     do
