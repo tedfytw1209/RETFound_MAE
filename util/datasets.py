@@ -28,9 +28,11 @@ class CSV_Dataset(Dataset):
         self.num_class = len(self.classes)
         #assert index order control, mci, ad
         self.class_to_idx = {}
-        for i,c in enumerate(AD_LIST):
+        i = 0
+        for c in AD_LIST:
             if c in self.classes:
                 self.class_to_idx[c] = i
+                i+=1
         print('Class to idx: ', self.class_to_idx)
         self.channel = 3
         image_names, labels = self.annotations['OCT'], self.annotations['label']
