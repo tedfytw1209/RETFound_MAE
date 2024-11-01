@@ -1,6 +1,7 @@
 FOLD_NUMS=(1)
+DIVIDES=(all 1 3 5 10) 
 MODEL_NAMES=(ad_mci_control ad_mci ad_control mci_control)
-PROXIMALS=("")
+PROXIMALS=("--bal_sampler")
 num_classes=(3 2 2 2)
 
 # Loop through all combinations of FOLD_NUM, MODEL_NAME, and PROXIMAL
