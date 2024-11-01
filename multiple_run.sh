@@ -6,10 +6,10 @@ num_classes=(3 2 2 2)
 # Loop through all combinations of FOLD_NUM, MODEL_NAME, and PROXIMAL
 for FOLD_NUM in "${FOLD_NUMS[@]}"
 do
-  for i in "${!MODEL_NAMES[@]}"
-  MODEL_NAME=${MODEL_NAMES[i]}
-  NUM_CLASS=${num_classes[i]}
+  for i in "${!MODEL_NAMES[*]}"
   do
+    MODEL_NAME="${MODEL_NAMES[$i]}"
+    NUM_CLASS="${num_classes[$i]}"
     for PROXIMAL in "${PROXIMALS[@]}"
     do
       # Create a job name based on the variables
