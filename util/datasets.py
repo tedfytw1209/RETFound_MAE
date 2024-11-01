@@ -13,6 +13,8 @@ import pandas as pd
 from torch.utils.data import Dataset
 from PIL import Image
 
+AD_LIST = ['control','mci','ad']
+
 class CSV_Dataset(Dataset):
     def __init__(self,csv_file,img_dir,is_train,transfroms=[]):
         #common args
@@ -24,7 +26,11 @@ class CSV_Dataset(Dataset):
         print('Split: ', is_train,' Data len: ', self.annotations.shape[0])
         self.classes = [str(c) for c in self.annotations['label'].unique()]
         self.num_class = len(self.classes)
-        self.class_to_idx = {self.classes[i]: i for i in range(self.num_class)}
+        #assert index order control, mci, ad
+        self.class_to_idx = {}
+        for i,c in enumerate(AD_LIST):
+            if c in self.classes:
+                self.class_to_idx[c] = i
         self.channel = 3
         image_names, labels = self.annotations['OCT'], self.annotations['label']
         samples = [(image_name+'.jpg', self.class_to_idx[str(label)]) for image_name,label in zip(image_names, labels)]
