@@ -1,20 +1,23 @@
 FOLD_NUMS=(1)
 MODEL_NAMES=(ad_mci_control ad_mci ad_control mci_control)
-PROXIMALS=(normal balsam)
+PROXIMALS=("" "--bal_sampler")
+num_classes=(3 2 2 2)
 
 # Loop through all combinations of FOLD_NUM, MODEL_NAME, and PROXIMAL
 for FOLD_NUM in "${FOLD_NUMS[@]}"
 do
-  for MODEL_NAME in "${MODEL_NAMES[@]}"
+  for i in "${!MODEL_NAMES[@]}"
+  MODEL_NAME=${MODEL_NAMES[$i]}
+  NUM_CLASS=${num_classes[$i]}
   do
     for PROXIMAL in "${PROXIMALS[@]}"
     do
       # Create a job name based on the variables
-      JOB_NAME="f${FOLD_NUM}${MODEL_NAME}_${PROXIMAL}"
+      JOB_NAME="f${FOLD_NUM}${MODEL_NAME}${NUM_CLASS}_${PROXIMAL}"
 
       # Submit the job to Slurm
-      sbatch --job-name="$JOB_NAME" \
-              finetune_retfound_study.sh $MODEL_NAME $PROXIMAL study2
+      #sbatch --job-name="$JOB_NAME" \
+      #        finetune_retfound_study.sh study2 $MODEL_NAME $NUM_CLASS $PROXIMAL
     done
   done
 done
