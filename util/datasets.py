@@ -31,6 +31,7 @@ class CSV_Dataset(Dataset):
         for i,c in enumerate(AD_LIST):
             if c in self.classes:
                 self.class_to_idx[c] = i
+        print('Class to idx: ', self.class_to_idx)
         self.channel = 3
         image_names, labels = self.annotations['OCT'], self.annotations['label']
         samples = [(image_name+'.jpg', self.class_to_idx[str(label)]) for image_name,label in zip(image_names, labels)]
