@@ -14,7 +14,7 @@ do
     do
       # Create a job name based on the variables
       JOB_NAME="f${FOLD_NUM}${MODEL_NAME}${NUM_CLASS}_${PROXIMAL}"
-
+      echo $JOB_NAME
       # Submit the job to Slurm
       #sbatch --job-name="$JOB_NAME" \
       #        finetune_retfound_study.sh study2 $MODEL_NAME $NUM_CLASS $PROXIMAL
