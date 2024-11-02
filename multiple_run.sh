@@ -17,7 +17,7 @@ do
       JOB_NAME="study3${DIVIDE}${MODEL_NAME}${NUM_CLASS}${PROXIMAL}"
       echo $JOB_NAME
       # Submit the job to Slurm
-      sbatch --job-name="$JOB_NAME" finetune_retfound_study.sh study3 $MODEL_NAME $NUM_CLASS $PROXIMAL $DIVIDE
+      sbatch --job-name="$JOB_NAME" finetune_retfound_study.sh study3 $MODEL_NAME $NUM_CLASS $DIVIDE $PROXIMAL
     done
   done
 done

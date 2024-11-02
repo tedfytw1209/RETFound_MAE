@@ -5,7 +5,7 @@
 #SBATCH --mem-per-cpu=32gb
 #SBATCH --partition=gpu
 #SBATCH --gpus=a100:1
-#SBATCH --time=72:00:00
+#SBATCH --time=48:00:00
 #SBATCH --output=%x.%j.out
 #SBATCH --account=bianjiang
 #SBATCH --qos=bianjiang
@@ -20,8 +20,9 @@ conda activate retfound
 STUDY=$1
 SUBSTUDY=$2
 Num_CLASS=$3
-ADDCMD=${4:-""}
-DIVIDE=${5:-"all"}
+DIVIDE=${4:-"all"}
+ADDCMD=${5:-""}
+
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
 echo $SUBSTUDY
