@@ -32,6 +32,7 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 import models_vit
 from typing import Iterable, Optional
 from engine_finetune import train_one_epoch, evaluate
+from PIL import Image
 
 def train_one_epoch_debug(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
@@ -54,7 +55,9 @@ def train_one_epoch_debug(model: torch.nn.Module, criterion: torch.nn.Module,
     for data_iter_step, (samples, targets) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
         samples = samples.to(device, non_blocking=True)
         targets = targets.to(device, non_blocking=True)
-
+        print('samples:',samples.shape,'mean:',samples.mean(),'std:',samples.std())
+        print('targets:',targets)
+        last_sample = samples[-1]
         if mixup_fn is not None:
             samples, targets = mixup_fn(samples, targets)
 
@@ -84,6 +87,10 @@ def train_one_epoch_debug(model: torch.nn.Module, criterion: torch.nn.Module,
 
         metric_logger.update(lr=max_lr)
 
+    #check samples back to image
+    last_sample = last_sample.permute(1,2,0).cpu().numpy()
+    data = Image.fromarray(last_sample) 
+    data.save('last_sample.jpg') 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
