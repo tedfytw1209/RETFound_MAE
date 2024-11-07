@@ -88,7 +88,7 @@ def train_one_epoch_debug(model: torch.nn.Module, criterion: torch.nn.Module,
         metric_logger.update(lr=max_lr)
 
     #check samples back to image
-    last_sample = last_sample.permute(1,2,0).cpu().numpy()
+    last_sample = last_sample.cpu().numpy()
     data = Image.fromarray(last_sample) 
     data.save('last_sample.jpg') 
     # gather the stats from all processes
