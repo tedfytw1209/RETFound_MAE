@@ -160,7 +160,7 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class):
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
         true_label=F.one_hot(target.to(torch.int64), num_classes=num_class)
-
+        last_sample = images[-1]
         # compute output
         with torch.cuda.amp.autocast():
             output = model(images)
