@@ -33,6 +33,7 @@ import models_vit
 from typing import Iterable, Optional
 from engine_finetune import train_one_epoch, evaluate
 from PIL import Image
+import torchvision.transforms as T
 
 def train_one_epoch_debug(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
@@ -88,9 +89,10 @@ def train_one_epoch_debug(model: torch.nn.Module, criterion: torch.nn.Module,
         metric_logger.update(lr=max_lr)
 
     #check samples back to image
-    last_sample = last_sample.cpu().numpy()
+    transform = T.ToPILImage()
+    last_sample = last_sample.cpu()
     print('last_sample:',last_sample.shape,'mean:',last_sample.mean(),'std:',last_sample.std())
-    data = Image.fromarray(last_sample) 
+    data = transform(last_sample)
     data.save('last_sample.jpg') 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
