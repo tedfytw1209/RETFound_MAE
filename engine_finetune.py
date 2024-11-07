@@ -20,7 +20,7 @@ from pycm import *
 import matplotlib.pyplot as plt
 import numpy as np
 
-
+import torchvision.transforms as T
 
 
 def misc_measures(confusion_matrix):
@@ -204,6 +204,13 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class):
         cm = ConfusionMatrix(actual_vector=true_label_decode_list, predict_vector=prediction_decode_list)
         cm.plot(cmap=plt.cm.Blues,number_label=True,normalized=True,plot_lib="matplotlib")
         plt.savefig(task+'confusion_matrix_test.jpg',dpi=600,bbox_inches ='tight')
+    
+    #tmp
+    transform = T.ToPILImage()
+    last_sample = last_sample.cpu()
+    print('last_sample:',last_sample.shape,'mean:',last_sample.mean(),'std:',last_sample.std())
+    data = transform(last_sample)
+    data.save('last_test_sample.jpg') 
     
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()},auc_roc
 

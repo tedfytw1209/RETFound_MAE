@@ -93,7 +93,7 @@ def train_one_epoch_debug(model: torch.nn.Module, criterion: torch.nn.Module,
     last_sample = last_sample.cpu()
     print('last_sample:',last_sample.shape,'mean:',last_sample.mean(),'std:',last_sample.std())
     data = transform(last_sample)
-    data.save('last_sample.jpg') 
+    #data.save('last_sample.jpg') 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
@@ -451,7 +451,7 @@ def main(args):
         val_stats,val_auc_roc = evaluate(data_loader_val, model, device,args.task,epoch, mode='val',num_class=args.nb_classes)
         if max_auc<val_auc_roc:
             max_auc = val_auc_roc
-
+    test_stats,auc_roc = evaluate(data_loader_test, model, device, args.task, epoch=0, mode='test',num_class=args.nb_classes)
                 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
