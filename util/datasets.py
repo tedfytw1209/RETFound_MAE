@@ -80,6 +80,7 @@ def build_transform(is_train, args):
             re_prob=args.reprob,
             re_mode=args.remode,
             re_count=args.recount,
+            #normalize=False,
             mean=mean,
             std=std,
         )
@@ -97,5 +98,5 @@ def build_transform(is_train, args):
     )
     t.append(transforms.CenterCrop(args.input_size))
     t.append(transforms.ToTensor())
-    #t.append(transforms.Normalize(mean, std))
+    t.append(transforms.Normalize(mean, std))
     return transforms.Compose(t)

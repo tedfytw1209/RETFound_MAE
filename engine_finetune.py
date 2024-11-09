@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import torchvision.transforms as T
-
+from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 def misc_measures(confusion_matrix):
     
@@ -209,6 +209,9 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class):
     transform = T.ToPILImage()
     last_sample = last_sample.cpu()
     print('last_sample:',last_sample.shape,'mean:',last_sample.mean(),'std:',last_sample.std())
+    #BACK TO NORMALIZATION
+    last_sample = last_sample*torch.tensor(IMAGENET_DEFAULT_STD).reshape((-1,1,1))+torch.tensor(IMAGENET_DEFAULT_MEAN).reshape((-1,1,1))
+    print('Denormalize last_sample:',last_sample.shape,'mean:',last_sample.mean(),'std:',last_sample.std())
     data = transform(last_sample)
     data.save('last_test_sample.jpg') 
     
