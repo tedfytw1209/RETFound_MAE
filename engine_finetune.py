@@ -206,6 +206,7 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class):
         plt.savefig(task+'confusion_matrix_test.jpg',dpi=600,bbox_inches ='tight')
     
     #tmp
+    '''
     transform = T.ToPILImage()
     last_sample = last_sample.cpu()
     print('last_sample:',last_sample.shape,'mean:',last_sample.mean(),'std:',last_sample.std())
@@ -214,6 +215,7 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class):
     print('Denormalize last_sample:',last_sample.shape,'mean:',last_sample.mean(),'std:',last_sample.std())
     data = transform(last_sample)
     data.save('last_test_sample.jpg') 
+    '''
     
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()},auc_roc
 

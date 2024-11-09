@@ -34,6 +34,7 @@ from typing import Iterable, Optional
 from engine_finetune import train_one_epoch, evaluate
 from PIL import Image
 import torchvision.transforms as T
+from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 def train_one_epoch_debug(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
@@ -92,8 +93,11 @@ def train_one_epoch_debug(model: torch.nn.Module, criterion: torch.nn.Module,
     transform = T.ToPILImage()
     last_sample = last_sample.cpu()
     print('last_sample:',last_sample.shape,'mean:',last_sample.mean(),'std:',last_sample.std())
+    #BACK TO NORMALIZATION
+    last_sample = last_sample*torch.tensor(IMAGENET_DEFAULT_STD).reshape((-1,1,1))+torch.tensor(IMAGENET_DEFAULT_MEAN).reshape((-1,1,1))
+    print('Denormalize last_sample:',last_sample.shape,'mean:',last_sample.mean(),'std:',last_sample.std())
     data = transform(last_sample)
-    #data.save('last_sample.jpg') 
+    data.save('last_train_sample.jpg') 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
