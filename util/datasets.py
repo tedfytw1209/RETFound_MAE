@@ -16,7 +16,7 @@ from PIL import Image
 AD_LIST = ['control','mci','ad']
 
 class CSV_Dataset(Dataset):
-    def __init__(self,csv_file,img_dir,is_train,transfroms=[]):
+    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0):
         #common args
         self.transfroms = transfroms
         self.root_dir = img_dir
@@ -36,20 +36,41 @@ class CSV_Dataset(Dataset):
         print('Class to idx: ', self.class_to_idx)
         self.channel = 3
         image_names, labels = self.annotations['OCT'], self.annotations['label']
-        samples = [(image_name+'.jpg', self.class_to_idx[str(label)]) for image_name,label in zip(image_names, labels)]
+        #case for 2.5D
+        image_sample = image_names[0]
+        if image_sample.endswith(']') and image_sample.startswith('['):
+            if is_train == 'train':
+                samples = []
+                for image_name,label in zip(image_names, labels):
+                    image_name = image_name[1:-1].split(',')
+                    for each_name in image_name:
+                        samples.append((each_name+'.jpg', self.class_to_idx[str(label)]))
+                self.half3D = False
+            else:
+                samples = [([each_name+'.jpg' for each_name in image_name[1:-1].split(',')], self.class_to_idx[str(label)]) for image_name,label in zip(image_names, labels)]
+                self.half3D = True
+        else:
+            samples = [(image_name+'.jpg', self.class_to_idx[str(label)]) for image_name,label in zip(image_names, labels)]
+            self.half3D = False
         self.samples = samples
         self.targets = [s[1] for s in samples]
+        self.k = k #!! not used now
 
     def __len__(self):
         return len(self.targets)
 
     def __getitem__(self, idx):
         sample = self.samples[idx]
-        img_name = os.path.join(self.root_dir, sample[0])
-        image = self.loader(img_name)
+        if self.half3D: #output multiple images
+            img_name = [os.path.join(self.root_dir, each_name) for each_name in sample[0]]
+            image = [self.loader(each_name) for each_name in img_name]
+            image = [self.transfroms(each_image) for each_image in image]
+        else:
+            img_name = os.path.join(self.root_dir, sample[0])
+            image = self.loader(img_name)
+            image = self.transfroms(image)
+        
         label = int(sample[1])
-
-        image = self.transfroms(image)
 
         return image, label
 

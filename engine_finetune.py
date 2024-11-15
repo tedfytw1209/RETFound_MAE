@@ -219,3 +219,82 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class):
     
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()},auc_roc
 
+@torch.no_grad()
+def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k=0):
+    criterion = torch.nn.CrossEntropyLoss()
+
+    metric_logger = misc.MetricLogger(delimiter="  ")
+    header = 'Test:'
+    
+    if not os.path.exists(task):
+        os.makedirs(task)
+
+    prediction_decode_list = []
+    prediction_list = []
+    true_label_decode_list = []
+    true_label_onehot_list = []
+    
+    # switch to evaluation mode
+    model.eval()
+
+    for batch in metric_logger.log_every(data_loader, 10, header):
+        images = batch[0] #(batch_size,k+1,3,224,224) or (batch_size*(k+1),3,224,224)
+        if images.dim()==5:
+            b,n,c,h,w = images.shape
+            images = images.view(b*n,c,h,w)
+            
+        target = batch[-1]
+        images = images.to(device, non_blocking=True)
+        target = target.to(device, non_blocking=True)
+        true_label=F.one_hot(target.to(torch.int64), num_classes=num_class)
+        # compute output
+        with torch.cuda.amp.autocast():
+            output = model(images)
+            prediction_softmax = nn.Softmax(dim=-1)(output)
+            if k>0:
+                output = output.view(b,n,-1)
+                output = output.mean(1)
+                prediction_softmax = prediction_softmax.view(b,n,-1)
+                prediction_softmax = prediction_softmax.mean(1)
+            loss = criterion(output, target)
+            _,prediction_decode = torch.max(prediction_softmax, 1)
+            _,true_label_decode = torch.max(true_label, 1)
+
+            prediction_decode_list.extend(prediction_decode.cpu().detach().numpy())
+            true_label_decode_list.extend(true_label_decode.cpu().detach().numpy())
+            true_label_onehot_list.extend(true_label.cpu().detach().numpy())
+            prediction_list.extend(prediction_softmax.cpu().detach().numpy())
+
+        acc1,_ = accuracy(output, target, topk=(1,2))
+
+        batch_size = images.shape[0]
+        metric_logger.update(loss=loss.item())
+        metric_logger.meters['acc1'].update(acc1.item(), n=batch_size)
+    # gather the stats from all processes
+    true_label_decode_list = np.array(true_label_decode_list)
+    prediction_decode_list = np.array(prediction_decode_list)
+    confusion_matrix = multilabel_confusion_matrix(true_label_decode_list, prediction_decode_list,labels=[i for i in range(num_class)])
+    acc, sensitivity, specificity, precision, G, F1, mcc = misc_measures(confusion_matrix)
+    
+    auc_roc = roc_auc_score(true_label_onehot_list, prediction_list,multi_class='ovr',average='macro')
+    auc_pr = average_precision_score(true_label_onehot_list, prediction_list,average='macro')          
+            
+    metric_logger.synchronize_between_processes()
+    
+    print('Sklearn Metrics - Acc: {:.4f} AUC-roc: {:.4f} AUC-pr: {:.4f} F1-score: {:.4f} MCC: {:.4f}'.format(acc, auc_roc, auc_pr, F1, mcc)) 
+    print('Sklearn Metrics - Recall: {:.4f} Precision: {:.4f} Specificity: {:.4f}'.format(sensitivity, precision, specificity)) 
+    results_path = task+'_metrics_{}.csv'.format(mode)
+    with open(results_path,mode='a',newline='',encoding='utf8') as cfa:
+        wf = csv.writer(cfa)
+        data2=[[acc,sensitivity,specificity,precision,auc_roc,auc_pr,F1,mcc,metric_logger.loss]]
+        for i in data2:
+            wf.writerow(i)
+            
+    
+    if mode=='test':
+        cm = ConfusionMatrix(actual_vector=true_label_decode_list, predict_vector=prediction_decode_list)
+        cm.plot(cmap=plt.cm.Blues,number_label=True,normalized=True,plot_lib="matplotlib")
+        plt.savefig(task+'confusion_matrix_test.jpg',dpi=600,bbox_inches ='tight')
+
+    return {k: meter.global_avg for k, meter in metric_logger.meters.items()},auc_roc
+
