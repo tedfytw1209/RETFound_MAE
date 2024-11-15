@@ -12,8 +12,27 @@ import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset
 from PIL import Image
+import pydicom
 
 AD_LIST = ['control','mci','ad']
+def process_dcm(dicom_root,sample_name,k=0):
+    sample_path = os.path.join(dicom_root,sample_name)
+    #print(sample_path)
+    ds = pydicom.dcmread(sample_path)
+    new_image = ds.pixel_array.astype(float)
+    #print(new_image.shape)
+    final_images = []
+    depth = new_image.shape[0]
+    med_point = (new_image.shape[0]+1)//2
+    for i in range(med_point-k//2,med_point+k//2+1):
+        med_image = new_image[i]
+        #scaled_image = (np.maximum(med_image, 0) / med_image.max()) * 255.0
+        #scaled_image = np.uint8(scaled_image)
+        scaled_image = med_image
+        final_image = Image.fromarray(scaled_image)
+        final_images.append(final_image)
+    #final_image.show()
+    return final_images, depth
 
 class CSV_Dataset(Dataset):
     def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0):
@@ -39,22 +58,26 @@ class CSV_Dataset(Dataset):
         #case for 2.5D
         image_sample = image_names[0]
         if image_sample.endswith(']') and image_sample.startswith('['):
+            dcm_depth = self.annotations['depth']
+            med_point = (dcm_depth+1)//2
+            idx_start, idx_end = med_point-k//2,med_point+k//2+1
             if is_train == 'train':
                 samples = []
                 for image_name,label in zip(image_names, labels):
-                    image_name = image_name[1:-1].split(',')
-                    for each_name in image_name:
-                        samples.append((each_name+'.jpg', self.class_to_idx[str(label)]))
+                    for i in range(idx_start,idx_end):
+                        samples.append((image_name+'_%d'%i+'.jpg', self.class_to_idx[str(label)]))
                 self.half3D = False
             else:
-                samples = [([each_name+'.jpg' for each_name in image_name[1:-1].split(',')], self.class_to_idx[str(label)]) for image_name,label in zip(image_names, labels)]
+                samples = []
+                for image_name,label in zip(image_names, labels):
+                    samples.append(([image_name+'_%d'%i+'.jpg' for i in range(idx_start,idx_end)], self.class_to_idx[str(label)]))
                 self.half3D = True
         else:
             samples = [(image_name+'.jpg', self.class_to_idx[str(label)]) for image_name,label in zip(image_names, labels)]
             self.half3D = False
         self.samples = samples
         self.targets = [s[1] for s in samples]
-        self.k = k #!! not used now
+        self.k = k
 
     def __len__(self):
         return len(self.targets)
@@ -74,11 +97,11 @@ class CSV_Dataset(Dataset):
 
         return image, label
 
-def build_dataset(is_train, args):
+def build_dataset(is_train, args, k=0):
     transform = build_transform(is_train, args)
     img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/'
     if args.data_path.endswith('.csv'):
-        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform)
+        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k)
     else:
         root = os.path.join(args.data_path, is_train)
         dataset = datasets.ImageFolder(root, transform=transform)
