@@ -31,7 +31,7 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
 import models_vit
 
-from engine_finetune import train_one_epoch, evaluate
+from engine_finetune import train_one_epoch, evaluate, evaluate_half3D
 
 
 def get_args_parser():
@@ -144,7 +144,7 @@ def get_args_parser():
     parser.set_defaults(pin_mem=True)
     parser.add_argument('--bal_sampler', action='store_true', default=False,
                         help='Enabling balanced class sampler')
-    parser.add_argument('--num_k', default=10, type=int)
+    parser.add_argument('--num_k', default=0, type=int)
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -353,7 +353,7 @@ def main(args):
     misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
     if args.eval:
-        test_stats,auc_roc = evaluate(data_loader_test, model, device, args.task, epoch=0, mode='test',num_class=args.nb_classes)
+        test_stats,auc_roc = evaluate_half3D(data_loader_test, model, device, args.task, epoch=0, mode='test',num_class=args.nb_classes)
         exit(0)
 
     print(f"Start training for {args.epochs} epochs")
@@ -371,7 +371,7 @@ def main(args):
             args=args
         )
 
-        val_stats,val_auc_roc = evaluate(data_loader_val, model, device,args.task,epoch, mode='val',num_class=args.nb_classes)
+        val_stats,val_auc_roc = evaluate_half3D(data_loader_val, model, device,args.task,epoch, mode='val',num_class=args.nb_classes)
         if max_auc<val_auc_roc:
             max_auc = val_auc_roc
             
@@ -401,7 +401,7 @@ def main(args):
     print('Training time {}'.format(total_time_str))
     state_dict_best = torch.load(os.path.join(args.task,'checkpoint-best.pth'), map_location='cpu')
     model_without_ddp.load_state_dict(state_dict_best['model'])
-    test_stats,auc_roc = evaluate(data_loader_test, model_without_ddp, device,args.task,epoch=0, mode='test',num_class=args.nb_classes)
+    test_stats,auc_roc = evaluate_half3D(data_loader_test, model_without_ddp, device,args.task,epoch=0, mode='test',num_class=args.nb_classes)
 
 if __name__ == '__main__':
     args = get_args_parser()

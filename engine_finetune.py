@@ -220,7 +220,7 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class):
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()},auc_roc
 
 @torch.no_grad()
-def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k=0):
+def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class):
     criterion = torch.nn.CrossEntropyLoss()
 
     metric_logger = misc.MetricLogger(delimiter="  ")
