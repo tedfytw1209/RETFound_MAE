@@ -242,10 +242,12 @@ def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k)
         print('images:',images.shape)
         if k>0:
             b,n,c,h,w = images.shape
+            print('image 0 mean of each slice:',images[0].mean((-1,-2,-3)))
             images = images.view(b*n,c,h,w)
             
         target = batch[1]
         slice_len = batch[2]
+        print('slice_len:',slice_len)
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
         true_label=F.one_hot(target.to(torch.int64), num_classes=num_class)
@@ -258,9 +260,10 @@ def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k)
                 prediction_softmax = prediction_softmax.view(b,n,-1)
                 output_list = []
                 prediction_softmax_list = []
-                for e_output,e_prediction_softmax in zip(output,prediction_softmax):
-                    e_output = e_output.mean(0)
-                    e_prediction_softmax = e_prediction_softmax.mean(0)
+                print('output 0 mean of each slice:',output[0].mean(-1))
+                for e_output,e_prediction_softmax,e_slice_len in zip(output,prediction_softmax,slice_len):
+                    e_output = e_output[:e_slice_len].mean(0)
+                    e_prediction_softmax = e_prediction_softmax[:e_slice_len].mean(0)
                     output_list.append(e_output)
                     prediction_softmax_list.append(e_prediction_softmax)
                 output = torch.stack(output_list)
