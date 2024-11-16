@@ -90,9 +90,9 @@ class CSV_Dataset(Dataset):
         self.targets = [s[1] for s in samples]
         self.k = k
         if k>0 and k<1:
-            self.max_slice = ((k*25) // 2)*2 + 1
+            self.max_slice = int(((k*25) // 2)*2 + 1)
         elif k>1:
-            self.max_slice = (k//2) * 2 + 1
+            self.max_slice = int((k//2) * 2 + 1)
         else:
             self.max_slice = 1
 
