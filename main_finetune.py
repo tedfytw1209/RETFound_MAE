@@ -144,7 +144,7 @@ def get_args_parser():
     parser.set_defaults(pin_mem=True)
     parser.add_argument('--bal_sampler', action='store_true', default=False,
                         help='Enabling balanced class sampler')
-    parser.add_argument('--num_k', default=0, type=int)
+    parser.add_argument('--num_k', default=0, type=float)
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
