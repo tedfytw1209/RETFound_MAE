@@ -106,7 +106,7 @@ class CSV_Dataset(Dataset):
             image = [self.loader(each_name) for each_name in img_name]
             image = [self.transfroms(each_image) for each_image in image]
             print(len(image),image[0].shape)
-            p3d = (0, 0, 0, 0, 0, self.max_slice - len(image))
+            p3d = (0, 0, 0, 0 ,0 ,0 , 0, self.max_slice - len(image))
             image = torch.stack(image)
             image = torch.nn.functional.pad(image, p3d, mode='constant', value=0)
             print(image.shape)
