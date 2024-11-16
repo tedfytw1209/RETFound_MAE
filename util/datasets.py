@@ -106,9 +106,9 @@ class CSV_Dataset(Dataset):
 
         return image, label
 
-def build_dataset(is_train, args, k=0):
+def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/'):
     transform = build_transform(is_train, args)
-    img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/'
+    
     if args.data_path.endswith('.csv'):
         dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k)
     else:

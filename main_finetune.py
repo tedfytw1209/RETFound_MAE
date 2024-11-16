@@ -145,6 +145,7 @@ def get_args_parser():
     parser.add_argument('--bal_sampler', action='store_true', default=False,
                         help='Enabling balanced class sampler')
     parser.add_argument('--num_k', default=0, type=float)
+    parser.add_argument('--img_dir', default='/orange/bianjiang/tienyu/OCT_AD/all_images/', type=str)
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -172,9 +173,9 @@ def main(args):
 
     cudnn.benchmark = True
 
-    dataset_train = build_dataset(is_train='train', args=args, k=args.num_k)
-    dataset_val = build_dataset(is_train='val', args=args, k=args.num_k)
-    dataset_test = build_dataset(is_train='test', args=args, k=args.num_k)
+    dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir)
+    dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir)
+    dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir)
     
     #for weighted loss
     if args.loss_weight:
