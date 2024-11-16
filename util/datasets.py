@@ -108,6 +108,7 @@ class CSV_Dataset(Dataset):
             p3d = (0, 0, 0, 0, 0, self.max_slice - len(image))
             image = torch.stack(image)
             image = torch.nn.functional.pad(image, p3d, mode='constant', value=0)
+            print(image.shape)
         else:
             img_name = os.path.join(self.root_dir, sample[0])
             image = self.loader(img_name)
