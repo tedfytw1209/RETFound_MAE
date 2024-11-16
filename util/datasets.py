@@ -34,6 +34,12 @@ def process_dcm(dicom_root,sample_name,k=0):
     #final_image.show()
     return final_images, depth
 
+def select_n_slices(k,depth):
+    if k<1:
+        return int(k*depth/2)
+    else:
+        return k//2
+
 class CSV_Dataset(Dataset):
     def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0):
         #common args
@@ -56,20 +62,23 @@ class CSV_Dataset(Dataset):
         self.channel = 3
         image_names, labels = self.annotations['OCT'], self.annotations['label']
         #case for 2.5D
-        image_sample = image_names[0]
-        if image_sample.endswith(']') and image_sample.startswith('['):
-            dcm_depth = self.annotations['depth']
-            med_point = (dcm_depth+1)//2
-            idx_start, idx_end = med_point-k//2,med_point+k//2+1
+        if k>0:
+            dcm_depths = self.annotations['depth']
             if is_train == 'train':
                 samples = []
-                for image_name,label in zip(image_names, labels):
+                for image_name,label,depth in zip(image_names, labels, dcm_depths):
+                    med_point = (depth+1)//2
+                    n_slice = select_n_slices(k,depth)
+                    idx_start, idx_end = med_point-n_slice,med_point+n_slice+1
                     for i in range(idx_start,idx_end):
                         samples.append((image_name+'_%d'%i+'.jpg', self.class_to_idx[str(label)]))
                 self.half3D = False
             else:
                 samples = []
-                for image_name,label in zip(image_names, labels):
+                for image_name,label,depth in zip(image_names, labels, dcm_depths):
+                    med_point = (depth+1)//2
+                    n_slice = select_n_slices(k,depth)
+                    idx_start, idx_end = med_point-n_slice,med_point+n_slice+1
                     samples.append(([image_name+'_%d'%i+'.jpg' for i in range(idx_start,idx_end)], self.class_to_idx[str(label)]))
                 self.half3D = True
         else:
