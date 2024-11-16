@@ -105,17 +105,19 @@ class CSV_Dataset(Dataset):
             img_name = [os.path.join(self.root_dir, each_name) for each_name in sample[0]]
             image = [self.loader(each_name) for each_name in img_name]
             image = [self.transfroms(each_image) for each_image in image]
-            p3d = (0, 0, 0, 0 ,0 ,0 , 0, self.max_slice - len(image))
+            image_len = len(image)
+            p3d = (0, 0, 0, 0 ,0 ,0 , 0, self.max_slice - image_len)
             image = torch.stack(image)
             image = torch.nn.functional.pad(image, p3d, mode='constant', value=0)
         else:
             img_name = os.path.join(self.root_dir, sample[0])
             image = self.loader(img_name)
             image = self.transfroms(image)
+            image_len = 1
         
         label = int(sample[1])
 
-        return image, label, len(image)
+        return image, label, image_len
 
 def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/'):
     transform = build_transform(is_train, args)
