@@ -79,7 +79,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     if log_writer is not None:
         print('log_dir: {}'.format(log_writer.log_dir))
 
-    for data_iter_step, (samples, targets) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+    for data_iter_step, (samples, targets, _) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
 
         # we use a per iteration (instead of per epoch) lr scheduler
         if data_iter_step % accum_iter == 0:
@@ -156,7 +156,7 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class):
 
     for batch in metric_logger.log_every(data_loader, 10, header):
         images = batch[0]
-        target = batch[-1]
+        target = batch[1]
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
         true_label=F.one_hot(target.to(torch.int64), num_classes=num_class)
@@ -220,7 +220,7 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class):
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()},auc_roc
 
 @torch.no_grad()
-def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class):
+def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k):
     criterion = torch.nn.CrossEntropyLoss()
 
     metric_logger = misc.MetricLogger(delimiter="  ")
@@ -239,11 +239,13 @@ def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class):
 
     for batch in metric_logger.log_every(data_loader, 10, header):
         images = batch[0] #(batch_size,k+1,3,224,224) or (batch_size*(k+1),3,224,224)
-        if images.dim()==5:
+        print('images:',images.shape)
+        if k>0:
             b,n,c,h,w = images.shape
             images = images.view(b*n,c,h,w)
             
-        target = batch[-1]
+        target = batch[1]
+        slice_len = batch[2]
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
         true_label=F.one_hot(target.to(torch.int64), num_classes=num_class)
@@ -253,9 +255,16 @@ def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class):
             prediction_softmax = nn.Softmax(dim=-1)(output)
             if k>0:
                 output = output.view(b,n,-1)
-                output = output.mean(1)
                 prediction_softmax = prediction_softmax.view(b,n,-1)
-                prediction_softmax = prediction_softmax.mean(1)
+                output_list = []
+                prediction_softmax_list = []
+                for e_output,e_prediction_softmax in zip(output,prediction_softmax):
+                    e_output = e_output.mean(0)
+                    e_prediction_softmax = e_prediction_softmax.mean(0)
+                    output_list.append(e_output)
+                    prediction_softmax_list.append(e_prediction_softmax)
+                output = torch.stack(output_list)
+                prediction_softmax = torch.stack(prediction_softmax_list)
             loss = criterion(output, target)
             _,prediction_decode = torch.max(prediction_softmax, 1)
             _,true_label_decode = torch.max(true_label, 1)

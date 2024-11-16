@@ -5,6 +5,7 @@
 
 import os
 
+import torch
 from torchvision import datasets, transforms
 from timm.data import create_transform
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
@@ -13,6 +14,7 @@ import pandas as pd
 from torch.utils.data import Dataset
 from PIL import Image
 import pydicom
+
 
 AD_LIST = ['control','mci','ad']
 def process_dcm(dicom_root,sample_name,k=0):
@@ -87,6 +89,12 @@ class CSV_Dataset(Dataset):
         self.samples = samples
         self.targets = [s[1] for s in samples]
         self.k = k
+        if k>0 and k<1:
+            self.max_slice = ((k*25) // 2)*2 + 1
+        elif k>1:
+            self.max_slice = (k//2) * 2 + 1
+        else:
+            self.max_slice = 1
 
     def __len__(self):
         return len(self.targets)
@@ -97,6 +105,9 @@ class CSV_Dataset(Dataset):
             img_name = [os.path.join(self.root_dir, each_name) for each_name in sample[0]]
             image = [self.loader(each_name) for each_name in img_name]
             image = [self.transfroms(each_image) for each_image in image]
+            p3d = (0, 0, 0, 0, 0, self.max_slice - len(image))
+            image = torch.stack(image)
+            image = torch.nn.functional.pad(image, p3d, mode='constant', value=0)
         else:
             img_name = os.path.join(self.root_dir, sample[0])
             image = self.loader(img_name)
@@ -104,7 +115,7 @@ class CSV_Dataset(Dataset):
         
         label = int(sample[1])
 
-        return image, label
+        return image, label, len(image)
 
 def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/'):
     transform = build_transform(is_train, args)
