@@ -3,7 +3,7 @@ DIVIDES=(all)
 MODEL_NAMES=(ad_mci_control ad_mci ad_control mci_control)
 PROXIMALS=("" "--bal_sampler")
 num_classes=(3 2 2 2)
-num_k=0
+num_k=0.167
 
 # Loop through all combinations of FOLD_NUM, MODEL_NAME, and PROXIMAL
 for DIVIDE in "${DIVIDES[@]}"
