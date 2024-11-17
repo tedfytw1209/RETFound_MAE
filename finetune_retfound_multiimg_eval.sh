@@ -30,5 +30,5 @@ echo $Num_CLASS
 # Modify the path to your singularity container 
 
 python -m torch.distributed.launch --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune.py --eval    --batch_size 16     --world_size 1     --model vit_large_patch16     --epochs 50 \
-    --blr 5e-3 --layer_decay 0.65     --weight_decay 0.05 --drop_path 0.2     --nb_classes $Num_CLASS     --data_path ./dataset/ADMCI_study/${DIVIDE}_lists_data-$SUBSTUDY.csv     --task $STUDY-$DIVIDE-$SUBSTUDY-$ADDCMD-eval/ \
+    --blr 5e-3 --layer_decay 0.65     --weight_decay 0.05 --drop_path 0.2     --nb_classes $Num_CLASS     --data_path ./dataset/ADMCI_study/${DIVIDE}_lists_data-$SUBSTUDY.csv     --task $STUDY-$DIVIDE-$SUBSTUDY-$ADDCMD-eval{$NUM_K}/ \
     --resume $STUDY-$DIVIDE-$SUBSTUDY-$ADDCMD/checkpoint-best.pth     --input_size 224 --num_k $NUM_K --img_dir /orange/bianjiang/tienyu/OCT_AD/all_3d_oct/
