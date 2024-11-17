@@ -239,7 +239,6 @@ def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k)
 
     for batch in metric_logger.log_every(data_loader, 10, header):
         images = batch[0] #(batch_size,k+1,3,224,224) or (batch_size*(k+1),3,224,224)
-        print('images:',images.shape)
         if k>0:
             b,n,c,h,w = images.shape
             #print('image 0 mean of each slice:',images[0].mean((-1,-2,-3)))
