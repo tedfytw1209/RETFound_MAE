@@ -7,7 +7,9 @@
 #SBATCH --gpus=a100:1
 #SBATCH --time=70:00:00
 #SBATCH --output=%x.%j.out
-
+#SBATCH --account=bianjiang
+#SBATCH --qos=bianjiang
+#SBATCH --reservation=bianjiang
 
 date;hostname;pwd
 
