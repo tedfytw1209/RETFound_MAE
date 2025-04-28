@@ -17,8 +17,7 @@ from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 import models_vit as models
 import util.lr_decay as lrd
 import util.misc as misc
-from util.datasets import build_dataset
-from catalyst.data import DistributedSamplerWrapper
+from util.datasets import build_dataset,DistributedSamplerWrapper
 from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from huggingface_hub import hf_hub_download, login

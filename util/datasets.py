@@ -14,7 +14,7 @@ import pandas as pd
 from torch.utils.data import Dataset
 from PIL import Image
 import pydicom
-
+import math
 
 AD_LIST = ['control','mci','ad']
 def process_dcm(dicom_root,sample_name,k=0):
@@ -166,3 +166,49 @@ def build_transform(is_train, args):
     t.append(transforms.ToTensor())
     t.append(transforms.Normalize(mean, std))
     return transforms.Compose(t)
+
+class DistributedSamplerWrapper(torch.utils.data.distributed.DistributedSampler):
+    def __init__(
+        self,
+        base_sampler,
+        num_replicas = None,
+        rank = None,
+        seed = 0,
+        shuffle = True,
+    ):
+        self.base_sampler = base_sampler
+        self.batch_size = base_sampler.batch_size
+        shuffle = shuffle
+        drop_last = self.base_sampler.drop_last
+        super().__init__(base_sampler, num_replicas=num_replicas, rank=rank, shuffle=shuffle, seed=seed, drop_last=drop_last)
+
+    def __iter__(self):
+        base_indices = list(self.base_sampler.__iter__())
+        if self.shuffle:
+            # deterministically shuffle based on epoch and seed
+            g = torch.Generator()
+            g.manual_seed(self.seed + self.epoch)
+            indices = torch.randperm(len(self.dataset), generator=g).tolist()  # type: ignore[arg-type]
+        else:
+            indices = list(range(len(self.dataset)))  # type: ignore[arg-type]
+        indices = [base_indices[i] for i in indices]
+            
+        if not self.drop_last:
+            # add extra samples to make it evenly divisible
+            padding_size = self.total_size - len(indices)
+            if padding_size <= len(indices):
+                indices += indices[:padding_size]
+            else:
+                indices += (indices * math.ceil(padding_size / len(indices)))[
+                    :padding_size
+                ]
+        else:
+            # remove tail of data to make it evenly divisible.
+            indices = indices[: self.total_size]
+        assert len(indices) == self.total_size
+
+        # subsample
+        indices = indices[self.rank : self.total_size : self.num_replicas]
+        assert len(indices) == self.num_samples
+
+        return iter(indices)
