@@ -12,6 +12,7 @@ import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
 from timm.models.layers import trunc_normal_
 from timm.data.mixup import Mixup
+from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 
 import models_vit as models
 import util.lr_decay as lrd
@@ -21,7 +22,7 @@ from catalyst.data import DistributedSamplerWrapper
 from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from huggingface_hub import hf_hub_download, login
-from engine_finetune import train_one_epoch, evaluate
+from engine_finetune import evaluate_half3D, train_one_epoch, evaluate
 
 import warnings
 import faulthandler
@@ -265,10 +266,10 @@ def main(args, criterion):
             )
         else:
             if not args.eval:
-            sampler_train = torch.utils.data.DistributedSampler(
-                    dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
-                )
-            print("Sampler_train = %s" % str(sampler_train))
+                sampler_train = torch.utils.data.DistributedSampler(
+                        dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
+                    )
+                print("Sampler_train = %s" % str(sampler_train))
             if args.dist_eval:
                 if len(dataset_val) % num_tasks != 0:
                     print(

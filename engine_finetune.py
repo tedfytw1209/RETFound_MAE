@@ -10,11 +10,46 @@ from timm.data import Mixup
 from timm.utils import accuracy
 from sklearn.metrics import (
     accuracy_score, roc_auc_score, f1_score, average_precision_score,
-    hamming_loss, jaccard_score, recall_score, precision_score, cohen_kappa_score
+    hamming_loss, jaccard_score, recall_score, precision_score, cohen_kappa_score,
+    multilabel_confusion_matrix
 )
 from pycm import ConfusionMatrix
 import util.misc as misc
 import util.lr_sched as lr_sched
+
+def misc_measures(confusion_matrix):
+    
+    acc = []
+    sensitivity = []
+    specificity = []
+    precision = []
+    G = []
+    F1_score_2 = []
+    mcc_ = []
+    #for avoid nan case
+    for i in range(1, confusion_matrix.shape[0]):
+        cm1=confusion_matrix[i]
+        acc.append(1.*(cm1[0,0]+cm1[1,1])/np.sum(cm1))
+        sensitivity_ = 1.*cm1[1,1]/max(cm1[1,0]+cm1[1,1],1e-9)
+        sensitivity.append(sensitivity_)
+        specificity_ = 1.*cm1[0,0]/max(cm1[0,1]+cm1[0,0],1e-9)
+        specificity.append(specificity_)
+        precision_ = 1.*cm1[1,1]/max(cm1[1,1]+cm1[0,1],1e-9)
+        precision.append(precision_)
+        G.append(np.sqrt(sensitivity_*specificity_))
+        F1_score_2.append(2*precision_*sensitivity_/max(precision_+sensitivity_,1e-9))
+        mcc = (cm1[0,0]*cm1[1,1]-cm1[0,1]*cm1[1,0])/max(np.sqrt((cm1[0,0]+cm1[0,1])*(cm1[0,0]+cm1[1,0])*(cm1[1,1]+cm1[1,0])*(cm1[1,1]+cm1[0,1])),1e-9)
+        mcc_.append(mcc)
+        
+    acc = np.array(acc).mean()
+    sensitivity = np.array(sensitivity).mean()
+    specificity = np.array(specificity).mean()
+    precision = np.array(precision).mean()
+    G = np.array(G).mean()
+    F1_score_2 = np.array(F1_score_2).mean()
+    mcc_ = np.array(mcc_).mean()
+    
+    return acc, sensitivity, specificity, precision, G, F1_score_2, mcc_
 
 def train_one_epoch(
     model: torch.nn.Module,
@@ -132,33 +167,20 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, log_write
     
     metric_logger.synchronize_between_processes()
     
-    print('Sklearn Metrics - Recall: {:.4f} Precision: {:.4f} Specificity: {:.4f}'.format(sensitivity, precision, specificity)) 
-    results_path = task+'_metrics_{}.csv'.format(mode)
-    with open(results_path,mode='a',newline='',encoding='utf8') as cfa:
+    results_path = os.path.join(args.output_dir, args.task, f'metrics_{mode}.csv')
+    file_exists = os.path.isfile(results_path)
+    with open(results_path, 'a', newline='', encoding='utf8') as cfa:
         wf = csv.writer(cfa)
-        data2=[[acc,sensitivity,specificity,precision,auc_roc,auc_pr,F1,mcc,metric_logger.loss]]
-        for i in data2:
-            wf.writerow(i)
-            
+        if not file_exists:
+            wf.writerow(['val_loss', 'accuracy', 'f1', 'roc_auc', 'hamming', 'jaccard', 'precision', 'recall', 'average_precision', 'kappa'])
+        wf.writerow([metric_logger.meters["loss"].global_avg, accuracy, f1, roc_auc, hamming, jaccard, precision, recall, average_precision, kappa])
     
-    if mode=='test':
-        cm = ConfusionMatrix(actual_vector=true_label_decode_list, predict_vector=prediction_decode_list)
-        cm.plot(cmap=plt.cm.Blues,number_label=True,normalized=True,plot_lib="matplotlib")
-        plt.savefig(task+'confusion_matrix_test.jpg',dpi=600,bbox_inches ='tight')
+    if mode == 'test':
+        cm = ConfusionMatrix(actual_vector=true_labels, predict_vector=pred_labels)
+        cm.plot(cmap=plt.cm.Blues, number_label=True, normalized=True, plot_lib="matplotlib")
+        plt.savefig(os.path.join(args.output_dir, args.task, 'confusion_matrix_test.jpg'), dpi=600, bbox_inches='tight')
     
-    #tmp
-    '''
-    transform = T.ToPILImage()
-    last_sample = last_sample.cpu()
-    print('last_sample:',last_sample.shape,'mean:',last_sample.mean(),'std:',last_sample.std())
-    #BACK TO NORMALIZATION
-    last_sample = last_sample*torch.tensor(IMAGENET_DEFAULT_STD).reshape((-1,1,1))+torch.tensor(IMAGENET_DEFAULT_MEAN).reshape((-1,1,1))
-    print('Denormalize last_sample:',last_sample.shape,'mean:',last_sample.mean(),'std:',last_sample.std())
-    data = transform(last_sample)
-    data.save('last_test_sample.jpg') 
-    '''
-    
-    return {k: meter.global_avg for k, meter in metric_logger.meters.items()},auc_roc
+    return {k: meter.global_avg for k, meter in metric_logger.meters.items()}, score
 
 @torch.no_grad()
 def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k):
@@ -235,17 +257,17 @@ def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k)
     
     print('Sklearn Metrics - Acc: {:.4f} AUC-roc: {:.4f} AUC-pr: {:.4f} F1-score: {:.4f} MCC: {:.4f}'.format(acc, auc_roc, auc_pr, F1, mcc)) 
     print('Sklearn Metrics - Recall: {:.4f} Precision: {:.4f} Specificity: {:.4f}'.format(sensitivity, precision, specificity)) 
-    results_path = os.path.join(args.output_dir, args.task, f'metrics_{mode}.csv')
-    file_exists = os.path.isfile(results_path)
-    with open(results_path, 'a', newline='', encoding='utf8') as cfa:
+    results_path = task+'_metrics_{}.csv'.format(mode)
+    with open(results_path,mode='a',newline='',encoding='utf8') as cfa:
         wf = csv.writer(cfa)
-        if not file_exists:
-            wf.writerow(['val_loss', 'accuracy', 'f1', 'roc_auc', 'hamming', 'jaccard', 'precision', 'recall', 'average_precision', 'kappa'])
-        wf.writerow([metric_logger.meters["loss"].global_avg, accuracy, f1, roc_auc, hamming, jaccard, precision, recall, average_precision, kappa])
+        data2=[[acc,sensitivity,specificity,precision,auc_roc,auc_pr,F1,mcc,metric_logger.loss]]
+        for i in data2:
+            wf.writerow(i)
+            
     
-    if mode == 'test':
-        cm = ConfusionMatrix(actual_vector=true_labels, predict_vector=pred_labels)
-        cm.plot(cmap=plt.cm.Blues, number_label=True, normalized=True, plot_lib="matplotlib")
-        plt.savefig(os.path.join(args.output_dir, args.task, 'confusion_matrix_test.jpg'), dpi=600, bbox_inches='tight')
-    
-    return {k: meter.global_avg for k, meter in metric_logger.meters.items()}, score
+    if mode=='test':
+        cm = ConfusionMatrix(actual_vector=true_label_decode_list, predict_vector=prediction_decode_list)
+        cm.plot(cmap=plt.cm.Blues,number_label=True,normalized=True,plot_lib="matplotlib")
+        plt.savefig(task+'confusion_matrix_test.jpg',dpi=600,bbox_inches ='tight')
+
+    return {k: meter.global_avg for k, meter in metric_logger.meters.items()},auc_roc
