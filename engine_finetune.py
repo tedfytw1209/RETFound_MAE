@@ -77,8 +77,9 @@ def train_one_epoch(
     for data_iter_step, data_bs in enumerate(metric_logger.log_every(data_loader, print_freq, f'Epoch: [{epoch}]')):
         if data_iter_step % accum_iter == 0:
             lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
-        print(data_bs)
-        samples, targets = data_bs
+        print(len(data_bs))
+        samples = data_bs[0]
+        targets = data_bs[-1]
         samples, targets = samples.to(device, non_blocking=True), targets.to(device, non_blocking=True)
         if mixup_fn:
             samples, targets = mixup_fn(samples, targets)
