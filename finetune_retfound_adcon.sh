@@ -13,7 +13,7 @@
 date;hostname;pwd
 
 module load conda
-conda activate retfound
+conda activate retfound_old
 # Go to home directory
 #cd $HOME
 STUDY=$1
