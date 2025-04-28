@@ -73,7 +73,8 @@ class CSV_Dataset(Dataset):
                     n_slice = select_n_slices(k,depth)
                     idx_start, idx_end = med_point-n_slice,med_point+n_slice+1
                     for i in range(idx_start,idx_end):
-                        samples.append((image_name+'_%d'%i+'.jpg', self.class_to_idx[str(label)]))
+                        image_name = image_name.replace('_%d'%med_point,'_%d'%i) #!!! bug
+                        samples.append((image_name, self.class_to_idx[str(label)]))
                 self.half3D = False
             else:
                 samples = []
@@ -81,11 +82,13 @@ class CSV_Dataset(Dataset):
                     med_point = (depth+1)//2
                     n_slice = select_n_slices(k,depth)
                     idx_start, idx_end = med_point-n_slice,med_point+n_slice+1
-                    samples.append(([image_name+'_%d'%i+'.jpg' for i in range(idx_start,idx_end)], self.class_to_idx[str(label)]))
+                    image_name = image_name.replace('_%d'%med_point,'_%d'%i)
+                    samples.append(([image_name for i in range(idx_start,idx_end)], self.class_to_idx[str(label)]))
                 self.half3D = True
         else:
-            samples = [(image_name+'.jpg', self.class_to_idx[str(label)]) for image_name,label in zip(image_names, labels)]
+            samples = [(image_name, self.class_to_idx[str(label)]) for image_name,label in zip(image_names, labels)]
             self.half3D = False
+        samples = [n+'.jpg' if not n.endswith('.jpg') else n for n in samples]
         self.samples = samples
         self.targets = [s[1] for s in samples]
         self.k = k
