@@ -403,7 +403,7 @@ def main(args, criterion):
             args=args
         )
 
-        val_stats, val_score = evaluate_half3D(data_loader_val, model, device, args, epoch, mode='val',
+        val_stats, val_score = evaluate(data_loader_val, model, device, args, epoch, mode='val',
                                         num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
         if max_score < val_score:
             max_score = val_score
@@ -420,8 +420,8 @@ def main(args, criterion):
             model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
             model.to(device)
             print("Test with the best model, epoch = %d:" % checkpoint['epoch'])
-            test_stats, auc_roc = evaluate(data_loader_test, model, device, args, -1, mode='test',
-                                           num_class=args.nb_classes, log_writer=None)
+            test_stats, test_score = evaluate(data_loader_test, model, device, args, -1, mode='test',
+                                           num_class=args.nb_classes, k=args.num_k, log_writer=log_writer)
 
         if log_writer is not None:
             log_writer.add_scalar('loss/val', val_stats['loss'], epoch)
@@ -441,7 +441,7 @@ def main(args, criterion):
     print('Training time {}'.format(total_time_str))
     state_dict_best = torch.load(os.path.join(args.task,'checkpoint-best.pth'), map_location='cpu')
     model_without_ddp.load_state_dict(state_dict_best['model'])
-    test_stats,auc_roc = evaluate_half3D(data_loader_test, model_without_ddp, device,args.task,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k)
+    test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args.task,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
 
 if __name__ == '__main__':
     args = get_args_parser()

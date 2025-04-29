@@ -118,7 +118,7 @@ def train_one_epoch(
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
 @torch.no_grad()
-def evaluate(data_loader, model, device, args, epoch, mode, num_class, log_writer):
+def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_writer):
     """Evaluate the model."""
     criterion = nn.CrossEntropyLoss()
     metric_logger = misc.MetricLogger(delimiter="  ")
@@ -184,7 +184,7 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, log_write
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}, score
 
 @torch.no_grad()
-def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k):
+def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k, log_writer):
     criterion = torch.nn.CrossEntropyLoss()
 
     metric_logger = misc.MetricLogger(delimiter="  ")
