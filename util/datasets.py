@@ -181,11 +181,9 @@ class DistributedSamplerWrapper(torch.utils.data.distributed.DistributedSampler)
         rank = None,
         seed = 0,
         shuffle = True,
+        drop_last = False,
     ):
         self.base_sampler = base_sampler
-        self.batch_size = base_sampler.batch_size
-        shuffle = shuffle
-        drop_last = self.base_sampler.drop_last
         super().__init__(base_sampler, num_replicas=num_replicas, rank=rank, shuffle=shuffle, seed=seed, drop_last=drop_last)
 
     def __iter__(self):
