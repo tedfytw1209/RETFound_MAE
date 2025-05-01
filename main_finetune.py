@@ -263,6 +263,9 @@ def main(args, criterion):
             sampler_train = DistributedSamplerWrapper(
                 bal_train_sampler, num_replicas=num_tasks, rank=global_rank, shuffle=True
             )
+            sampler_val = torch.utils.data.DistributedSampler(
+                dataset_val, num_replicas=num_tasks, rank=global_rank,
+                shuffle=True)  # shuffle=True to reduce monitor bias
         else:
             if not args.eval:
                 sampler_train = torch.utils.data.DistributedSampler(
