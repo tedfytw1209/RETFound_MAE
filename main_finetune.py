@@ -444,7 +444,7 @@ def main(args, criterion):
     print('Training time {}'.format(total_time_str))
     state_dict_best = torch.load(os.path.join(args.output_dir,args.task,'checkpoint-best.pth'), map_location='cpu')
     model_without_ddp.load_state_dict(state_dict_best['model'])
-    test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args.task,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
+    test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
 
 if __name__ == '__main__':
     args = get_args_parser()
