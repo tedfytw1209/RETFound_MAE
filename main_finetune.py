@@ -22,13 +22,13 @@ from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from huggingface_hub import hf_hub_download, login
 from engine_finetune import evaluate_half3D, train_one_epoch, evaluate
+import wandb
 
 import warnings
 import faulthandler
 
 faulthandler.enable()
 warnings.simplefilter(action='ignore', category=FutureWarning)
-
 
 def get_args_parser():
     parser = argparse.ArgumentParser('MAE fine-tuning for image classification', add_help=False)
@@ -300,6 +300,12 @@ def main(args, criterion):
     if global_rank == 0 and args.log_dir is not None and not args.eval:
         os.makedirs(args.log_dir, exist_ok=True)
         log_writer = SummaryWriter(log_dir=os.path.join(args.log_dir,args.task))
+        wandb.init(
+            project="RETFound_MAE",
+            name=args.task,
+            config=args,
+            dir=os.path.join(args.log_dir,args.task),
+        )
     else:
         log_writer = None
 
@@ -396,7 +402,7 @@ def main(args, criterion):
     if args.eval:
         if 'epoch' in checkpoint:
             print("Test with the best model at epoch = %d" % checkpoint['epoch'])
-        test_stats, auc_roc = evaluate_half3D(data_loader_test, model, device, args, epoch=0, mode='test',
+        test_stats, auc_roc = evaluate(data_loader_test, model, device, args, epoch=0, mode='test',
                                        num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
         exit(0)
 
@@ -418,6 +424,11 @@ def main(args, criterion):
 
         val_stats, val_score = evaluate(data_loader_val, model, device, args, epoch, mode='val',
                                         num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
+        if log_writer is not None and misc.is_main_process():
+            wandb_dict = {"epoch": epoch}
+            wandb_dict.update({f'train_{k}': v for k, v in train_stats.items()})
+            wandb_dict.update({f'val_{k}': v for k, v in val_stats.items()})
+            wandb.log(wandb_dict, step=epoch)
         if max_score < val_score:
             max_score = val_score
             best_epoch = epoch
@@ -432,8 +443,8 @@ def main(args, criterion):
             checkpoint = torch.load(os.path.join(args.output_dir, args.task, 'checkpoint-best.pth'), map_location='cpu')
             model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
             model.to(device)
-            print("Test with the best model, epoch = %d:" % checkpoint['epoch'])
-            test_stats, test_score = evaluate(data_loader_test, model, device, args, -1, mode='test',
+            print("Validation with the best model, epoch = %d:" % checkpoint['epoch'])
+            val_stats, val_score = evaluate(data_loader_val, model, device, args, -1, mode='val',
                                            num_class=args.nb_classes, k=args.num_k, log_writer=log_writer)
 
         if log_writer is not None:
@@ -454,7 +465,14 @@ def main(args, criterion):
     print('Training time {}'.format(total_time_str))
     state_dict_best = torch.load(os.path.join(args.output_dir,args.task,'checkpoint-best.pth'), map_location='cpu')
     model_without_ddp.load_state_dict(state_dict_best['model'])
+    print("Test with the best model, epoch = %d:" % checkpoint['epoch'])
     test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
+    if log_writer is not None and misc.is_main_process():
+        wandb_dict = {"epoch": epoch}
+        wandb_dict.update({f'test_{k}': v for k, v in test_stats.items()})
+        wandb.log(wandb_dict, step=epoch)
+        log_writer.close()
+        wandb.finish()
 
 if __name__ == '__main__':
     args = get_args_parser()
