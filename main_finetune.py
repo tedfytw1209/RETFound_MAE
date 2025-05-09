@@ -132,6 +132,8 @@ def get_args_parser():
     parser.set_defaults(pin_mem=True)
     parser.add_argument('--bal_sampler', action='store_true', default=False,
                         help='Enabling balanced class sampler')
+    parser.add_argument('--fix_extractor', action='store_true', default=False,
+                        help='Fixing the backbone parameters')
     parser.add_argument('--num_k', default=0, type=float)
     parser.add_argument('--img_dir', default='/orange/bianjiang/tienyu/OCT_AD/all_images/', type=str)
 
@@ -345,6 +347,14 @@ def main(args, criterion):
     model.to(device)
     model_without_ddp = model
 
+    if args.fix_extractor:
+        print("Fixing the backbone parameters")
+        for name, param in model.named_parameters():
+            if 'head' not in name:
+                param.requires_grad = False
+            else:
+                param.requires_grad = True
+    
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of model params (M): %.2f' % (n_parameters / 1.e6))
 
