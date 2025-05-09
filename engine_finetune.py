@@ -183,7 +183,9 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_wr
         cm.plot(cmap=plt.cm.Blues, number_label=True, normalized=True, plot_lib="matplotlib")
         plt.savefig(os.path.join(args.output_dir, args.task, 'confusion_matrix_test.jpg'), dpi=600, bbox_inches='tight')
     
-    return {k: meter.global_avg for k, meter in metric_logger.meters.items()}.update(metric_dict), score
+    out_dict = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    out_dict.update(metric_dict)
+    return out_dict, score
 
 @torch.no_grad()
 def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k, log_writer):
