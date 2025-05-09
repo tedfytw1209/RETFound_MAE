@@ -156,10 +156,12 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_wr
     recall = recall_score(true_onehot, pred_onehot, zero_division=0, average='macro')
     
     score = (f1 + roc_auc + kappa) / 3
+    metric_dict = {}
     if log_writer:
         for metric_name, value in zip(['accuracy', 'f1', 'roc_auc', 'hamming', 'jaccard', 'precision', 'recall', 'average_precision', 'kappa', 'score'],
                                        [accuracy, f1, roc_auc, hamming, jaccard, precision, recall, average_precision, kappa, score]):
             log_writer.add_scalar(f'perf/{metric_name}', value, epoch)
+            metric_dict[metric_name] = value
     
     print(f'val loss: {metric_logger.meters["loss"].global_avg}')
     print(f'Accuracy: {accuracy:.4f}, F1 Score: {f1:.4f}, ROC AUC: {roc_auc:.4f}, Hamming Loss: {hamming:.4f},\n'
@@ -181,7 +183,7 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_wr
         cm.plot(cmap=plt.cm.Blues, number_label=True, normalized=True, plot_lib="matplotlib")
         plt.savefig(os.path.join(args.output_dir, args.task, 'confusion_matrix_test.jpg'), dpi=600, bbox_inches='tight')
     
-    return {k: meter.global_avg for k, meter in metric_logger.meters.items()}, score
+    return {k: meter.global_avg for k, meter in metric_logger.meters.items()}.update(metric_dict), score
 
 @torch.no_grad()
 def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k, log_writer):
