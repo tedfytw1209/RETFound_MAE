@@ -13,7 +13,10 @@ from torch.utils.tensorboard import SummaryWriter
 from timm.models.layers import trunc_normal_
 from timm.data.mixup import Mixup
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
-from transformers import ViTImageProcessor, ViTForImageClassification
+from transformers import (
+    ViTImageProcessor, ViTForImageClassification,
+    AutoImageProcessor, EfficientNetForImageClassification
+)
 
 import models_vit as models
 import util.lr_decay as lrd
@@ -218,12 +221,27 @@ def main(args, criterion):
             # load pre-trained model
             msg = model.load_state_dict(checkpoint_model, strict=False)
             trunc_normal_(model.head.weight, std=2e-5)
+            processor = None
+        elif args.model == 'vit_base_patch16_224':
+            # ViT-base-patch16-224 preprocessor
+            processor = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
+            model = ViTForImageClassification.from_pretrained(
+                'google/vit-base-patch16-224',
+                num_labels=args.nb_classes
+            )
+        elif args.model == 'efficientnet_b0':
+            # EfficientNet-B0 preprocessor
+            processor = AutoImageProcessor.from_pretrained('google/efficientnet-b0')
+            model = EfficientNetForImageClassification.from_pretrained(
+                'google/efficientnet-b0',
+                num_labels=args.nb_classes
+            )
         else:
             pass
             
-    dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir)
-    dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir)
-    dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir)
+    dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
+    dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
+    dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
     
     #for weighted loss
     if args.loss_weight:

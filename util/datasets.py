@@ -122,11 +122,13 @@ class CSV_Dataset(Dataset):
             image_len = 1
         
         label = int(sample[1])
-
+        #debug visualization
+        print(image)
         return image, label, image_len
 
-def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/'):
-    transform = build_transform(is_train, args)
+def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None):
+    if transform is None:
+        transform = build_transform(is_train, args)
     
     if args.data_path.endswith('.csv'):
         dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k)
