@@ -85,7 +85,11 @@ def train_one_epoch(
         
         with torch.cuda.amp.autocast():
             outputs = model(samples)
-            loss = criterion(outputs, targets)
+            if hasattr(outputs, 'logits'):
+                logits = outputs.logits
+            else:
+                logits = outputs
+            loss = criterion(logits, targets)
         loss_value = loss.item()
         loss /= accum_iter
         
