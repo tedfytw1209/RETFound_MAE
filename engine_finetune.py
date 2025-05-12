@@ -86,10 +86,10 @@ def train_one_epoch(
         with torch.cuda.amp.autocast():
             outputs = model(samples)
             if hasattr(outputs, 'logits'):
-                logits = outputs.logits
+                outputs = outputs.logits
             else:
-                logits = outputs
-            loss = criterion(logits, targets)
+                outputs = outputs
+            loss = criterion(outputs, targets)
         loss_value = loss.item()
         loss /= accum_iter
         
@@ -137,6 +137,10 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_wr
         
         with torch.cuda.amp.autocast():
             output = model(images)
+            if hasattr(output, 'logits'):
+                output = output.logits
+            else:
+                output = output
             loss = criterion(output, target)
         output_ = nn.Softmax(dim=1)(output)
         output_label = output_.argmax(dim=1)
@@ -225,6 +229,10 @@ def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k,
         # compute output
         with torch.cuda.amp.autocast():
             output = model(images)
+            if hasattr(output, 'logits'):
+                output = output.logits
+            else:
+                output = output
             prediction_softmax = nn.Softmax(dim=-1)(output)
             if k>0:
                 output = output.view(b,n,-1)
