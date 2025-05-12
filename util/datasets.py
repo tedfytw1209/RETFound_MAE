@@ -123,7 +123,7 @@ class CSV_Dataset(Dataset):
         
         label = int(sample[1])
         #debug visualization
-        print(image)
+        #print(image)
         return image, label, image_len
 
 def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None):
@@ -225,4 +225,4 @@ class TransformWrapper:
 
     def __call__(self, x):
         inputs = self.transform(images=x, return_tensors="pt")
-        return inputs["pixel_values"][0].permute(2, 0, 1)  # C, H, W
+        return inputs["pixel_values"][0]
