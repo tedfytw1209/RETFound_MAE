@@ -188,6 +188,29 @@ def main(args, criterion):
         drop_path_rate=args.drop_path,
         global_pool=args.global_pool,
     )
+    elif args.model == 'vit_base_patch16_224':
+            # ViT-base-patch16-224 preprocessor
+            processor = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
+            model = ViTForImageClassification.from_pretrained(
+                'google/vit-base-patch16-224',
+                image_size=args.input_size,
+                num_labels=args.nb_classes,
+                hidden_dropout_prob=args.drop_path,
+                attention_probs_dropout_prob=args.drop_path,
+                id2label={0: "control", 1: "ad"},
+                label2id={"control": 0, "ad": 1}
+            )
+    elif args.model == 'efficientnet_b0':
+        # EfficientNet-B0 preprocessor
+        processor = AutoImageProcessor.from_pretrained('google/efficientnet-b0')
+        model = EfficientNetForImageClassification.from_pretrained(
+            'google/efficientnet-b0',
+            image_size=args.input_size,
+            num_labels=args.nb_classes,
+            dropout_rate=args.drop_path,
+            id2label={0: "control", 1: "ad"},
+            label2id={"control": 0, "ad": 1}
+        )
     else:
         model = models.__dict__[args.model](
             num_classes=args.nb_classes,
@@ -195,8 +218,9 @@ def main(args, criterion):
             args=args,
         )
     
+    #RETFound special case: load checkpoint
     if args.finetune and not args.eval:
-        if 'RETFound' in args.finetune: #RETFound special case
+        if 'RETFound' in args.finetune: 
             print(f"Downloading pre-trained weights from: {args.finetune}")
             checkpoint_path = hf_hub_download(
                 repo_id=f'YukunZhou/{args.finetune}',
@@ -222,22 +246,8 @@ def main(args, criterion):
             msg = model.load_state_dict(checkpoint_model, strict=False)
             trunc_normal_(model.head.weight, std=2e-5)
             processor = None
-        elif args.model == 'vit_base_patch16_224':
-            # ViT-base-patch16-224 preprocessor
-            processor = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
-            model = ViTForImageClassification.from_pretrained(
-                'google/vit-base-patch16-224',
-                num_labels=args.nb_classes
-            )
-        elif args.model == 'efficientnet_b0':
-            # EfficientNet-B0 preprocessor
-            processor = AutoImageProcessor.from_pretrained('google/efficientnet-b0')
-            model = EfficientNetForImageClassification.from_pretrained(
-                'google/efficientnet-b0',
-                num_labels=args.nb_classes
-            )
         else:
-            pass
+            print("No checkpoints from: %s" % args.finetune)
             
     dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
     dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
