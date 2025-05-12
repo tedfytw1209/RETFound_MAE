@@ -218,3 +218,11 @@ class DistributedSamplerWrapper(torch.utils.data.distributed.DistributedSampler)
         assert len(indices) == self.num_samples
 
         return iter(indices)
+
+class TransformWrapper:
+    def __init__(self, transform):
+        self.transform = transform
+
+    def __call__(self, x):
+        inputs = self.transform(images=x, return_tensors="pt")
+        return inputs["pixel_values"][0].permute(2, 0, 1)  # C, H, W

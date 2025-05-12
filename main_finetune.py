@@ -21,7 +21,7 @@ from transformers import (
 import models_vit as models
 import util.lr_decay as lrd
 import util.misc as misc
-from util.datasets import build_dataset,DistributedSamplerWrapper
+from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapper
 from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from huggingface_hub import hf_hub_download, login
@@ -190,7 +190,7 @@ def main(args, criterion):
     )
     elif args.model == 'vit_base_patch16_224':
             # ViT-base-patch16-224 preprocessor
-            processor = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
+            processor = TransformWrapper(ViTImageProcessor.from_pretrained('google/vit-base-patch16-224'))
             model = ViTForImageClassification.from_pretrained(
                 'google/vit-base-patch16-224',
                 image_size=args.input_size,
@@ -203,7 +203,7 @@ def main(args, criterion):
             )
     elif args.model == 'efficientnet_b0':
         # EfficientNet-B0 preprocessor
-        processor = AutoImageProcessor.from_pretrained('google/efficientnet-b0')
+        processor = TransformWrapper(AutoImageProcessor.from_pretrained('google/efficientnet-b0'))
         model = EfficientNetForImageClassification.from_pretrained(
             'google/efficientnet-b0',
             image_size=args.input_size,
