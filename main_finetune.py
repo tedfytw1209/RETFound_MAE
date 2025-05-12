@@ -404,12 +404,20 @@ def main(args, criterion):
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         model_without_ddp = model.module
 
+    # HF transformers model (ViT / EfficientNet) AdamW ---
     no_weight_decay = model_without_ddp.no_weight_decay() if hasattr(model_without_ddp, 'no_weight_decay') else []
-    param_groups = lrd.param_groups_lrd(model_without_ddp, args.weight_decay,
-                                        no_weight_decay_list=no_weight_decay,
-                                        layer_decay=args.layer_decay
-                                        )
-    optimizer = torch.optim.AdamW(param_groups, lr=args.lr)
+    if args.model in ('vit_base_patch16_224', 'efficientnet_b0'):
+        optimizer = torch.optim.AdamW(
+            model_without_ddp.parameters(),
+            lr=args.lr,
+            weight_decay=args.weight_decay
+        )
+    else:
+        param_groups = lrd.param_groups_lrd(model_without_ddp, args.weight_decay,
+                                            no_weight_decay_list=no_weight_decay,
+                                            layer_decay=args.layer_decay
+                                            )
+        optimizer = torch.optim.AdamW(param_groups, lr=args.lr)
     loss_scaler = NativeScaler()
 
     if mixup_fn is not None:
