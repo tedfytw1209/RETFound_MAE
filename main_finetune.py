@@ -13,6 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 from timm.models.layers import trunc_normal_
 from timm.data.mixup import Mixup
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
+from transformers import ViTImageProcessor, ViTForImageClassification
 
 import models_vit as models
 import util.lr_decay as lrd
@@ -192,40 +193,34 @@ def main(args, criterion):
         )
     
     if args.finetune and not args.eval:
-        
-        print(f"Downloading pre-trained weights from: {args.finetune}")
-        
-        checkpoint_path = hf_hub_download(
-            repo_id=f'YukunZhou/{args.finetune}',
-            filename=f'{args.finetune}.pth',
-        )
-        
-        checkpoint = torch.load(checkpoint_path, map_location='cpu')
-        print("Load pre-trained checkpoint from: %s" % args.finetune)
-        
-        if args.model!='RETFound_mae':
-            checkpoint_model = checkpoint['teacher']
+        if 'RETFound' in args.finetune: #RETFound special case
+            print(f"Downloading pre-trained weights from: {args.finetune}")
+            checkpoint_path = hf_hub_download(
+                repo_id=f'YukunZhou/{args.finetune}',
+                filename=f'{args.finetune}.pth',
+            )
+            checkpoint = torch.load(checkpoint_path, map_location='cpu')
+            print("Load pre-trained checkpoint from: %s" % args.finetune)
+            if args.model!='RETFound_mae':
+                checkpoint_model = checkpoint['teacher']
+            else:
+                checkpoint_model = checkpoint['model']
+            checkpoint_model = {k.replace("backbone.", ""): v for k, v in checkpoint_model.items()}
+            checkpoint_model = {k.replace("mlp.w12.", "mlp.fc1."): v for k, v in checkpoint_model.items()}
+            checkpoint_model = {k.replace("mlp.w3.", "mlp.fc2."): v for k, v in checkpoint_model.items()}
+            state_dict = model.state_dict()
+            for k in ['head.weight', 'head.bias']:
+                if k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape:
+                    print(f"Removing key {k} from pretrained checkpoint")
+                    del checkpoint_model[k]
+            # interpolate position embedding
+            interpolate_pos_embed(model, checkpoint_model)
+            # load pre-trained model
+            msg = model.load_state_dict(checkpoint_model, strict=False)
+            trunc_normal_(model.head.weight, std=2e-5)
         else:
-            checkpoint_model = checkpoint['model']
-
-        checkpoint_model = {k.replace("backbone.", ""): v for k, v in checkpoint_model.items()}
-        checkpoint_model = {k.replace("mlp.w12.", "mlp.fc1."): v for k, v in checkpoint_model.items()}
-        checkpoint_model = {k.replace("mlp.w3.", "mlp.fc2."): v for k, v in checkpoint_model.items()}
-        
-        state_dict = model.state_dict()
-        for k in ['head.weight', 'head.bias']:
-            if k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape:
-                print(f"Removing key {k} from pretrained checkpoint")
-                del checkpoint_model[k]
-
-        # interpolate position embedding
-        interpolate_pos_embed(model, checkpoint_model)
-
-        # load pre-trained model
-        msg = model.load_state_dict(checkpoint_model, strict=False)
-
-        trunc_normal_(model.head.weight, std=2e-5)
-
+            pass
+            
     dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir)
     dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir)
     dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir)
