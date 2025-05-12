@@ -1,0 +1,30 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=16gb
+#SBATCH --partition=gpu
+#SBATCH --gpus=a100:1
+#SBATCH --time=48:00:00
+#SBATCH --output=%x.%j.out
+#SBATCH --account=yonghui.wu
+#SBATCH --qos=yonghui.wu
+
+date;hostname;pwd
+
+module load conda
+conda activate retfound_new
+# Go to home directory
+#cd $HOME
+STUDY=$1
+Num_CLASS=5
+ADDCMD=${2:-""}
+ADDCMD2=${3:-""}
+
+MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
+
+echo $Num_CLASS
+
+# Modify the path to your singularity container 
+
+torchrun --nproc_per_node=1 --master_port=48798 main_finetune.py --savemodel --global_pool    --batch_size 16     --world_size 1     --model RETFound_mae     --epochs 100 --blr 5e-3 --layer_decay 0.65     --weight_decay 0.05 --drop_path 0.2     --nb_classes $Num_CLASS     --data_path /blue/ruogu.fang/tienyuchang/RETFound_MAE/Data/OCTID/     --task $STUDY-$ADDCMD-$ADDCMD2/ --finetune RETFound_mae_natureOCT --num_workers 8 --input_size 224 $ADDCMD $ADDCMD2 --eval --resume /orange/ruogu.fang/tienyuchang/retfound_finetuned_model/OCTID/checkpoint-best.pth
