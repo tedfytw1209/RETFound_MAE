@@ -198,7 +198,8 @@ def main(args, criterion):
                 hidden_dropout_prob=args.drop_path,
                 attention_probs_dropout_prob=args.drop_path,
                 id2label={0: "control", 1: "ad"},
-                label2id={"control": 0, "ad": 1}
+                label2id={"control": 0, "ad": 1},
+                ignore_mismatched_sizes=True
             )
     elif args.model == 'efficientnet_b0':
         # EfficientNet-B0 preprocessor
@@ -209,7 +210,8 @@ def main(args, criterion):
             num_labels=args.nb_classes,
             dropout_rate=args.drop_path,
             id2label={0: "control", 1: "ad"},
-            label2id={"control": 0, "ad": 1}
+            label2id={"control": 0, "ad": 1},
+            ignore_mismatched_sizes=True
         )
     else:
         model = models.__dict__[args.model](
