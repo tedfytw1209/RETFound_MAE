@@ -380,11 +380,14 @@ def main(args, criterion):
 
     if args.fix_extractor:
         print("Fixing the backbone parameters")
+        if args.model in ['vit_base_patch16_224', 'efficientnet_b0']:
+            # HuggingFace models: classifier is the head
+            head_keyword = 'classifier'
+        else:
+            # timm or custom models: often use 'head'
+            head_keyword = 'head'
         for name, param in model.named_parameters():
-            if 'head' not in name:
-                param.requires_grad = False
-            else:
-                param.requires_grad = True
+            param.requires_grad = head_keyword in name
     
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of model params (M): %.2f' % (n_parameters / 1.e6))
