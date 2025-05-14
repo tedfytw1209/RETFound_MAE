@@ -175,6 +175,7 @@ def main(args, criterion):
 
     cudnn.benchmark = True
 
+    processor = None
     if args.model=='RETFound_mae':
         model = models.__dict__[args.model](
         img_size=args.input_size,
