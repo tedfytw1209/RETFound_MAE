@@ -160,12 +160,6 @@ def get_args_parser():
 
 
 def main(args, criterion):
-    if args.resume and not args.eval:
-        resume = args.resume
-        checkpoint = torch.load(args.resume, map_location='cpu')
-        print("Load checkpoint from: %s" % args.resume)
-        args = checkpoint['args']
-        args.resume = resume
 
     misc.init_distributed_mode(args)
 
@@ -321,16 +315,15 @@ def main(args, criterion):
                 shuffle=True)  # shuffle=True to reduce monitor bias
         else:
             sampler_test = torch.utils.data.SequentialSampler(dataset_test)
-
+    wandb.init(
+        project="RETFound_MAE",
+        name=args.task,
+        config=args,
+        dir=os.path.join(args.log_dir,args.task),
+    )
     if global_rank == 0 and args.log_dir is not None and not args.eval:
         os.makedirs(args.log_dir, exist_ok=True)
         log_writer = SummaryWriter(log_dir=os.path.join(args.log_dir,args.task))
-        wandb.init(
-            project="RETFound_MAE",
-            name=args.task,
-            config=args,
-            dir=os.path.join(args.log_dir,args.task),
-        )
     else:
         log_writer = None
 
@@ -440,6 +433,11 @@ def main(args, criterion):
             print("Test with the best model at epoch = %d" % checkpoint['epoch'])
         test_stats, auc_roc = evaluate(data_loader_test, model, device, args, epoch=0, mode='test',
                                        num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
+        wandb_dict.update({f'test_{k}': v for k, v in test_stats.items()})
+        wandb.log(wandb_dict)
+        wandb.finish()
+        if log_writer is not None:
+            log_writer.close()
         exit(0)
 
     print(f"Start training for {args.epochs} epochs")
