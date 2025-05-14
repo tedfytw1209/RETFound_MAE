@@ -434,7 +434,7 @@ def main(args, criterion):
             print("Test with the best model at epoch = %d" % checkpoint['epoch'])
         test_stats, auc_roc = evaluate(data_loader_test, model, device, args, epoch=0, mode='test',
                                        num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
-        wandb_dict.update({f'test_{k}': v for k, v in test_stats.items()})
+        wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
         wandb.log(wandb_dict)
         wandb.finish()
         if log_writer is not None:
