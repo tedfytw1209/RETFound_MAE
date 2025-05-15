@@ -190,6 +190,26 @@ def main(args, criterion):
             print(f"Label:", label)
         else:
             break
+    print(f"dataset_val: {len(dataset_val)}")
+    for i, sample in enumerate(dataset_val):
+        oct_image = sample[0]
+        label = sample[1]
+        if i < 5:
+            print(f"OCT image shape: {oct_image.shape}")
+            print(f"OCT image max: {oct_image.max().item()}, min: {oct_image.min().item()}, mean: {oct_image.mean().item()}")
+            print(f"Label:", label)
+        else:
+            break
+    print(f"dataset_test: {len(dataset_test)}")
+    for i, sample in enumerate(dataset_test):
+        oct_image = sample[0]
+        label = sample[1]
+        if i < 5:
+            print(f"OCT image shape: {oct_image.shape}")
+            print(f"OCT image max: {oct_image.max().item()}, min: {oct_image.min().item()}, mean: {oct_image.mean().item()}")
+            print(f"Label:", label)
+        else:
+            break
     
 
 if __name__ == '__main__':
