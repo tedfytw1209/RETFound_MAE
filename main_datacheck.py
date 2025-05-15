@@ -193,7 +193,7 @@ def main(args, criterion):
         label = sample[1]
         if i < 3:
             print(f"OCT image shape: {oct_image.shape}")
-            print(f"OCT image max: {oct_image.max().item()}, min: {oct_image.min().item()}, mean: {oct_image.mean().item()}")
+            print(f"OCT image max: {oct_image.max().item()}, min: {oct_image.min().item()}, mean: {oct_image.mean().item()}, std: {oct_image.std().item()}")
             print(f"Label:", label)
         else:
             break
@@ -203,7 +203,7 @@ def main(args, criterion):
         label = sample[1]
         if i < 3:
             print(f"OCT image shape: {oct_image.shape}")
-            print(f"OCT image max: {oct_image.max().item()}, min: {oct_image.min().item()}, mean: {oct_image.mean().item()}")
+            print(f"OCT image max: {oct_image.max().item()}, min: {oct_image.min().item()}, mean: {oct_image.mean().item()}, std: {oct_image.std().item()}")
             print(f"Label:", label)
         else:
             break
@@ -213,7 +213,7 @@ def main(args, criterion):
         label = sample[1]
         if i < 3:
             print(f"OCT image shape: {oct_image.shape}")
-            print(f"OCT image max: {oct_image.max().item()}, min: {oct_image.min().item()}, mean: {oct_image.mean().item()}")
+            print(f"OCT image max: {oct_image.max().item()}, min: {oct_image.min().item()}, mean: {oct_image.mean().item()}, std: {oct_image.std().item()}")
             print(f"Label:", label)
         else:
             break
