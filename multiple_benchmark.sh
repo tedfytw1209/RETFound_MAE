@@ -7,4 +7,4 @@ sbatch finetune_retfound_benchmark.sh PAPILA retfound 3 /orange/ruogu.fang/tieny
 sbatch finetune_retfound_benchmark.sh Glaucoma retfound 3 /orange/ruogu.fang/tienyuchang/OCTRFF_Data/benchmark/Glaucoma_fundus RETFound_mae_natureCFP
 sbatch finetune_retfound_benchmark.sh JSIEC retfound 39 /orange/ruogu.fang/tienyuchang/OCTRFF_Data/benchmark/JSIEC RETFound_mae_natureCFP
 sbatch finetune_retfound_benchmark.sh Retina retfound 4 /orange/ruogu.fang/tienyuchang/OCTRFF_Data/benchmark/Retina RETFound_mae_natureCFP
-sbatch finetune_retfound_benchmark.sh OCTID retfound 5 /orange/ruogu.fang/tienyuchang/OCTRFF_Data/benchmark/OCTID RETFound_mae_natureCFP
+sbatch finetune_retfound_benchmark.sh OCTID retfound 5 /orange/ruogu.fang/tienyuchang/OCTRFF_Data/benchmark/OCTID RETFound_mae_natureOCT
