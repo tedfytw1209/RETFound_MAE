@@ -165,32 +165,53 @@ def main(args, criterion):
     dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
     dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
     dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
+    data_loader_train = torch.utils.data.DataLoader(
+            dataset_train,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=True,
+        )
+    data_loader_val = torch.utils.data.DataLoader(
+        dataset_val,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        pin_memory=args.pin_mem,
+        drop_last=False
+    )
+    data_loader_test = torch.utils.data.DataLoader(
+        dataset_test,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        pin_memory=args.pin_mem,
+        drop_last=False
+    )
 
     print(f"dataset_train: {len(dataset_train)}")
-    for i, sample in enumerate(dataset_train):
+    for i, sample in enumerate(data_loader_train):
         oct_image = sample[0]
         label = sample[1]
-        if i < 5:
+        if i < 3:
             print(f"OCT image shape: {oct_image.shape}")
             print(f"OCT image max: {oct_image.max().item()}, min: {oct_image.min().item()}, mean: {oct_image.mean().item()}")
             print(f"Label:", label)
         else:
             break
     print(f"dataset_val: {len(dataset_val)}")
-    for i, sample in enumerate(dataset_val):
+    for i, sample in enumerate(data_loader_val):
         oct_image = sample[0]
         label = sample[1]
-        if i < 5:
+        if i < 3:
             print(f"OCT image shape: {oct_image.shape}")
             print(f"OCT image max: {oct_image.max().item()}, min: {oct_image.min().item()}, mean: {oct_image.mean().item()}")
             print(f"Label:", label)
         else:
             break
     print(f"dataset_test: {len(dataset_test)}")
-    for i, sample in enumerate(dataset_test):
+    for i, sample in enumerate(data_loader_test):
         oct_image = sample[0]
         label = sample[1]
-        if i < 5:
+        if i < 3:
             print(f"OCT image shape: {oct_image.shape}")
             print(f"OCT image max: {oct_image.max().item()}, min: {oct_image.min().item()}, mean: {oct_image.mean().item()}")
             print(f"Label:", label)
