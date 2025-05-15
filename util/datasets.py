@@ -225,4 +225,4 @@ class TransformWrapper:
 
     def __call__(self, x):
         inputs = self.transform(images=x, return_tensors="pt")
-        return inputs["pixel_values"][0]
+        return inputs["pixel_values"][0]    
