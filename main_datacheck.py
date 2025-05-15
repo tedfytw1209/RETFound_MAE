@@ -161,20 +161,6 @@ def get_args_parser():
 
 def main(args, criterion):
 
-    misc.init_distributed_mode(args)
-
-    print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
-    print("{}".format(args).replace(', ', ',\n'))
-
-    device = torch.device(args.device)
-
-    # fix the seed for reproducibility
-    seed = args.seed + misc.get_rank()
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-
-    cudnn.benchmark = True
-
     processor = None
     dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
     dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
