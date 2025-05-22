@@ -208,6 +208,18 @@ def main(args, criterion):
             label2id={"control": 0, "ad": 1},
             ignore_mismatched_sizes=True
         )
+    elif args.model == 'efficientnet_b4':
+        # EfficientNet-B0 preprocessor
+        processor = TransformWrapper(AutoImageProcessor.from_pretrained('google/efficientnet-b4'))
+        model = EfficientNetForImageClassification.from_pretrained(
+            'google/efficientnet-b4',
+            image_size=args.input_size,
+            num_labels=args.nb_classes,
+            dropout_rate=args.drop_path,
+            id2label={0: "control", 1: "ad"},
+            label2id={"control": 0, "ad": 1},
+            ignore_mismatched_sizes=True
+        )
     else:
         model = models.__dict__[args.model](
             num_classes=args.nb_classes,
