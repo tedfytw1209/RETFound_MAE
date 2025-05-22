@@ -70,7 +70,7 @@ def train_one_epoch(
     metric_logger.add_meter('lr', misc.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     print_freq, accum_iter = 20, args.accum_iter
     optimizer.zero_grad()
-    
+    all_labels, all_preds, all_probs = [], [], []
     if log_writer:
         print(f'log_dir: {log_writer.log_dir}')
     
@@ -92,6 +92,11 @@ def train_one_epoch(
             loss = criterion(outputs, targets)
         loss_value = loss.item()
         loss /= accum_iter
+        probs = torch.softmax(outputs, dim=1)
+        _, preds = torch.max(probs, 1)
+        all_labels.extend(targets.cpu().numpy())
+        all_preds.extend(preds.cpu().numpy())
+        all_probs.extend(probs.detach().cpu().numpy())
         
         loss_scaler(loss, optimizer, clip_grad=max_norm, parameters=model.parameters(), create_graph=False,
                     update_grad=(data_iter_step + 1) % accum_iter == 0)
@@ -117,9 +122,14 @@ def train_one_epoch(
             log_writer.add_scalar('loss/train', loss_value_reduce, epoch_1000x)
             log_writer.add_scalar('lr', max_lr, epoch_1000x)
     
+    #Metric
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
-    return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    accuracy = accuracy_score(all_labels, all_preds)
+    train_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    train_stats['accuracy'] = accuracy
+    train_stats['f1'] = f1_score(all_labels, all_preds, zero_division=0, average='macro')
+    return train_stats
 
 @torch.no_grad()
 def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_writer):
