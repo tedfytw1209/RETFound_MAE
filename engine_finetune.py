@@ -11,7 +11,7 @@ from timm.utils import accuracy
 from sklearn.metrics import (
     accuracy_score, roc_auc_score, f1_score, average_precision_score,
     hamming_loss, jaccard_score, recall_score, precision_score, cohen_kappa_score,
-    multilabel_confusion_matrix
+    multilabel_confusion_matrix,confusion_matrix
 )
 from pycm import ConfusionMatrix
 import util.misc as misc
@@ -125,10 +125,14 @@ def train_one_epoch(
     #Metric
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
+    conf = confusion_matrix(all_labels, all_preds)
     accuracy = accuracy_score(all_labels, all_preds)
+    f1 = f1_score(all_labels, all_preds, zero_division=0, average='macro')
     train_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
     train_stats['accuracy'] = accuracy
-    train_stats['f1'] = f1_score(all_labels, all_preds, zero_division=0, average='macro')
+    train_stats['f1'] = f1
+    print(f'Accuracy: {accuracy:.4f}, F1 Score: {f1:.4f}')
+    print("confusion_matrix:\n", conf)
     return train_stats
 
 @torch.no_grad()
@@ -173,6 +177,8 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_wr
     precision = precision_score(true_onehot, pred_onehot, zero_division=0, average='macro')
     recall = recall_score(true_onehot, pred_onehot, zero_division=0, average='macro')
     
+    conf = confusion_matrix(true_labels, pred_labels)
+    
     score = (f1 + roc_auc + kappa) / 3
     metric_dict = {}
     if log_writer:
@@ -185,7 +191,7 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_wr
     print(f'Accuracy: {accuracy:.4f}, F1 Score: {f1:.4f}, ROC AUC: {roc_auc:.4f}, Hamming Loss: {hamming:.4f},\n'
           f' Jaccard Score: {jaccard:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f},\n'
           f' Average Precision: {average_precision:.4f}, Kappa: {kappa:.4f}, Score: {score:.4f}')
-    
+    print("confusion_matrix:\n", conf)
     metric_logger.synchronize_between_processes()
     
     results_path = os.path.join(args.output_dir, args.task, f'metrics_{mode}.csv')
