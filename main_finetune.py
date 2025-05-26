@@ -386,7 +386,7 @@ def main(args, criterion):
 
     if args.fix_extractor:
         print("Fixing the backbone parameters")
-        if args.model in ['vit_base_patch16_224', 'efficientnet_b0']:
+        if args.model in ['vit_base_patch16_224', 'efficientnet_b0', 'efficientnet_b4']:
             # HuggingFace models: classifier is the head
             head_keyword = 'classifier'
         else:
@@ -415,7 +415,7 @@ def main(args, criterion):
 
     # HF transformers model (ViT / EfficientNet) AdamW ---
     no_weight_decay = model_without_ddp.no_weight_decay() if hasattr(model_without_ddp, 'no_weight_decay') else []
-    if args.model in ('vit_base_patch16_224', 'efficientnet_b0'):
+    if args.model in ('vit_base_patch16_224', 'efficientnet_b0', 'efficientnet_b4'):
         optimizer = torch.optim.AdamW(
             model_without_ddp.parameters(),
             lr=args.lr,
