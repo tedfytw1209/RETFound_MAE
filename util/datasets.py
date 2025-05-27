@@ -43,7 +43,7 @@ def select_n_slices(k,depth):
         return k//2
 
 class CSV_Dataset(Dataset):
-    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0):
+    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}):
         #common args
         self.transfroms = transfroms
         self.root_dir = img_dir
@@ -54,12 +54,18 @@ class CSV_Dataset(Dataset):
         self.classes = [str(c) for c in self.annotations['label'].unique()]
         self.num_class = len(self.classes)
         #assert index order control, mci, ad
-        self.class_to_idx = {}
-        i = 0
-        for c in AD_LIST:
-            if c in self.classes:
-                self.class_to_idx[c] = i
-                i+=1
+        if not class_to_idx:
+            self.class_to_idx = {}
+            i = 0
+            for c in AD_LIST:
+                if c in self.classes:
+                    self.class_to_idx[c] = i
+                    i+=1
+            if i==0: #not in AD_LIST
+                for c in sorted(self.classes):
+                    self.class_to_idx[c] = int(c)
+        else:
+            self.class_to_idx = class_to_idx
         print('Class to idx: ', self.class_to_idx)
         self.channel = 3
         image_names, labels = self.annotations['OCT'], self.annotations['label']
