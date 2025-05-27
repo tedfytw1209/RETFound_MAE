@@ -493,6 +493,8 @@ def main(args, criterion):
             print("Validation with the best model, epoch = %d:" % checkpoint['epoch'])
             val_stats, val_score = evaluate(data_loader_val, model, device, args, -1, mode='val',
                                            num_class=args.nb_classes, k=args.num_k, log_writer=log_writer)
+            wandb_dict = {}
+            wandb_dict.update({f'best_val_{k}': v for k, v in val_stats.items()})
 
         if log_writer is not None:
             log_writer.add_scalar('loss/val', val_stats['loss'], epoch)
@@ -515,7 +517,7 @@ def main(args, criterion):
     print("Test with the best model, epoch = %d:" % checkpoint['epoch'])
     test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
     if log_writer is not None and misc.is_main_process():
-        wandb_dict = {"epoch": epoch}
+        wandb_dict = {}
         wandb_dict.update({f'test_{k}': v for k, v in test_stats.items()})
         wandb.log(wandb_dict, step=epoch)
         log_writer.close()
