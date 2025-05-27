@@ -24,6 +24,7 @@ import util.misc as misc
 from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapper
 from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
+from util.losses import FocalLoss, compute_alpha_from_labels
 from huggingface_hub import hf_hub_download, login
 from engine_finetune import evaluate_half3D, train_one_epoch, evaluate
 import wandb
@@ -67,6 +68,12 @@ def get_args_parser():
                         help='lower lr bound for cyclic schedulers that hit 0')
     parser.add_argument('--warmup_epochs', type=int, default=10, metavar='N',
                         help='epochs to warmup LR')
+    
+    #Loss parameters
+    parser.add_argument('--use_focal_loss', action='store_true',
+                    help='Use Focal Loss instead of CrossEntropy')
+    parser.add_argument('--focal_gamma', default=2.0, type=float,
+                        help='Gamma parameter for Focal Loss')
 
     # Augmentation parameters
     parser.add_argument('--color_jitter', type=float, default=None, metavar='PCT',
@@ -273,8 +280,13 @@ def main(args, criterion):
             train_weight[i] = np.sum(train_target == i)
         train_weight = np.sum(train_weight) / train_weight
         print('train_weight:',train_weight)
+        train_labels = dataset_train.targets
+        alpha = compute_alpha_from_labels(train_labels, num_classes=args.nb_classes)
+        alpha = alpha.to(torch.float32).to(device)
+        print('train_alpha:',alpha)
     else:
         train_weight = None
+        alpha = None
     
 
 
@@ -432,6 +444,9 @@ def main(args, criterion):
     if mixup_fn is not None:
         # smoothing is handled with mixup label transform
         criterion = SoftTargetCrossEntropy()
+    elif args.use_focal_loss:
+        print(f"Using Focal Loss (gamma={args.focal_gamma}, alpha={alpha})")
+        criterion = FocalLoss(gamma=args.focal_gamma, alpha=alpha)
     elif args.smoothing > 0.:
         criterion = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
     else:
