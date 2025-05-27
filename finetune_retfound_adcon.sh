@@ -15,8 +15,8 @@ conda activate retfound_new
 # Go to home directory
 #cd $HOME
 STUDY=$1
-SUBSTUDY=$2
-Num_CLASS=$3
+MODEL=${2:-"RETFound_mae"}
+Num_CLASS=${3:-"2"}
 DIVIDE=${4:-"all"}
 NUM_K=${5:-"0"}
 ADDCMD=${6:-""}
@@ -29,4 +29,4 @@ echo $Num_CLASS
 
 # Modify the path to your singularity container 
 
-torchrun --nproc_per_node=1 --master_port=48798 main_finetune.py --savemodel --global_pool    --batch_size 16     --world_size 1     --model RETFound_mae     --epochs 100 --lr 2e-4 --layer_decay 0.65     --weight_decay 0.05 --drop_path 0.2     --nb_classes $Num_CLASS     --data_path /blue/ruogu.fang/tienyuchang/OCTAD_old/all_lists_data-ad_control_repath.csv     --task $STUDY-$DIVIDE-$SUBSTUDY-$ADDCMD-$ADDCMD2/ --img_dir /orange/ruogu.fang/tienyuchang/all_imgs_paired/ --finetune RETFound_mae_natureOCT --num_workers 8 --input_size 224 --num_k $NUM_K $ADDCMD $ADDCMD2
+torchrun --nproc_per_node=1 --master_port=48798 main_finetune.py --savemodel --global_pool    --batch_size 16     --world_size 1     --model $MODEL     --epochs 100 --lr 2e-4 --layer_decay 0.65     --weight_decay 0.05 --drop_path 0.2     --nb_classes $Num_CLASS     --data_path /blue/ruogu.fang/tienyuchang/OCTAD_old/all_lists_data-ad_control_repath.csv     --task $STUDY-$DIVIDE-$MODEL-$ADDCMD-$ADDCMD2/ --img_dir /orange/ruogu.fang/tienyuchang/all_imgs_paired/ --finetune RETFound_mae_natureOCT --num_workers 8 --input_size 224 --num_k $NUM_K $ADDCMD $ADDCMD2

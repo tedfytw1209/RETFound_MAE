@@ -183,18 +183,26 @@ def main(args, criterion):
     cudnn.benchmark = True
 
     processor = None
-    if args.model=='RETFound_mae':
-        model = models.__dict__[args.model](
+    if 'RETFound_mae' in args.model:
+        model = models.__dict__['RETFound_mae'](
         img_size=args.input_size,
         num_classes=args.nb_classes,
         drop_path_rate=args.drop_path,
         global_pool=args.global_pool,
     )
-    elif args.model == 'vit_base_patch16_224':
+    elif 'RETFound_dinov2' in args.model:
+        model = models.__dict__['RETFound_dinov2'](
+        img_size=args.input_size,
+        num_classes=args.nb_classes,
+        drop_path_rate=args.drop_path,
+        global_pool=args.global_pool,
+    )
+    elif 'vit_base_patch16_224' in args.model:
             # ViT-base-patch16-224 preprocessor
-            processor = TransformWrapper(ViTImageProcessor.from_pretrained('google/vit-base-patch16-224'))
+            model_ = args.finetune if args.finetune else 'google/vit-base-patch16-224'
+            processor = TransformWrapper(ViTImageProcessor.from_pretrained(model_))
             model = ViTForImageClassification.from_pretrained(
-                'google/vit-base-patch16-224',
+                model_,
                 image_size=args.input_size,
                 num_labels=args.nb_classes,
                 hidden_dropout_prob=args.drop_path,
@@ -203,11 +211,12 @@ def main(args, criterion):
                 label2id={"control": 0, "ad": 1},
                 ignore_mismatched_sizes=True
             )
-    elif args.model == 'efficientnet_b0':
+    elif 'efficientnet_b0' in args.model:
         # EfficientNet-B0 preprocessor
-        processor = TransformWrapper(AutoImageProcessor.from_pretrained('google/efficientnet-b0'))
+        model_ = args.finetune if args.finetune else 'google/efficientnet-b0'
+        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_))
         model = EfficientNetForImageClassification.from_pretrained(
-            'google/efficientnet-b0',
+            model_,
             image_size=args.input_size,
             num_labels=args.nb_classes,
             dropout_rate=args.drop_path,
@@ -215,11 +224,12 @@ def main(args, criterion):
             label2id={"control": 0, "ad": 1},
             ignore_mismatched_sizes=True
         )
-    elif args.model == 'efficientnet_b4':
+    elif 'efficientnet_b4' in args.model:
         # EfficientNet-B0 preprocessor
-        processor = TransformWrapper(AutoImageProcessor.from_pretrained('google/efficientnet-b4'))
+        model_ = args.finetune if args.finetune else 'google/efficientnet-b4'
+        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_))
         model = EfficientNetForImageClassification.from_pretrained(
-            'google/efficientnet-b4',
+            model_,
             image_size=args.input_size,
             num_labels=args.nb_classes,
             dropout_rate=args.drop_path,
