@@ -197,7 +197,7 @@ def main(args, criterion):
         drop_path_rate=args.drop_path,
         global_pool=args.global_pool,
     )
-    elif 'vit_base_patch16_224' in args.model:
+    elif 'vit-base-patch16-224' in args.model:
             # ViT-base-patch16-224 preprocessor
             model_ = args.finetune if args.finetune else 'google/vit-base-patch16-224'
             processor = TransformWrapper(ViTImageProcessor.from_pretrained(model_))
@@ -211,7 +211,7 @@ def main(args, criterion):
                 label2id={"control": 0, "ad": 1},
                 ignore_mismatched_sizes=True
             )
-    elif 'efficientnet_b0' in args.model:
+    elif 'efficientnet-b0' in args.model:
         # EfficientNet-B0 preprocessor
         model_ = args.finetune if args.finetune else 'google/efficientnet-b0'
         processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_))
@@ -224,7 +224,7 @@ def main(args, criterion):
             label2id={"control": 0, "ad": 1},
             ignore_mismatched_sizes=True
         )
-    elif 'efficientnet_b4' in args.model:
+    elif 'efficientnet-b4' in args.model:
         # EfficientNet-B0 preprocessor
         model_ = args.finetune if args.finetune else 'google/efficientnet-b4'
         processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_))
