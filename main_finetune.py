@@ -520,6 +520,7 @@ def main(args, criterion):
                                            num_class=args.nb_classes, k=args.num_k, log_writer=log_writer)
             wandb_dict = {}
             wandb_dict.update({f'best_val_{k}': v for k, v in val_stats.items()})
+            wandb.log(wandb_dict)
 
         if log_writer is not None:
             log_writer.add_scalar('loss/val', val_stats['loss'], epoch)
