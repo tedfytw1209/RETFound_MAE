@@ -18,10 +18,11 @@ STUDY=$1
 MODEL=${2:-"RETFound_mae"}
 FINETUNED_MODEL=${3:-"RETFound_mae_natureOCT"}
 LR=${4:-"1e-3"}
-Num_CLASS=${5:-"2"}
-NUM_K=${6:-"0"}
-ADDCMD=${7:-""}
-ADDCMD2=${8:-""}
+Epochs=${5:-"100"}
+Num_CLASS=${6:-"2"}
+NUM_K=${7:-"0"}
+ADDCMD=${8:-""}
+ADDCMD2=${9:-""}
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
