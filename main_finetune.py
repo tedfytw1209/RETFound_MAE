@@ -15,7 +15,8 @@ from timm.data.mixup import Mixup
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 from transformers import (
     ViTImageProcessor, ViTForImageClassification,
-    AutoImageProcessor, EfficientNetForImageClassification
+    AutoImageProcessor, EfficientNetForImageClassification,
+    ResNetForImageClassification
 )
 
 import models_vit as models
@@ -237,6 +238,16 @@ def main(args, criterion):
             label2id={"control": 0, "ad": 1},
             ignore_mismatched_sizes=True
         )
+    elif 'resnet-50' in args.model:
+        model_name = args.finetune if args.finetune else 'microsoft/resnet-50'
+        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_name))
+        model = ResNetForImageClassification.from_pretrained(
+            model_name,
+            num_labels=args.nb_classes,
+            id2label={i: str(i) for i in range(args.nb_classes)},
+            label2id={str(i): i for i in range(args.nb_classes)},
+            ignore_mismatched_sizes=True
+        )
     else:
         model = models.__dict__[args.model](
             num_classes=args.nb_classes,
@@ -408,12 +419,12 @@ def main(args, criterion):
 
     if args.fix_extractor:
         print("Fixing the backbone parameters")
-        if args.model in ['vit_base_patch16_224', 'efficientnet_b0', 'efficientnet_b4']:
-            # HuggingFace models: classifier is the head
+        # Hugging Face models with 'classifier' as the head
+        hf_models_with_classifier = ['vit_base_patch16_224', 'efficientnet_b0', 'efficientnet_b4', 'resnet-50']
+        if args.model in hf_models_with_classifier:
             head_keyword = 'classifier'
         else:
-            # timm or custom models: often use 'head'
-            head_keyword = 'head'
+            head_keyword = 'head'  # timm or custom models
         for name, param in model.named_parameters():
             param.requires_grad = head_keyword in name
     
