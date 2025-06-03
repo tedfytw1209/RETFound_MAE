@@ -30,5 +30,5 @@ echo $SUBSTUDY
 echo $Num_CLASS
 
 # Modify the path to your singularity container 
-
+# sbatch finetune_retfound_adcon2_all.sh ad_control_detect_data RETFound_mae RETFound_mae_natureOCT 5e-4 100 2 0 --bal_sampler
 torchrun --nproc_per_node=1 --master_port=48798 main_finetune.py --savemodel --global_pool    --batch_size 16     --world_size 1     --model $MODEL     --epochs 200 --lr $LR --layer_decay 0.65     --weight_decay 0.05 --drop_path 0.2     --nb_classes $Num_CLASS     --data_path /blue/ruogu.fang/tienyuchang/IRB2024_DL_data/${STUDY}.csv     --task $STUDY-all-$MODEL-$ADDCMD-$ADDCMD2/ --img_dir /orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/ --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k $NUM_K $ADDCMD $ADDCMD2
