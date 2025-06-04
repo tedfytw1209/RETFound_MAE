@@ -123,6 +123,8 @@ def get_args_parser():
                         help='dataset path')
     parser.add_argument('--nb_classes', default=8, type=int,
                         help='number of the classification types')
+    parser.add_argument('--modality', default='OCT', type=str,
+                        help='used modality of the UF dataset, e.g., OCT, CFP')
     parser.add_argument('--output_dir', default='./output_dir',
                         help='path where to save, empty for no saving')
     parser.add_argument('--log_dir', default='./output_logs',

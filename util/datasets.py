@@ -43,7 +43,7 @@ def select_n_slices(k,depth):
         return k//2
 
 class CSV_Dataset(Dataset):
-    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}):
+    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT'):
         #common args
         self.transfroms = transfroms
         self.root_dir = img_dir
@@ -68,7 +68,11 @@ class CSV_Dataset(Dataset):
             self.class_to_idx = class_to_idx
         print('Class to idx: ', self.class_to_idx)
         self.channel = 3
-        image_names, labels = self.annotations['OCT'], self.annotations['label']
+        if modality == 'OCT':
+            image_names = self.annotations['OCT']
+        elif modality == 'CFP':
+            image_names = self.annotations['folder'] + '/' + self.annotations['fundus_imgname']
+        labels = self.annotations['label']
         #case for 2.5D
         if k>0:
             dcm_depths = self.annotations['depth']
@@ -107,6 +111,7 @@ class CSV_Dataset(Dataset):
             self.max_slice = int((k//2) * 2 + 1)
         else:
             self.max_slice = 1
+        self.modality = modality
 
     def __len__(self):
         return len(self.targets)
@@ -137,7 +142,7 @@ def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_A
         transform = build_transform(is_train, args)
     
     if args.data_path.endswith('.csv'):
-        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k)
+        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality=args.modality)
     else:
         root = os.path.join(args.data_path, is_train)
         dataset = datasets.ImageFolder(root, transform=transform)
