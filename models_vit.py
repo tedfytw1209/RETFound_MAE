@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-
+###!!! hard to change https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/vision_transformer.py#L676
 class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
     """ Vision Transformer with support for global average pooling
     """
