@@ -26,6 +26,9 @@ from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapp
 from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.losses import FocalLoss, compute_alpha_from_labels
+from util.evaluation import InsertionMetric, DeletionMetric
+from baselines.Attention import Attention_Map
+from baselines.RISE import RISE, RISEBatch
 from huggingface_hub import hf_hub_download, login
 from engine_finetune import evaluate_half3D, train_one_epoch, evaluate
 import wandb
@@ -46,6 +49,10 @@ def get_args_parser():
                         help='Name of model to train')
     parser.add_argument('--input_size', default=256, type=int,
                         help='images input size')
+    parser.add_argument('--xai', default='attn', type=str,
+                        help='Name of xai method to use, e.g., attn, rise')
+    parser.add_argument('--use_rollout', action='store_true',
+                    help='Use rollout for attention map generation')
 
     # Dataset parameters
     parser.add_argument('--data_path', default='./data/', type=str,
@@ -79,6 +86,42 @@ def get_args_parser():
 
     return parser
 
+@torch.no_grad()
+def evaluate_XAI(data_loader, xai_method, metric_dict, device, args, epoch, mode, num_class, k, log_writer):
+    """Evaluate the XAI method on the dataset."""
+    metric_logger = misc.MetricLogger(delimiter="  ")
+    os.makedirs(os.path.join(args.output_dir, args.task), exist_ok=True)
+    overall_metrics_dict = {k:[] for k in metric_dict.keys()}
+    for batch in metric_logger.log_every(data_loader, 10, f'{mode}:'):
+        images, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True)
+        bs = images.shape[0]
+        each_dict = {}
+        with torch.cuda.amp.autocast():
+            attention_map_bs = xai_method(images)
+            for k, v in metric_dict.items():
+                e_score = v(images, attention_map_bs, bs)
+                overall_metrics_dict[k].append(e_score)
+                each_dict[k] = e_score
+            
+        metric_logger.update(**each_dict)
+    
+    
+    print(f'XAI Metrics at epoch {epoch} ({mode}):')
+    for k, v in metric_logger.meters.items():
+        score = np.mean(v)
+        print(f'{k}: {score:.4f}')
+        if log_writer is not None:
+            log_writer.add_scalar(f'{mode}/{k}', score, epoch)
+    # overall metrics
+    for k, v in overall_metrics_dict.items():
+        score = np.mean(v)
+        print(f'Overall {k}: {score:.4f}')
+        if log_writer is not None:
+            log_writer.add_scalar(f'{mode}/overall_{k}', score, epoch)
+    
+    out_dict = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    out_dict.update(metric_dict)
+    return out_dict, score
 
 def main(args, criterion):
 
@@ -255,6 +298,18 @@ def main(args, criterion):
     print(f"Start evaluating XAI:")
     start_time = time.time()
     ###TODO: evaluate XAI
+    if args.xai == 'rise':
+        print("Using RISE for XAI")
+        XAI_module = RISE(model, input_size=args.input_size, gpu_batch=args.batch_size)
+    elif args.xai == 'attn':
+        XAI_module = Attention_Map(model, input_size=args.input_size, N=11, use_rollout=args.use_rollout)
+    else:
+        raise ValueError(f"Unknown XAI method: {args.xai}")
+    #XAI_module.to(device)
+    test_stats, auc_roc = evaluate_XAI(data_loader_test, XAI_module, device, args, epoch=0, mode='test',
+                                    num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
+    wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
+    wandb.log(wandb_dict)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
