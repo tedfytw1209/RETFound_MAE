@@ -70,7 +70,7 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=0, type=int)
-    parser.add_argument('--resume', default='',
+    parser.add_argument('--resume', default='0',
                         help='resume from checkpoint')
     parser.add_argument('--num_workers', default=10, type=int)
     parser.add_argument('--pin_mem', action='store_true',
@@ -272,7 +272,7 @@ def main(args, criterion):
     )
 
     # Load finetuned model if specified
-    if args.resume:
+    if args.resume and args.resume != '0':
         if args.resume.startswith('https'):
             checkpoint = torch.hub.load_state_dict_from_url(
                 args.resume, map_location='cpu', check_hash=True)
