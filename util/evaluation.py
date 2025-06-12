@@ -196,12 +196,14 @@ class CausalMetric():
         Returns:
             scores (nd.array): Array containing scores at every step for every image.
         """
+        
         n_samples = img_batch.shape[0]
         predictions = torch.FloatTensor(n_samples, self.n_classes)
         assert n_samples % batch_size == 0
         for i in tqdm(range(n_samples // batch_size), desc='Predicting labels'):
             preds = self.model(img_batch[i*batch_size:(i+1)*batch_size].cuda()).cpu()
             predictions[i*batch_size:(i+1)*batch_size] = preds
+        img_batch = img_batch.cpu().float()
         top = np.argmax(predictions, -1)
         n_steps = (self.img_size*self.img_size + self.step - 1) // self.step
         scores = np.empty((n_steps + 1, n_samples))
