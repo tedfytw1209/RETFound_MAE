@@ -325,7 +325,7 @@ def main(args, criterion):
         print("Using RISE for XAI")
         XAI_module = RISE(model, input_size=args.input_size, gpu_batch=args.batch_size)
     elif args.xai == 'attn':
-        XAI_module = Attention_Map(model, input_size=args.input_size, N=11, use_rollout=args.use_rollout)
+        XAI_module = Attention_Map(model, args.model, input_size=args.input_size, N=11, use_rollout=args.use_rollout)
     else:
         raise ValueError(f"Unknown XAI method: {args.xai}")
     XAI_module.to(device)
