@@ -85,27 +85,30 @@ class Attention_Map(torch.nn.Module):
         if print_layers:
             self.print_model(model)
         
-        if 'RETFound' in model_name or 'vit' in model_name or 'dino' in model_name:
+        if 'RETFound' in model_name: #timm RETFound model
             # for timm ViT model (e.g., vit_base_patch16_224, RETFound_mae, etc.)
             self.return_attns = [f'blocks.{i}.attn.softmax' for i in range(N)]
             # This is the "one line of code" that does what you want
             self.feature_extractor = create_feature_extractor(
                 model, return_nodes=self.return_attns,
                 tracer_kwargs={'leaf_modules': [PatchEmbed]})
-        elif 'clip' in model_name:
-            # for CLIP model
-            self.return_attns = [f'visual.transformer.resblocks.{i}.attn.attn_drop' for i in range(N)]
-            self.feature_extractor = create_feature_extractor(
-                model, return_nodes=self.return_attns,
-                tracer_kwargs={'leaf_modules': [PatchEmbed]})
+            self.timm = True
+        elif 'vit' in model_name or 'dino' in model_name: #huggingface ViT model
+            # for HuggingFace ViT model (e.g., vit_base_patch16_224, dino_vitb16, etc.)
+            self.return_attns = []
+            self.feature_extractor = None
+            self.timm = False
         else:
             raise ValueError(f"Model {model_name} is not supported for attention map extraction.")
 
     def forward(self, x):
         self.model.eval()
         with torch.no_grad():
-            attentions = self.feature_extractor(x) #(B, n_heads, num_tokens, num_tokens)
-        attentions = [attentions[key] for key in self.return_attns]
+            if self.timm:
+                attentions = self.feature_extractor(x) #(B, n_heads, num_tokens, num_tokens)
+                attentions = [attentions[key] for key in self.return_attns]
+            else:
+                attentions = self.model(x, output_attentions=True).attentions #(B, n_heads, num_tokens, num_tokens)
 
         attention_maps = generate_attention_map_batch(attentions, img_size=self.input_size, use_rollout=self.use_rollout)
         #attention_maps = torch.from_numpy(attention_maps).float().cuda()

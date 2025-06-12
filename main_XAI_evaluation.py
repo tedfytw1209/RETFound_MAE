@@ -182,7 +182,8 @@ def main(args, criterion):
                 num_labels=args.nb_classes,
                 id2label={0: "control", 1: "ad"},
                 label2id={"control": 0, "ad": 1},
-                ignore_mismatched_sizes=True
+                ignore_mismatched_sizes=True,
+                attn_implementation="eager"
             )
     elif 'efficientnet-b0' in args.model:
         # EfficientNet-B0 preprocessor
