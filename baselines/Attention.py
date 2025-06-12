@@ -55,7 +55,7 @@ class Attention_Map(torch.nn.Module):
         self.model.eval()
         with torch.no_grad():
             attentions = self.feature_extractor(x) #(B, ...)
-
+        print(attentions)
         attention_maps = []
         for i in range(bs):
             attention_map = generate_attention_map_single(attentions, img_size=self.input_size, use_rollout=self.use_rollout)
