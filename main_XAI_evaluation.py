@@ -330,8 +330,8 @@ def main(args, criterion):
     XAI_module.to(device)
     #metric_func
     metric_func_dict = {
-        'insertion': InsertionMetric(model).to(device),
-        'deletion': DeletionMetric(model).to(device),
+        'insertion': InsertionMetric(model),
+        'deletion': DeletionMetric(model),
     }
     test_stats, auc_roc = evaluate_XAI(data_loader_test, XAI_module,metric_func_dict, device, args, epoch=0, mode='test',
                                     num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)

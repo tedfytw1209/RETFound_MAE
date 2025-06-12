@@ -75,13 +75,14 @@ def generate_attention_map_batch(attentions, img_size=224, use_rollout=True):
     return np.stack(attention_maps)  # shape: (B, img_size, img_size)
 
 class Attention_Map(torch.nn.Module):
-    def __init__(self, model, input_size, N=12, use_rollout=True):
+    def __init__(self, model, input_size, N=12, use_rollout=True, print_layers=False):
         super(Attention_Map, self).__init__()
         self.model = model
         self.input_size = input_size
         self.use_rollout = use_rollout
         
-        self.print_model(model)
+        if print_layers:
+            self.print_model(model)
         # for timm ViT model (e.g., vit_base_patch16_224, RETFound_mae, etc.)
         self.return_attns = [f'blocks.{i}.attn.softmax' for i in range(N)]
         # This is the "one line of code" that does what you want
