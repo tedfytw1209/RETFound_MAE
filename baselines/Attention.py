@@ -97,7 +97,7 @@ class Attention_Map(torch.nn.Module):
         attentions = [attentions[key] for key in self.return_attns]
 
         attention_maps = generate_attention_map_batch(attentions, img_size=self.input_size, use_rollout=self.use_rollout)
-        attention_maps = torch.from_numpy(attention_maps).float().cuda()
+        #attention_maps = torch.from_numpy(attention_maps).float().cuda()
         return attention_maps #.unsqueeze(1)  # Add channel dimension
     
     def print_model(self,model):
