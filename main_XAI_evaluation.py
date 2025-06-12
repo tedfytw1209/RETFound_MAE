@@ -47,6 +47,8 @@ def get_args_parser():
     # Model parameters
     parser.add_argument('--model', default='vit_large_patch16', type=str, metavar='MODEL',
                         help='Name of model to train')
+    parser.add_argument('--task', default='', type=str,
+                        help='finetune from checkpoint')
     parser.add_argument('--input_size', default=256, type=int,
                         help='images input size')
     parser.add_argument('--xai', default='attn', type=str,
@@ -78,8 +80,6 @@ def get_args_parser():
     parser.add_argument('--num_k', default=0, type=float)
     
     # fine-tuning parameters
-    parser.add_argument('--savemodel', action='store_true', default=True,
-                        help='Save model')
     parser.add_argument('--norm', default='IMAGENET', type=str, help='Normalization method')
     parser.add_argument('--enhance', action='store_true', default=False, help='Use enhanced data')
     parser.add_argument('--datasets_seed', default=2026, type=int)
@@ -87,18 +87,18 @@ def get_args_parser():
     return parser
 
 @torch.no_grad()
-def evaluate_XAI(data_loader, xai_method, metric_dict, device, args, epoch, mode, num_class, k, log_writer):
+def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch, mode, num_class, k, log_writer):
     """Evaluate the XAI method on the dataset."""
     metric_logger = misc.MetricLogger(delimiter="  ")
     os.makedirs(os.path.join(args.output_dir, args.task), exist_ok=True)
-    overall_metrics_dict = {k:[] for k in metric_dict.keys()}
+    overall_metrics_dict = {k:[] for k in metric_func_dict.keys()}
     for batch in metric_logger.log_every(data_loader, 10, f'{mode}:'):
         images, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True)
         bs = images.shape[0]
         each_dict = {}
         with torch.cuda.amp.autocast():
             attention_map_bs = xai_method(images)
-            for k, v in metric_dict.items():
+            for k, v in metric_func_dict.items():
                 e_score = v(images, attention_map_bs, bs)
                 overall_metrics_dict[k].append(e_score)
                 each_dict[k] = e_score
@@ -120,7 +120,6 @@ def evaluate_XAI(data_loader, xai_method, metric_dict, device, args, epoch, mode
             log_writer.add_scalar(f'{mode}/overall_{k}', score, epoch)
     
     out_dict = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
-    out_dict.update(metric_dict)
     return out_dict, score
 
 def main(args, criterion):
@@ -142,11 +141,15 @@ def main(args, criterion):
         model = models.__dict__['RETFound_mae'](
         img_size=args.input_size,
         num_classes=args.nb_classes,
+        drop_path_rate=0.2,
+        global_pool=True,
     )
     elif 'RETFound_dinov2' in args.model:
         model = models.__dict__['RETFound_dinov2'](
         img_size=args.input_size,
         num_classes=args.nb_classes,
+        drop_path_rate=0.2,
+        global_pool=True,
     )
     elif 'vit-base-patch16-224' in args.model:
             # ViT-base-patch16-224 preprocessor
@@ -283,7 +286,6 @@ def main(args, criterion):
         print("Resume checkpoint %s" % args.resume)
 
     model.to(device)
-    model_without_ddp = model
     
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of model params (M): %.2f' % (n_parameters / 1.e6))
@@ -305,8 +307,13 @@ def main(args, criterion):
         XAI_module = Attention_Map(model, input_size=args.input_size, N=11, use_rollout=args.use_rollout)
     else:
         raise ValueError(f"Unknown XAI method: {args.xai}")
-    #XAI_module.to(device)
-    test_stats, auc_roc = evaluate_XAI(data_loader_test, XAI_module, device, args, epoch=0, mode='test',
+    XAI_module.to(device)
+    #metric_func
+    metric_func_dict = {
+        'insertion': InsertionMetric(model).to(device),
+        'deletion': DeletionMetric(model).to(device),
+    }
+    test_stats, auc_roc = evaluate_XAI(data_loader_test, XAI_module,metric_func_dict, device, args, epoch=0, mode='test',
                                     num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
     wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
     wandb.log(wandb_dict)
