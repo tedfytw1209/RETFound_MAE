@@ -75,20 +75,31 @@ def generate_attention_map_batch(attentions, img_size=224, use_rollout=True):
     return np.stack(attention_maps)  # shape: (B, img_size, img_size)
 
 class Attention_Map(torch.nn.Module):
-    def __init__(self, model, input_size, N=12, use_rollout=True, print_layers=False):
+    def __init__(self, model, model_name, input_size, N=12, use_rollout=True, print_layers=False):
         super(Attention_Map, self).__init__()
         self.model = model
         self.input_size = input_size
         self.use_rollout = use_rollout
+        self.model_name = model_name
         
         if print_layers:
             self.print_model(model)
-        # for timm ViT model (e.g., vit_base_patch16_224, RETFound_mae, etc.)
-        self.return_attns = [f'blocks.{i}.attn.softmax' for i in range(N)]
-        # This is the "one line of code" that does what you want
-        self.feature_extractor = create_feature_extractor(
-            model, return_nodes=self.return_attns,
-            tracer_kwargs={'leaf_modules': [PatchEmbed]})
+        
+        if 'RETFound' in model_name or 'vit' in model_name or 'dino' in model_name:
+            # for timm ViT model (e.g., vit_base_patch16_224, RETFound_mae, etc.)
+            self.return_attns = [f'blocks.{i}.attn.softmax' for i in range(N)]
+            # This is the "one line of code" that does what you want
+            self.feature_extractor = create_feature_extractor(
+                model, return_nodes=self.return_attns,
+                tracer_kwargs={'leaf_modules': [PatchEmbed]})
+        elif 'clip' in model_name:
+            # for CLIP model
+            self.return_attns = [f'visual.transformer.resblocks.{i}.attn.attn_drop' for i in range(N)]
+            self.feature_extractor = create_feature_extractor(
+                model, return_nodes=self.return_attns,
+                tracer_kwargs={'leaf_modules': [PatchEmbed]})
+        else:
+            raise ValueError(f"Model {model_name} is not supported for attention map extraction.")
 
     def forward(self, x):
         self.model.eval()
