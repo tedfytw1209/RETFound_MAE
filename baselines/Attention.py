@@ -5,6 +5,7 @@ import torch
 import torch.nn.functional as F
 from pprint import pprint
 
+import os
 import timm
 from timm.models.layers import PatchEmbed
 from torchvision.models.feature_extraction import get_graph_node_names
@@ -34,13 +35,14 @@ def generate_attention_map_single(attentions, img_size=224, use_rollout=True):
     return attention_map
 
 class Attention_Map(torch.nn.Module):
-    def __init__(self, model, input_size, N=11, use_rollout=True):
+    def __init__(self, model, input_size, N=12, use_rollout=True):
         super(Attention_Map, self).__init__()
         self.model = model
         self.input_size = input_size
         self.use_rollout = use_rollout
         
         self.print_model(model)
+        # for timm ViT model (e.g., vit_base_patch16_224, RETFound_mae, etc.)
         return_attns = [f'blocks.{i}.attn.softmax' for i in range(N)]
         # This is the "one line of code" that does what you want
         self.feature_extractor = create_feature_extractor(
@@ -67,9 +69,10 @@ class Attention_Map(torch.nn.Module):
     
 
 if __name__ == "__main__":
-    model = timm.create_model('vit_base_patch16_224', pretrained=True)
+    os.environ["TIMM_FUSED_ATTN"] = "0"
+    model = timm.create_model('vit_base_patch16_224', pretrained=True).cuda()
     input_size = 224
-    attention_map_model = Attention_Map(model, input_size, N=11, use_rollout=True)
+    attention_map_model = Attention_Map(model, input_size, N=11, use_rollout=True).cuda()
 
     # Example input
     x = torch.randn(2, 3, input_size, input_size).cuda()  # Batch size of 2
