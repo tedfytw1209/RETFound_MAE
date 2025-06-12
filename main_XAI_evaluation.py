@@ -311,8 +311,6 @@ def main(args, criterion):
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of model params (M): %.2f' % (n_parameters / 1.e6))
 
-    if 'epoch' in checkpoint:
-        print("Test with the best model at epoch = %d" % checkpoint['epoch'])
     test_stats, auc_roc = evaluate(data_loader_test, model, device, args, epoch=0, mode='test',
                                     num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
     wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
@@ -325,7 +323,7 @@ def main(args, criterion):
         print("Using RISE for XAI")
         XAI_module = RISE(model, input_size=args.input_size, gpu_batch=args.batch_size)
     elif args.xai == 'attn':
-        XAI_module = Attention_Map(model, args.model, input_size=args.input_size, N=11, use_rollout=args.use_rollout)
+        XAI_module = Attention_Map(model, args.model, input_size=args.input_size, N=11, use_rollout=args.use_rollout, print_layers=True)
     else:
         raise ValueError(f"Unknown XAI method: {args.xai}")
     XAI_module.to(device)
