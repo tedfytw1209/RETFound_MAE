@@ -47,6 +47,8 @@ def get_args_parser():
     # Model parameters
     parser.add_argument('--model', default='vit_large_patch16', type=str, metavar='MODEL',
                         help='Name of model to train')
+    parser.add_argument('--finetune', default='', type=str,
+                        help='finetune from checkpoint')
     parser.add_argument('--task', default='', type=str,
                         help='finetune from checkpoint')
     parser.add_argument('--input_size', default=256, type=int,
