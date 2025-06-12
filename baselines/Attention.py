@@ -44,10 +44,10 @@ class Attention_Map(torch.nn.Module):
         
         self.print_model(model)
         # for timm ViT model (e.g., vit_base_patch16_224, RETFound_mae, etc.)
-        return_attns = [f'blocks.{i}.attn.softmax' for i in range(N)]
+        self.return_attns = [f'blocks.{i}.attn.softmax' for i in range(N)]
         # This is the "one line of code" that does what you want
         self.feature_extractor = create_feature_extractor(
-            model, return_nodes=return_attns,
+            model, return_nodes=self.return_attns,
             tracer_kwargs={'leaf_modules': [PatchEmbed]})
 
     def forward(self, x):
@@ -55,7 +55,8 @@ class Attention_Map(torch.nn.Module):
         self.model.eval()
         with torch.no_grad():
             attentions = self.feature_extractor(x) #(B, ...)
-        print(attentions)
+        attentions = [attentions[key] for key in self.return_attns]
+        print("Attention shapes:", attentions[0].shape)  # Debugging line
         attention_maps = []
         for i in range(bs):
             attention_map = generate_attention_map_single(attentions, img_size=self.input_size, use_rollout=self.use_rollout)
