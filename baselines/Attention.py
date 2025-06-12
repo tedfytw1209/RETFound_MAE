@@ -83,7 +83,7 @@ class Attention_Map(torch.nn.Module):
         self.model_name = model_name
         
         if print_layers:
-            self.print_model(model)
+            self.print_model(model, use_timm=False)
         
         if 'RETFound' in model_name: #timm RETFound model
             # for timm ViT model (e.g., vit_base_patch16_224, RETFound_mae, etc.)
@@ -92,19 +92,19 @@ class Attention_Map(torch.nn.Module):
             self.feature_extractor = create_feature_extractor(
                 model, return_nodes=self.return_attns,
                 tracer_kwargs={'leaf_modules': [PatchEmbed]})
-            self.timm = True
+            self.use_timm = True
         elif 'vit' in model_name or 'dino' in model_name: #huggingface ViT model
             # for HuggingFace ViT model (e.g., vit_base_patch16_224, dino_vitb16, etc.)
             self.return_attns = []
             self.feature_extractor = None
-            self.timm = False
+            self.use_timm = False
         else:
             raise ValueError(f"Model {model_name} is not supported for attention map extraction.")
 
     def forward(self, x):
         self.model.eval()
         with torch.no_grad():
-            if self.timm:
+            if self.use_timm:
                 attentions = self.feature_extractor(x) #(B, n_heads, num_tokens, num_tokens)
                 attentions = [attentions[key] for key in self.return_attns]
             else:
@@ -114,8 +114,8 @@ class Attention_Map(torch.nn.Module):
         #attention_maps = torch.from_numpy(attention_maps).float().cuda()
         return attention_maps #.unsqueeze(1)  # Add channel dimension
     
-    def print_model(self,model):
-        if self.timm:
+    def print_model(self,model,use_timm): #TODO: Need fix for None timm models
+        if use_timm:
             print("Timm Model Layers:")
             nodes, _ = get_graph_node_names(model, tracer_kwargs={'leaf_modules': [PatchEmbed]})
             pprint(nodes)
