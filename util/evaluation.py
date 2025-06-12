@@ -134,6 +134,10 @@ class CausalMetric():
             scores (nd.array): Array containing scores at every step.
         """
         pred = self.model(img_tensor.cuda())
+        if hasattr(pred, 'logits'):
+            pred = pred.logits
+        else:
+            pred = pred
         top, c = torch.max(pred, 1)
         c = c.cpu().numpy()[0]
         n_steps = (self.img_size*self.img_size + self.step - 1) // self.step
@@ -154,6 +158,10 @@ class CausalMetric():
         salient_order = np.flip(np.argsort(explanation.reshape(-1, self.img_size*self.img_size), axis=1), axis=-1)
         for i in range(n_steps+1):
             pred = self.model(start.cuda())
+            if hasattr(pred, 'logits'):
+                pred = pred.logits
+            else:
+                pred = pred
             pr, cl = torch.topk(pred, 2)
             if verbose == 2:
                 print('{}: {:.3f}'.format(get_class_name(cl[0][0]), float(pr[0][0])))
@@ -201,7 +209,11 @@ class CausalMetric():
         predictions = torch.FloatTensor(n_samples, self.n_classes)
         assert n_samples % batch_size == 0
         for i in tqdm(range(n_samples // batch_size), desc='Predicting labels'):
-            preds = self.model(img_batch[i*batch_size:(i+1)*batch_size].cuda()).cpu()
+            output = self.model(img_batch[i*batch_size:(i+1)*batch_size].cuda())
+            if hasattr(output, 'logits'):
+                preds = output.logits.cpu()
+            else:
+                preds = output.cpu()
             predictions[i*batch_size:(i+1)*batch_size] = preds
         img_batch = img_batch.cpu().float()
         top = np.argmax(predictions, -1)
@@ -228,7 +240,11 @@ class CausalMetric():
             # Iterate over batches
             for j in range(n_samples // batch_size):
                 # Compute new scores
-                preds = self.model(start[j*batch_size:(j+1)*batch_size].cuda())
+                output = self.model(start[j*batch_size:(j+1)*batch_size].cuda())
+                if hasattr(output, 'logits'):
+                    preds = output.logits
+                else:
+                    preds = output
                 preds = preds.cpu().numpy()[range(batch_size), top[j*batch_size:(j+1)*batch_size]]
                 scores[i, j*batch_size:(j+1)*batch_size] = preds
             # Change specified number of most salient pixels to substrate pixels
