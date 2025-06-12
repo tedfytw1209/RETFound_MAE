@@ -118,6 +118,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         each_dict = {}
         with torch.cuda.amp.autocast():
             attention_map_bs = xai_method(images)
+            print(f'Attention map shape: {attention_map_bs.shape}')
             for k, v in metric_func_dict.items():
                 e_score = v(images, attention_map_bs, bs)
                 overall_metrics_dict[k].append(e_score)
@@ -330,8 +331,8 @@ def main(args, criterion):
     XAI_module.to(device)
     #metric_func
     metric_func_dict = {
-        'insertion': InsertionMetric(model),
-        'deletion': DeletionMetric(model),
+        'insertion': InsertionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
+        'deletion': DeletionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
     }
     test_stats, auc_roc = evaluate_XAI(data_loader_test, XAI_module,metric_func_dict, device, args, epoch=0, mode='test',
                                     num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)

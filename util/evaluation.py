@@ -77,8 +77,8 @@ class RangeSampler(Sampler):
     def __len__(self):
         return len(self.r)
 
-HW = 224 * 224 # image area
-n_classes = 1000
+#HW = 224 * 224 # image area
+#n_classes = 1000
 
 def gkern(klen, nsig):
     """Returns a Gaussian kernel array.
@@ -101,7 +101,7 @@ def auc(arr):
 
 class CausalMetric():
 
-    def __init__(self, model, mode, step, substrate_fn):
+    def __init__(self, model, mode, step, substrate_fn, img_size=224, n_classes=2):
         r"""Create deletion/insertion metric instance.
 
         Args:
@@ -115,6 +115,8 @@ class CausalMetric():
         self.mode = mode
         self.step = step
         self.substrate_fn = substrate_fn
+        self.img_size = img_size
+        self.n_classes = n_classes
 
     def single_run(self, img_tensor, explanation, verbose=0, save_to=None):
         r"""Run metric on one image-saliency pair.
@@ -134,7 +136,7 @@ class CausalMetric():
         pred = self.model(img_tensor.cuda())
         top, c = torch.max(pred, 1)
         c = c.cpu().numpy()[0]
-        n_steps = (HW + self.step - 1) // self.step
+        n_steps = (self.img_size*self.img_size + self.step - 1) // self.step
 
         if self.mode == 'del':
             title = 'Deletion game'
@@ -149,7 +151,7 @@ class CausalMetric():
 
         scores = np.empty(n_steps + 1)
         # Coordinates of pixels in order of decreasing saliency
-        salient_order = np.flip(np.argsort(explanation.reshape(-1, HW), axis=1), axis=-1)
+        salient_order = np.flip(np.argsort(explanation.reshape(-1, self.img_size*self.img_size), axis=1), axis=-1)
         for i in range(n_steps+1):
             pred = self.model(start.cuda())
             pr, cl = torch.topk(pred, 2)
@@ -180,7 +182,7 @@ class CausalMetric():
                     plt.show()
             if i < n_steps:
                 coords = salient_order[:, self.step * i:self.step * (i + 1)]
-                start.cpu().numpy().reshape(1, 3, HW)[0, :, coords] = finish.cpu().numpy().reshape(1, 3, HW)[0, :, coords]
+                start.cpu().numpy().reshape(1, 3, self.img_size*self.img_size)[0, :, coords] = finish.cpu().numpy().reshape(1, 3, self.img_size*self.img_size)[0, :, coords]
         return scores
 
     def evaluate(self, img_batch, exp_batch, batch_size):
@@ -195,15 +197,15 @@ class CausalMetric():
             scores (nd.array): Array containing scores at every step for every image.
         """
         n_samples = img_batch.shape[0]
-        predictions = torch.FloatTensor(n_samples, n_classes)
+        predictions = torch.FloatTensor(n_samples, self.n_classes)
         assert n_samples % batch_size == 0
         for i in tqdm(range(n_samples // batch_size), desc='Predicting labels'):
             preds = self.model(img_batch[i*batch_size:(i+1)*batch_size].cuda()).cpu()
             predictions[i*batch_size:(i+1)*batch_size] = preds
         top = np.argmax(predictions, -1)
-        n_steps = (HW + self.step - 1) // self.step
+        n_steps = (self.img_size*self.img_size + self.step - 1) // self.step
         scores = np.empty((n_steps + 1, n_samples))
-        salient_order = np.flip(np.argsort(exp_batch.reshape(-1, HW), axis=1), axis=-1)
+        salient_order = np.flip(np.argsort(exp_batch.reshape(-1, self.img_size*self.img_size), axis=1), axis=-1)
         r = np.arange(n_samples).reshape(n_samples, 1)
 
         substrate = torch.zeros_like(img_batch)
@@ -229,12 +231,12 @@ class CausalMetric():
                 scores[i, j*batch_size:(j+1)*batch_size] = preds
             # Change specified number of most salient pixels to substrate pixels
             coords = salient_order[:, self.step * i:self.step * (i + 1)]
-            start.cpu().numpy().reshape(n_samples, 3, HW)[r, :, coords] = finish.cpu().numpy().reshape(n_samples, 3, HW)[r, :, coords]
+            start.cpu().numpy().reshape(n_samples, 3, self.img_size*self.img_size)[r, :, coords] = finish.cpu().numpy().reshape(n_samples, 3, self.img_size*self.img_size)[r, :, coords]
         print('AUC: {}'.format(auc(scores.mean(1))))
         return scores
     
 class InsertionMetric(CausalMetric):
-    def __init__(self, model, step=224, klen=11, ksig=5):
+    def __init__(self, model, step=224, klen=11, ksig=5, img_size=224, n_classes=2):
         r"""Create insertion metric instance.
 
         Args:
@@ -246,7 +248,7 @@ class InsertionMetric(CausalMetric):
         # Function that blurs input image
         blur = lambda x: nn.functional.conv2d(x, kern, padding=klen//2)
         #insertion = CausalMetric(model, 'ins', 224, substrate_fn=blur)
-        super().__init__(model, 'ins', step, blur)
+        super().__init__(model, 'ins', step, blur, img_size=img_size, n_classes=n_classes)
         
     def __call__(self, img_batch, exp_batch, batch_size):
         """Input batch images and explanations, return AUC of insertion metric.
@@ -268,7 +270,7 @@ class InsertionMetric(CausalMetric):
         return auc(h.mean(1))
     
 class DeletionMetric(CausalMetric):
-    def __init__(self, model, step=224):
+    def __init__(self, model, step=224, img_size=224, n_classes=2):
         r"""Create deletion metric instance.
 
         Args:
@@ -276,7 +278,7 @@ class DeletionMetric(CausalMetric):
             step (int): number of pixels modified per one iteration.
             substrate_fn (func): a mapping from old pixels to new pixels.
         """
-        super().__init__(model, 'del', step, substrate_fn=torch.zeros_like)
+        super().__init__(model, 'del', step, substrate_fn=torch.zeros_like, img_size=img_size, n_classes=n_classes)
         
     def __call__(self, img_batch, exp_batch, batch_size):
         """Input batch images and explanations, return AUC of deletion metric.
