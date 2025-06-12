@@ -115,8 +115,13 @@ class Attention_Map(torch.nn.Module):
         return attention_maps #.unsqueeze(1)  # Add channel dimension
     
     def print_model(self,model):
-        nodes, _ = get_graph_node_names(model, tracer_kwargs={'leaf_modules': [PatchEmbed]})
-        pprint(nodes)
+        if self.timm:
+            print("Timm Model Layers:")
+            nodes, _ = get_graph_node_names(model, tracer_kwargs={'leaf_modules': [PatchEmbed]})
+            pprint(nodes)
+        else:
+            print("HuggingFace Model Layers:")
+            print(model)
     
 
 if __name__ == "__main__":
