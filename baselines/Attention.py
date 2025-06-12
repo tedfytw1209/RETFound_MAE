@@ -68,6 +68,7 @@ def generate_attention_map_batch(attentions, img_size=224, use_rollout=True):
             cls_attention = last_layer[:, 0, 1:].mean(dim=0).cpu().numpy()  # mean over heads
 
         att_map = cls_attention.reshape(num_patches, num_patches)
+        att_map = att_map.astype(np.float32)
         att_map = np.array(Image.fromarray(att_map).resize((img_size, img_size), resample=Image.BILINEAR))
         att_map = (att_map - att_map.min()) / (att_map.max() - att_map.min() + 1e-8)
         attention_maps.append(att_map)
