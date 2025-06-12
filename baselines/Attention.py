@@ -6,6 +6,8 @@ import torch.nn.functional as F
 from pprint import pprint
 
 import os
+os.environ["TIMM_FUSED_ATTN"] = "0"
+
 import timm
 from timm.models.layers import PatchEmbed
 from torchvision.models.feature_extraction import get_graph_node_names
@@ -69,7 +71,7 @@ class Attention_Map(torch.nn.Module):
     
 
 if __name__ == "__main__":
-    os.environ["TIMM_FUSED_ATTN"] = "0"
+    
     model = timm.create_model('vit_base_patch16_224', pretrained=True).cuda()
     input_size = 224
     attention_map_model = Attention_Map(model, input_size, N=11, use_rollout=True).cuda()
