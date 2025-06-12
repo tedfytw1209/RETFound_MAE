@@ -129,7 +129,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
     
     print(f'XAI Metrics at epoch {epoch} ({mode}):')
     for k, v in metric_logger.meters.items():
-        score = np.mean(v)
+        score = v.global_avg
         print(f'{k}: {score:.4f}')
         if log_writer is not None:
             log_writer.add_scalar(f'{mode}/{k}', score, epoch)
