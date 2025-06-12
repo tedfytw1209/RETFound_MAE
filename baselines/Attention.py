@@ -39,9 +39,8 @@ class Attention_Map(torch.nn.Module):
         self.model = model
         self.input_size = input_size
         self.use_rollout = use_rollout
-        nodes, _ = get_graph_node_names(model, tracer_kwargs={'leaf_modules': [PatchEmbed]})
-        pprint(nodes)
-        #
+        
+        self.print_model(model)
         return_attns = [f'blocks.{i}.attn.softmax' for i in range(N)]
         # This is the "one line of code" that does what you want
         self.feature_extractor = create_feature_extractor(
@@ -61,7 +60,11 @@ class Attention_Map(torch.nn.Module):
         attention_maps = np.array(attention_maps)
         attention_maps = torch.from_numpy(attention_maps).float().cuda()
         return attention_maps #.unsqueeze(1)  # Add channel dimension
-        
+    
+    def print_model(self,model):
+        nodes, _ = get_graph_node_names(model, tracer_kwargs={'leaf_modules': [PatchEmbed]})
+        pprint(nodes)
+    
 
 if __name__ == "__main__":
     model = timm.create_model('vit_base_patch16_224', pretrained=True)
