@@ -35,6 +35,45 @@ def generate_attention_map_single(attentions, img_size=224, use_rollout=True):
     attention_map = (attention_map - attention_map.min()) / (attention_map.max() - attention_map.min() + 1e-8)
     return attention_map
 
+def generate_attention_map_batch(attentions, img_size=224, use_rollout=True):
+    """
+    Generate attention maps for a batch of images using transformer attentions.
+
+    Parameters:
+        attentions (list of torch.Tensor): List of attention tensors from each layer,
+                                           each of shape (B, num_heads, num_tokens, num_tokens)
+        img_size (int): Target spatial size (e.g., 224).
+        use_rollout (bool): Whether to apply attention rollout across layers.
+
+    Returns:
+        np.ndarray: Attention maps of shape (B, img_size, img_size)
+    """
+    B = attentions[0].shape[0]
+    num_tokens = attentions[0].shape[-1]
+    patch_tokens = num_tokens - 1  # exclude cls token
+    num_patches = int(patch_tokens ** 0.5)
+    attention_maps = []
+
+    for i in range(B):
+        if use_rollout:
+            rollout = np.eye(num_tokens)
+            for att in attentions:
+                avg_att = att[i].mean(dim=0).cpu().numpy()  # shape: (num_tokens, num_tokens)
+                avg_att = avg_att + np.eye(num_tokens)
+                avg_att = avg_att / avg_att.sum(axis=-1, keepdims=True)
+                rollout = np.matmul(rollout, avg_att)
+            cls_attention = rollout[0, 1:]  # exclude cls token
+        else:
+            last_layer = attentions[-1][i]  # shape: (num_heads, num_tokens, num_tokens)
+            cls_attention = last_layer[:, 0, 1:].mean(dim=0).cpu().numpy()  # mean over heads
+
+        att_map = cls_attention.reshape(num_patches, num_patches)
+        att_map = np.array(Image.fromarray(att_map).resize((img_size, img_size), resample=Image.BILINEAR))
+        att_map = (att_map - att_map.min()) / (att_map.max() - att_map.min() + 1e-8)
+        attention_maps.append(att_map)
+
+    return np.stack(attention_maps)  # shape: (B, img_size, img_size)
+
 class Attention_Map(torch.nn.Module):
     def __init__(self, model, input_size, N=12, use_rollout=True):
         super(Attention_Map, self).__init__()
@@ -51,17 +90,12 @@ class Attention_Map(torch.nn.Module):
             tracer_kwargs={'leaf_modules': [PatchEmbed]})
 
     def forward(self, x):
-        bs = x.shape[0]
         self.model.eval()
         with torch.no_grad():
-            attentions = self.feature_extractor(x) #(B, ...)
+            attentions = self.feature_extractor(x) #(B, n_heads, num_tokens, num_tokens)
         attentions = [attentions[key] for key in self.return_attns]
-        print("Attention shapes:", attentions[0].shape)  # Debugging line
-        attention_maps = []
-        for i in range(bs):
-            attention_map = generate_attention_map_single(attentions, img_size=self.input_size, use_rollout=self.use_rollout)
-            attention_maps.append(attention_map)
-        attention_maps = np.array(attention_maps)
+
+        attention_maps = generate_attention_map_batch(attentions, img_size=self.input_size, use_rollout=self.use_rollout)
         attention_maps = torch.from_numpy(attention_maps).float().cuda()
         return attention_maps #.unsqueeze(1)  # Add channel dimension
     
