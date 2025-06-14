@@ -56,7 +56,7 @@ def RETFound_mae(**kwargs):
 
 
 
-def RETFound_dinov2(args, **kwargs):
+def RETFound_dinov2(**kwargs):
     model = timm.create_model(
         'vit_large_patch14_dinov2.lvd142m',
         pretrained=True,
