@@ -5,8 +5,10 @@
 #SBATCH --mem-per-cpu=4gb
 #SBATCH --partition=gpu
 #SBATCH --gpus=a100:1
-#SBATCH --time=48:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=%x.%j.out
+#SBATCH --account=ruogu.fang
+#SBATCH --qos=ruogu.fang
 
 date;hostname;pwd
 
@@ -14,7 +16,7 @@ module load conda
 conda activate retfound_new
 # Go to home directory
 #cd $HOME
-STUDY=$1 #AMD_all_split 2, Cataract_all_split 2, DR_all_split 5, Glaucoma_all_split 5
+STUDY=$1 #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_split 6, DR_all_split_binary 2, Glaucoma_all_split_binary 2
 MODEL=${2:-"RETFound_mae"}
 FINETUNED_MODEL=${3:-"RETFound_mae_natureOCT"}
 LR=${4:-"5e-4"}
