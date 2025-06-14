@@ -198,7 +198,7 @@ def main(args, criterion):
         img_size=args.input_size,
         num_classes=args.nb_classes,
         drop_path_rate=args.drop_path,
-        global_pool=args.global_pool,
+        global_pool="token",
     )
     elif 'vit-base-patch16-224' in args.model:
             # ViT-base-patch16-224 preprocessor
