@@ -117,6 +117,10 @@ def get_args_parser():
     parser.set_defaults(global_pool=True)
     parser.add_argument('--cls_token', action='store_false', dest='global_pool',
                         help='Use class token instead of global pool for classification')
+    parser.add_argument('--eval_score', default='default', type=str,
+                        help='eval_score, default means (f1 + roc_auc + kappa) / 3')
+    parser.add_argument('--testval', action='store_true', default=False,
+                        help='Use test set for validation, otherwise use val set')
 
     # Dataset parameters
     parser.add_argument('--data_path', default='./data/', type=str,
@@ -287,10 +291,16 @@ def main(args, criterion):
             processor = None
         else:
             print("No checkpoints from: %s" % args.finetune)
-            
-    dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
-    dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
-    dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
+    #dataset selection
+    if args.testval:
+        print('Using test set for validation')
+        dataset_train = build_dataset(is_train=['train','val'], args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
+        dataset_val = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
+        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
+    else:
+        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
+        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
+        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
     
     #for weighted loss
     if args.loss_weight:
@@ -483,7 +493,7 @@ def main(args, criterion):
         if 'epoch' in checkpoint:
             print("Test with the best model at epoch = %d" % checkpoint['epoch'])
         test_stats, auc_roc = evaluate(data_loader_test, model, device, args, epoch=0, mode='test',
-                                       num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
+                                       num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
         wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
         wandb.log(wandb_dict)
         wandb.finish()
@@ -492,6 +502,9 @@ def main(args, criterion):
         exit(0)
 
     print(f"Start training for {args.epochs} epochs")
+    print(f"Number of training samples: {len(dataset_train)}")
+    print(f"Number of validation samples: {len(dataset_val)}")
+    print(f'Evaluation score: {args.eval_score}')
     start_time = time.time()
     max_score = 0.0
     best_epoch = 0
@@ -508,7 +521,7 @@ def main(args, criterion):
         )
 
         val_stats, val_score = evaluate(data_loader_val, model, device, args, epoch, mode='val',
-                                        num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
+                                        num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
         if log_writer is not None and misc.is_main_process():
             wandb_dict = {"epoch": epoch}
             wandb_dict.update({f'train_{k}': v for k, v in train_stats.items()})
@@ -530,7 +543,7 @@ def main(args, criterion):
             model.to(device)
             print("Validation with the best model, epoch = %d:" % checkpoint['epoch'])
             val_stats, val_score = evaluate(data_loader_val, model, device, args, -1, mode='val',
-                                           num_class=args.nb_classes, k=args.num_k, log_writer=log_writer)
+                                           num_class=args.nb_classes, k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
             wandb_dict = {}
             wandb_dict.update({f'best_val_{k}': v for k, v in val_stats.items()})
             wandb.log(wandb_dict)
@@ -554,7 +567,7 @@ def main(args, criterion):
     state_dict_best = torch.load(os.path.join(args.output_dir,args.task,'checkpoint-best.pth'), map_location='cpu')
     model_without_ddp.load_state_dict(state_dict_best['model'])
     print("Test with the best model, epoch = %d:" % checkpoint['epoch'])
-    test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
+    test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
     wandb_dict = {}
     wandb_dict.update({f'test_{k}': v for k, v in test_stats.items()})
     wandb.log(wandb_dict)

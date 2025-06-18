@@ -49,8 +49,11 @@ class CSV_Dataset(Dataset):
         self.root_dir = img_dir
         self.loader = datasets.folder.default_loader
         data = pd.read_csv(csv_file)
-        self.annotations = data[data['split']==is_train]
-        print('Split: ', is_train,' Data len: ', self.annotations.shape[0])
+        if not isinstance(is_train, list):
+            is_train_l = [is_train]
+        is_train = is_train_l[0]
+        self.annotations = data[data['split'].isin(is_train_l)]
+        print('Split: ', is_train_l,' Data len: ', self.annotations.shape[0])
         self.classes = [str(c) for c in self.annotations['label'].unique()]
         self.num_class = len(self.classes)
         #assert index order control, mci, ad
@@ -157,6 +160,9 @@ def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_A
 def build_transform(is_train, args):
     mean = IMAGENET_DEFAULT_MEAN
     std = IMAGENET_DEFAULT_STD
+    #!!TODO: debug in 'train' not the first
+    if isinstance(is_train, list):
+        is_train = is_train[0]
     # train transform
     if is_train == 'train':
         # this should always dispatch to transforms_imagenet_train

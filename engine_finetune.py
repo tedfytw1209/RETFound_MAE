@@ -10,7 +10,7 @@ from timm.data import Mixup
 from timm.utils import accuracy
 from sklearn.metrics import (
     accuracy_score, roc_auc_score, f1_score, average_precision_score,
-    hamming_loss, jaccard_score, recall_score, precision_score, cohen_kappa_score,
+    hamming_loss, jaccard_score, recall_score, precision_score, cohen_kappa_score,matthews_corrcoef,
     multilabel_confusion_matrix,confusion_matrix
 )
 from pycm import ConfusionMatrix
@@ -71,6 +71,7 @@ def train_one_epoch(
     print_freq, accum_iter = 20, args.accum_iter
     optimizer.zero_grad()
     all_labels, all_preds, all_probs = [], [], []
+    true_onehot, pred_onehot= [], []
     if log_writer:
         print(f'log_dir: {log_writer.log_dir}')
     
@@ -80,6 +81,7 @@ def train_one_epoch(
         samples = data_bs[0]
         targets = data_bs[1]
         samples, targets = samples.to(device, non_blocking=True), targets.to(device, non_blocking=True)
+        target_onehot = F.one_hot(targets.to(torch.int64), num_classes=args.nb_classes)
         if mixup_fn:
             samples, targets = mixup_fn(samples, targets)
         
@@ -94,6 +96,9 @@ def train_one_epoch(
         loss /= accum_iter
         probs = torch.softmax(outputs, dim=1)
         _, preds = torch.max(probs, 1)
+        output_onehot = F.one_hot(preds.to(torch.int64), num_classes=args.nb_classes)
+        true_onehot.extend(target_onehot.cpu().numpy())
+        pred_onehot.extend(output_onehot.detach().cpu().numpy())
         all_labels.extend(targets.cpu().numpy())
         all_preds.extend(preds.cpu().numpy())
         all_probs.extend(probs.detach().cpu().numpy())
@@ -127,16 +132,21 @@ def train_one_epoch(
     print("Averaged stats:", metric_logger)
     conf = confusion_matrix(all_labels, all_preds)
     accuracy = accuracy_score(all_labels, all_preds)
-    f1 = f1_score(all_labels, all_preds, zero_division=0, average='macro')
+    roc_auc = roc_auc_score(true_onehot, all_preds, multi_class='ovr', average='macro')
+    f1 = f1_score(all_labels, all_probs, zero_division=0, average='macro')
+    kappa = cohen_kappa_score(all_labels, all_preds)
+    mcc = matthews_corrcoef(all_labels, all_preds)
+    
     train_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
-    train_stats['accuracy'] = accuracy
-    train_stats['f1'] = f1
+    for metric_name, value in zip(['accuracy', 'f1', 'roc_auc', 'kappa', 'mcc'],
+                                       [accuracy, f1, roc_auc, kappa, mcc]):
+            train_stats[metric_name] = value
     print(f'Accuracy: {accuracy:.4f}, F1 Score: {f1:.4f}')
     print("confusion_matrix:\n", conf)
     return train_stats
 
 @torch.no_grad()
-def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_writer):
+def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_writer, eval_score=''):
     """Evaluate the model."""
     criterion = nn.CrossEntropyLoss()
     metric_logger = misc.MetricLogger(delimiter="  ")
@@ -176,21 +186,26 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_wr
     roc_auc = roc_auc_score(true_onehot, pred_softmax, multi_class='ovr', average='macro')
     precision = precision_score(true_onehot, pred_onehot, zero_division=0, average='macro')
     recall = recall_score(true_onehot, pred_onehot, zero_division=0, average='macro')
+    mcc = matthews_corrcoef(true_labels, pred_labels)
     
     conf = confusion_matrix(true_labels, pred_labels)
-    
-    score = (f1 + roc_auc + kappa) / 3
+    if eval_score == 'mcc':
+        score = mcc
+    elif eval_score == 'roc_auc':
+        score = roc_auc
+    else:
+        score = (f1 + roc_auc + kappa) / 3
     metric_dict = {}
     if log_writer:
-        for metric_name, value in zip(['accuracy', 'f1', 'roc_auc', 'hamming', 'jaccard', 'precision', 'recall', 'average_precision', 'kappa', 'score'],
-                                       [accuracy, f1, roc_auc, hamming, jaccard, precision, recall, average_precision, kappa, score]):
+        for metric_name, value in zip(['accuracy', 'f1', 'roc_auc', 'hamming', 'jaccard', 'precision', 'recall', 'average_precision', 'kappa', 'mcc', 'score'],
+                                       [accuracy, f1, roc_auc, hamming, jaccard, precision, recall, average_precision, kappa, mcc, score]):
             log_writer.add_scalar(f'perf/{metric_name}', value, epoch)
             metric_dict[metric_name] = value
     
     print(f'val loss: {metric_logger.meters["loss"].global_avg}')
     print(f'Accuracy: {accuracy:.4f}, F1 Score: {f1:.4f}, ROC AUC: {roc_auc:.4f}, Hamming Loss: {hamming:.4f},\n'
           f' Jaccard Score: {jaccard:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f},\n'
-          f' Average Precision: {average_precision:.4f}, Kappa: {kappa:.4f}, Score: {score:.4f}')
+          f' Average Precision: {average_precision:.4f}, Kappa: {kappa:.4f}, MCC: {mcc:.4f}, Score: {score:.4f}')
     print("confusion_matrix:\n", conf)
     metric_logger.synchronize_between_processes()
     
@@ -199,8 +214,8 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_wr
     with open(results_path, 'a', newline='', encoding='utf8') as cfa:
         wf = csv.writer(cfa)
         if not file_exists:
-            wf.writerow(['val_loss', 'accuracy', 'f1', 'roc_auc', 'hamming', 'jaccard', 'precision', 'recall', 'average_precision', 'kappa'])
-        wf.writerow([metric_logger.meters["loss"].global_avg, accuracy, f1, roc_auc, hamming, jaccard, precision, recall, average_precision, kappa])
+            wf.writerow(['val_loss', 'accuracy', 'f1', 'roc_auc', 'hamming', 'jaccard', 'precision', 'recall', 'average_precision', 'kappa', 'mcc'])
+        wf.writerow([metric_logger.meters["loss"].global_avg, accuracy, f1, roc_auc, hamming, jaccard, precision, recall, average_precision, kappa, mcc])
     
     if mode == 'test':
         cm = ConfusionMatrix(actual_vector=true_labels, predict_vector=pred_labels)
