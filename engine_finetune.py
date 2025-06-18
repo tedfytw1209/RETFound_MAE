@@ -132,7 +132,7 @@ def train_one_epoch(
     print("Averaged stats:", metric_logger)
     conf = confusion_matrix(all_labels, all_preds)
     accuracy = accuracy_score(all_labels, all_preds)
-    roc_auc = roc_auc_score(true_onehot, all_preds, multi_class='ovr', average='macro')
+    roc_auc = roc_auc_score(true_onehot, all_probs, multi_class='ovr', average='macro')
     f1 = f1_score(all_labels, all_probs, zero_division=0, average='macro')
     kappa = cohen_kappa_score(all_labels, all_preds)
     mcc = matthews_corrcoef(all_labels, all_preds)
