@@ -10,7 +10,7 @@ NUM_K=${7:-"0"}
 ADDCMD=${8:-""}
 ADDCMD2=${9:-""}
 
-#bash slm/finetune/2025-0606-finetune-UF-Cohorts_v2_split5.sh 5e-3 1e-6 100 dual v3 0.1
+#bash baseline_multirun_v2.sh finetune_retfound_UFbenchmark_CFP.sh RETFound_mae RETFound_mae_natureCFP 5e-4
 DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_all_split_binary Glaucoma_all_split_binary)  # List of datasets
 CLASSES=(2 2 6 6 2 2)  # Number of classes for each dataset
 for i in "${!DATASETS[@]}"
