@@ -6,9 +6,12 @@ FINETUNED_MODEL=${3:-"RETFound_mae_natureOCT"}
 LR=${4:-"5e-4"}
 Num_CLASS=${5:-"2"}
 weight_decay=${6:-"0.05"}
-NUM_K=${7:-"0"}
-ADDCMD=${8:-""}
-ADDCMD2=${9:-""}
+Eval_score=${7:-"default"}
+Modality=${8:-"OCT"} # CFP, OCT, OCT_CFP
+ADDCMD=${9:-""}
+ADDCMD2=${10:-""}
+
+NUM_K=0
 
 #bash baseline_multirun_v2.sh finetune_retfound_UFbenchmark_CFP.sh RETFound_mae RETFound_mae_natureCFP 5e-4
 DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_all_split_binary Glaucoma_all_split_binary)  # List of datasets
@@ -20,5 +23,5 @@ do
     NUM_CLASS="${CLASSES[$i]}"
     echo "Running dataset: $DATASET with num_class=$NUM_CLASS"
     # Submit the job to Slurm
-    sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $NUM_K "$ADDCMD" "$ADDCMD2"
+    sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $ADDCMD $ADDCMD2
 done

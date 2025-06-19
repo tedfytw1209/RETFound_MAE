@@ -20,9 +20,11 @@ FINETUNED_MODEL=${3:-"RETFound_mae_natureCFP"}
 LR=${4:-"5e-4"}
 Num_CLASS=${5:-"2"}
 weight_decay=${6:-"0.05"}
-NUM_K=${7:-"0"}
+Eval_score=${7:-"default"}
 ADDCMD=${8:-""}
 ADDCMD2=${9:-""}
+
+NUM_K=0
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
@@ -31,4 +33,4 @@ echo $Num_CLASS
 
 # Modify the path to your singularity container 
 # sbatch finetune_retfound_UFbenchmark_CFP.sh DR_all_split RETFound_mae RETFound_mae_natureCFP 5e-4 5
-torchrun --nproc_per_node=1 --master_port=48798 main_finetune.py --savemodel --global_pool    --batch_size 16     --world_size 1     --model $MODEL     --epochs 100 --lr $LR --layer_decay 0.65     --weight_decay $weight_decay --drop_path 0.2     --nb_classes $Num_CLASS     --data_path /orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/new_v2/split/tune5-eval5/${STUDY}.csv     --task $STUDY-v2-all-$MODEL-$ADDCMD-$ADDCMD2/ --img_dir /orange/ruogu.fang/tienyuchang/all_imgs_paired/ --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k $NUM_K $ADDCMD $ADDCMD2 --modality CFP
+torchrun --nproc_per_node=1 --master_port=48798 main_finetune.py --savemodel --global_pool    --batch_size 16     --world_size 1     --model $MODEL     --epochs 100 --lr $LR --layer_decay 0.65     --weight_decay $weight_decay --drop_path 0.2     --nb_classes $Num_CLASS     --data_path /orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/new_v2/split/tune5-eval5/${STUDY}.csv     --task $STUDY-v2-all-$MODEL-$ADDCMD-$ADDCMD2/ --img_dir /orange/ruogu.fang/tienyuchang/all_imgs_paired/ --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k $NUM_K $ADDCMD $ADDCMD2 --eval_score $Eval_score --modality CFP
