@@ -51,6 +51,8 @@ class CSV_Dataset(Dataset):
         data = pd.read_csv(csv_file)
         if not isinstance(is_train, list):
             is_train_l = [is_train]
+        else:
+            is_train_l = is_train
         is_train = is_train_l[0]
         self.annotations = data[data['split'].isin(is_train_l)]
         print('Split: ', is_train_l,' Data len: ', self.annotations.shape[0])

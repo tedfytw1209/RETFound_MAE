@@ -13,7 +13,7 @@ ADDCMD2=${10:-""}
 
 NUM_K=0
 
-#bash baseline_multirun_v2.sh finetune_retfound_UFbenchmark_CFP.sh RETFound_mae RETFound_mae_natureCFP 5e-4
+#bash baseline_multirun_v2.sh finetune_retfound_UFbenchmark_v2.sh RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 mcc OCT --testval
 DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_all_split_binary Glaucoma_all_split_binary)  # List of datasets
 CLASSES=(2 2 6 6 2 2)  # Number of classes for each dataset
 for i in "${!DATASETS[@]}"
