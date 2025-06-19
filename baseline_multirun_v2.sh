@@ -23,5 +23,7 @@ do
     NUM_CLASS="${CLASSES[$i]}"
     echo "Running dataset: $DATASET with num_class=$NUM_CLASS"
     # Submit the job to Slurm
+    echo "sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $ADDCMD $ADDCMD2"
     sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $ADDCMD $ADDCMD2
+    sleep 5 # Optional: sleep to avoid overwhelming the scheduler
 done
