@@ -17,6 +17,16 @@ class GradCAM(torch.nn.Module):
         self.gradients = None
 
         # Register hooks on the last layer of the encoder
+        if 'RETFound' in model_name or 'vit' in model_name:
+            # timm or HuggingFace ViT
+            self.target_layer = model.vit.encoder.layer[-1].output
+        elif 'efficientnet' in model_name:
+            # HuggingFace EfficientNet (feature_extractor -> classifier)
+            self.target_layer = model.efficientnet.encoder[-1]
+        elif 'resnet' in model_name:
+            self.target_layer = model.resnet.layer4[-1]  # last ResNet layer
+        else:
+            raise ValueError(f"Unsupported model type for GradCAM: {model_name}")
         target_layer = self.model.vit.encoder.layer[-1].output
         self.forward_handle = target_layer.register_forward_hook(self._forward_hook)
         self.backward_handle = target_layer.register_full_backward_hook(self._backward_hook)
@@ -27,21 +37,41 @@ class GradCAM(torch.nn.Module):
     def _backward_hook(self, module, grad_input, grad_output):
         self.gradients = grad_output[0]
 
-    def forward(self, pixel_values, target_class=None):
+    def compute_cam(self, pixel_values, target_class=None):
+        is_batch = pixel_values.dim() == 4
+        B = pixel_values.size(0) if is_batch else 1
+        if not is_batch:
+            pixel_values = pixel_values.unsqueeze(0)
+
         outputs = self.model(pixel_values)
         logits = outputs.logits
         if target_class is None:
-            target_class = logits.argmax(dim=-1).item()
+            target_class = logits.argmax(dim=-1)
+        elif isinstance(target_class, int):
+            target_class = torch.tensor([target_class] * B, device=logits.device)
 
-        score = logits[0, target_class]
+        scores = logits[range(B), target_class]
         self.model.zero_grad()
-        score.backward()
+        scores.sum().backward()
 
         weights = self.gradients.mean(dim=1, keepdim=True)
-        cam = (weights * self.features).sum(dim=-1).squeeze()
-        cam = F.relu(cam[1:].reshape(self.patch_size, self.patch_size))
-        cam = (cam - cam.min()) / (cam.max() - cam.min())
-        return cam
+        cam = (weights * self.features).sum(dim=-1)
+
+        if 'vit' in self.model_name or 'RETFound' in self.model_name:
+            cam = F.relu(cam[:, 1:])  # Skip [CLS] token
+            cam = cam.reshape(B, self.patch_size, self.patch_size)
+        else:
+            cam = F.relu(cam)
+
+        # Normalize per image
+        cam_min = cam.view(B, -1).min(dim=1)[0].view(B, 1, 1)
+        cam_max = cam.view(B, -1).max(dim=1)[0].view(B, 1, 1)
+        cam = (cam - cam_min) / (cam_max - cam_min + 1e-8)
+
+        return cam if is_batch else cam.squeeze(0)
+
+    def forward(self, pixel_values, target_class=None):
+        return self.compute_cam(pixel_values, target_class)
 
     def overlay_cam(self, image, cam):
         cam = np.uint8(255 * cam.detach().cpu().numpy())

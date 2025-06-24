@@ -28,6 +28,7 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.losses import FocalLoss, compute_alpha_from_labels
 from util.evaluation import InsertionMetric, DeletionMetric
 from baselines.Attention import Attention_Map
+from baselines.GradCAM import GradCAM
 from baselines.RISE import RISE, RISEBatch
 from huggingface_hub import hf_hub_download, login
 from engine_finetune import evaluate_half3D, train_one_epoch, evaluate
@@ -319,12 +320,14 @@ def main(args, criterion):
 
     print(f"Start evaluating XAI:")
     start_time = time.time()
-    ###TODO: evaluate XAI
+    ###TODO: evaluate XAI baselines
     if args.xai == 'rise':
         print("Using RISE for XAI")
-        XAI_module = RISE(model, input_size=args.input_size, gpu_batch=args.batch_size)
+        XAI_module = RISEBatch(model, input_size=args.input_size, gpu_batch=args.batch_size)
     elif args.xai == 'attn':
         XAI_module = Attention_Map(model, args.model, input_size=args.input_size, N=11, use_rollout=args.use_rollout, print_layers=True)
+    elif args.xai == 'gradcam':
+        XAI_module = GradCAM(model, model_name=args.model, patch_size=args.input_size)
     else:
         raise ValueError(f"Unknown XAI method: {args.xai}")
     XAI_module.to(device)
