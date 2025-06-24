@@ -210,7 +210,7 @@ def main(args, criterion):
             label2id={"control": 0, "ad": 1},
             ignore_mismatched_sizes=True
         )
-    elif 'resnet-50' in args.model:
+    elif 'resnet-50' in args.model: #TODO: Need implement and check if this is correct
         model_name = args.finetune if args.finetune else 'microsoft/resnet-50'
         processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_name))
         model = ResNetForImageClassification.from_pretrained(
