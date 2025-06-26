@@ -107,7 +107,6 @@ def get_args_parser():
 
     return parser
 
-@torch.no_grad()
 def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch, mode, num_class, k, log_writer):
     """Evaluate the XAI method on the dataset."""
     metric_logger = misc.MetricLogger(delimiter="  ")
