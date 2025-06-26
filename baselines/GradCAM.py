@@ -19,17 +19,16 @@ class GradCAM(torch.nn.Module):
         # Register hooks on the last layer of the encoder
         if 'RETFound' in model_name or 'vit' in model_name:
             # timm or HuggingFace ViT
-            self.target_layer = model.vit.encoder.layer[-1].output
+            self.target_layer = model.blocks[-1]
         elif 'efficientnet' in model_name:
             # HuggingFace EfficientNet (feature_extractor -> classifier)
-            self.target_layer = model.efficientnet.encoder[-1]
+            self.target_layer = model.encoder.top_conv
         elif 'resnet' in model_name:
-            self.target_layer = model.resnet.layer4[-1]  # last ResNet layer
+            self.target_layer = model.resnet.encoder.stages[-1]  # last ResNet layer
         else:
             raise ValueError(f"Unsupported model type for GradCAM: {model_name}")
-        target_layer = self.model.vit.encoder.layer[-1].output
-        self.forward_handle = target_layer.register_forward_hook(self._forward_hook)
-        self.backward_handle = target_layer.register_full_backward_hook(self._backward_hook)
+        self.forward_handle = self.target_layer.register_forward_hook(self._forward_hook)
+        self.backward_handle = self.target_layer.register_full_backward_hook(self._backward_hook)
 
     def _forward_hook(self, module, input, output):
         self.features = output
