@@ -43,7 +43,11 @@ class GradCAM(torch.nn.Module):
             pixel_values = pixel_values.unsqueeze(0)
 
         outputs = self.model(pixel_values)
-        logits = outputs.logits
+        
+        if hasattr(outputs, 'logits'):
+            logits = outputs.logits
+        else:
+            logits = outputs
         if target_class is None:
             target_class = logits.argmax(dim=-1)
         elif isinstance(target_class, int):
