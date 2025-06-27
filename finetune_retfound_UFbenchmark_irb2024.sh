@@ -31,7 +31,7 @@ NUM_K=0
 data_type="IRB2024_v2"
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
 
-MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
+MASTER_PORT=$(expr 10001 + $(echo -n $SLURM_JOBID | tail -c 4))
 
 echo $SUBSTUDY
 echo $Num_CLASS
