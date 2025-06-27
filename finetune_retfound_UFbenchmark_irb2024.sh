@@ -31,7 +31,7 @@ NUM_K=0
 data_type="IRB2024_v2"
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
 
-MASTER_PORT=$(expr 10001 + $(echo -n $SLURM_JOBID | tail -c 4))
+MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
 echo $SUBSTUDY
 echo $Num_CLASS
@@ -40,4 +40,4 @@ echo $Num_CLASS
 # sbatch finetune_retfound_UFbenchmark_irb2024.sh DR_all_split RETFound_mae RETFound_mae_natureCFP 5e-4 5
 # sbatch finetune_retfound_UFbenchmark_irb2024.sh Glaucoma_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 6 0.05 mcc OCT --testval
 # sbatch finetune_retfound_UFbenchmark_irb2024.sh AMD_all_split RETFound_dinov2 RETFound_dinov2_meh 5e-4 2
-torchrun --nproc_per_node=1 --master_port=48798 main_finetune.py --savemodel --global_pool    --batch_size 16     --world_size 1     --model $MODEL     --epochs 100 --lr $LR --layer_decay 0.65     --weight_decay $weight_decay --drop_path 0.2     --nb_classes $Num_CLASS     --data_path /orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/${data_type}/split/tune5-eval5/${STUDY}.csv     --task $STUDY-${data_type}-all-$MODEL-${Modality}-${Eval_score}eval-$ADDCMD-$ADDCMD2/ --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k $NUM_K --eval_score $Eval_score --modality $Modality $ADDCMD $ADDCMD2
+torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune.py --savemodel --global_pool    --batch_size 16     --world_size 1     --model $MODEL     --epochs 100 --lr $LR --layer_decay 0.65     --weight_decay $weight_decay --drop_path 0.2     --nb_classes $Num_CLASS     --data_path /orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/${data_type}/split/tune5-eval5/${STUDY}.csv     --task $STUDY-${data_type}-all-$MODEL-${Modality}-${Eval_score}eval-$ADDCMD-$ADDCMD2/ --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k $NUM_K --eval_score $Eval_score --modality $Modality $ADDCMD $ADDCMD2
