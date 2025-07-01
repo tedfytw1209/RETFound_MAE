@@ -7,8 +7,8 @@
 #SBATCH --gpus=1
 #SBATCH --time=24:00:00
 #SBATCH --output=%x.%j.out
-#SBATCH --account=guoj1
-#SBATCH --qos=guoj1
+#SBATCH --account=hpg-turin
+#SBATCH --qos=hpg-turin
 
 date;hostname;pwd
 
