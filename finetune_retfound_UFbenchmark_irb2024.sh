@@ -3,12 +3,12 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=4gb
-#SBATCH --partition=gpu
+#SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
 #SBATCH --time=24:00:00
 #SBATCH --output=%x.%j.out
-#SBATCH --account=hpg-turin
-#SBATCH --qos=hpg-turin
+#SBATCH --account=guoj1
+#SBATCH --qos=guoj1
 
 date;hostname;pwd
 
