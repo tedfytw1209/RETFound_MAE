@@ -211,12 +211,12 @@ class CausalMetric():
         for i in tqdm(range(n_samples // batch_size), desc='Predicting labels'):
             output = self.model(img_batch[i*batch_size:(i+1)*batch_size].cuda())
             if hasattr(output, 'logits'):
-                preds = output.logits.cpu().detach().numpy()
+                preds = output.logits.cpu().detach()
             else:
-                preds = output.cpu().detach().numpy()
+                preds = output.cpu().detach()
             predictions[i*batch_size:(i+1)*batch_size] = preds
         img_batch = img_batch.cpu().float()
-        top = np.argmax(predictions, -1)
+        top = np.argmax(predictions.numpy(), -1)
         n_steps = (self.img_size*self.img_size + self.step - 1) // self.step
         scores = np.empty((n_steps + 1, n_samples))
         salient_order = np.flip(np.argsort(exp_batch.reshape(-1, self.img_size*self.img_size), axis=1), axis=-1)
