@@ -245,7 +245,7 @@ class CausalMetric():
                     preds = output.logits
                 else:
                     preds = output
-                preds = preds.cpu().numpy()[range(batch_size), top[j*batch_size:(j+1)*batch_size]]
+                preds = preds.detach().cpu().numpy()[range(batch_size), top[j*batch_size:(j+1)*batch_size]]
                 scores[i, j*batch_size:(j+1)*batch_size] = preds
             # Change specified number of most salient pixels to substrate pixels
             coords = salient_order[:, self.step * i:self.step * (i + 1)]
