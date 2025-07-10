@@ -219,7 +219,9 @@ class CausalMetric():
         top = np.argmax(predictions.numpy(), -1)
         n_steps = (self.img_size*self.img_size + self.step - 1) // self.step
         scores = np.empty((n_steps + 1, n_samples))
-        print(-1, self.img_size*self.img_size)
+        print('exp_batch.shape', exp_batch.shape)
+        print('img_batch.shape', img_batch.shape)
+        print('self.img_size', self.img_size)
         salient_order = np.flip(np.argsort(exp_batch.reshape(-1, self.img_size*self.img_size), axis=1), axis=-1)
         r = np.arange(n_samples).reshape(n_samples, 1)
 
