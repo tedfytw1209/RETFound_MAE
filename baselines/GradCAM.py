@@ -57,9 +57,9 @@ class GradCAM(torch.nn.Module):
         self.model.zero_grad()
         scores.sum().backward()
 
-        print(weights.shape, self.features.shape)
         weights = self.gradients.mean(dim=1, keepdim=True)
         cam = (weights * self.features).sum(dim=-1)
+        print(weights.shape, self.features.shape)
         print(cam.shape)
         if 'vit' in self.model_name.lower() or 'retfound' in self.model_name.lower():
             cam = F.relu(cam[:, 1:])  # Skip [CLS] token
