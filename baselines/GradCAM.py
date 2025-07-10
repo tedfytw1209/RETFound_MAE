@@ -74,7 +74,7 @@ class GradCAM(torch.nn.Module):
         return cam if is_batch else cam.squeeze(0)
 
     def forward(self, pixel_values, target_class=None):
-        return self.compute_cam(pixel_values, target_class)
+        return self.compute_cam(pixel_values, target_class).detach().cpu()
 
     def overlay_cam(self, image, cam):
         cam = np.uint8(255 * cam.detach().cpu().numpy())
