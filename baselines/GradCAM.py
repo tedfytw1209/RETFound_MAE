@@ -59,10 +59,10 @@ class GradCAM(torch.nn.Module):
 
         weights = self.gradients.mean(dim=1, keepdim=True)
         cam = (weights * self.features).sum(dim=-1)
-
-        if 'vit' in self.model_name or 'RETFound' in self.model_name:
+        if 'vit' in self.model_name.lower() or 'retfound' in self.model_name.lower():
             cam = F.relu(cam[:, 1:])  # Skip [CLS] token
-            cam = cam.reshape(B, self.patch_size, self.patch_size)
+            #07/10: TMP Change
+            #cam = cam.reshape(B, self.patch_size, self.patch_size)
         else:
             cam = F.relu(cam)
 
