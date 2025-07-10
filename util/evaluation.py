@@ -211,9 +211,9 @@ class CausalMetric():
         for i in tqdm(range(n_samples // batch_size), desc='Predicting labels'):
             output = self.model(img_batch[i*batch_size:(i+1)*batch_size].cuda())
             if hasattr(output, 'logits'):
-                preds = output.logits.cpu()
+                preds = output.logits.cpu().detach().numpy()
             else:
-                preds = output.cpu()
+                preds = output.cpu().detach().numpy()
             predictions[i*batch_size:(i+1)*batch_size] = preds
         img_batch = img_batch.cpu().float()
         top = np.argmax(predictions, -1)
