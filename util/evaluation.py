@@ -220,6 +220,7 @@ class CausalMetric():
         n_steps = (self.img_size*self.img_size + self.step - 1) // self.step
         scores = np.empty((n_steps + 1, n_samples))
         sort_order = np.argsort(exp_batch.reshape(-1, self.img_size*self.img_size), axis=1)
+        print('sort_order.shape', sort_order.shape)
         salient_order = np.flip(sort_order, axis=-1)
         r = np.arange(n_samples).reshape(n_samples, 1)
 
