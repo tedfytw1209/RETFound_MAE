@@ -330,7 +330,7 @@ def main(args, criterion):
     elif args.xai == 'attn':
         XAI_module = Attention_Map(model, args.model, input_size=args.input_size, N=11, use_rollout=args.use_rollout, print_layers=True)
     elif args.xai == 'gradcam':
-        XAI_module = GradCAM(model, model_name=args.model, patch_size=patch_size)
+        XAI_module = GradCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size)
     else:
         raise ValueError(f"Unknown XAI method: {args.xai}")
     XAI_module.to(device)

@@ -6,11 +6,12 @@ import matplotlib.pyplot as plt
 from transformers import ViTForImageClassification, ViTImageProcessor
 
 class GradCAM(torch.nn.Module):
-    def __init__(self, model, model_name, patch_size=14):
+    def __init__(self, model, model_name, img_size, patch_size=14):
         super(GradCAM, self).__init__()
         self.model = model
         self.model_name = model_name
         self.model.eval()
+        self.img_size = img_size
         self.patch_size = patch_size
 
         self.features = None
@@ -63,8 +64,7 @@ class GradCAM(torch.nn.Module):
         print(cam.shape)
         if 'vit' in self.model_name.lower() or 'retfound' in self.model_name.lower():
             cam = F.relu(cam[:, 1:])  # Skip [CLS] token
-            #07/10: TMP Change
-            cam = cam.reshape(B, self.patch_size, self.patch_size)
+            cam = cam.reshape(B, self.img_size // self.patch_size, self.img_size // self.patch_size)
         else:
             cam = F.relu(cam)
 
@@ -76,7 +76,10 @@ class GradCAM(torch.nn.Module):
         return cam if is_batch else cam.squeeze(0)
 
     def forward(self, pixel_values, target_class=None):
-        return self.compute_cam(pixel_values, target_class).detach().cpu()
+        cam_bs = self.compute_cam(pixel_values, target_class).detach().cpu()
+        # back to original image size
+        cam_bs = F.interpolate(cam_bs.unsqueeze(1), size=(self.img_size, self.img_size), mode='bilinear', align_corners=False)
+        return cam_bs.squeeze(1) #shape: (B, img_size, img_size)
 
     def overlay_cam(self, image, cam):
         cam = np.uint8(255 * cam.detach().cpu().numpy())
