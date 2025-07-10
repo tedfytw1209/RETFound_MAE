@@ -158,33 +158,37 @@ def main(args, criterion):
     cudnn.benchmark = True
 
     processor = None
+    patch_size = None
     if 'RETFound_mae' in args.model:
         model = models.__dict__['RETFound_mae'](
         img_size=args.input_size,
         num_classes=args.nb_classes,
         drop_path_rate=0.2,
         global_pool=True,
-    )
+        )
+        patch_size = 16
     elif 'RETFound_dinov2' in args.model:
         model = models.__dict__['RETFound_dinov2'](
         img_size=args.input_size,
         num_classes=args.nb_classes,
         drop_path_rate=0.2,
         global_pool=True,
-    )
+        )
+        patch_size = 14
     elif 'vit-base-patch16-224' in args.model:
-            # ViT-base-patch16-224 preprocessor
-            model_ = args.finetune if args.finetune else 'google/vit-base-patch16-224'
-            processor = TransformWrapper(ViTImageProcessor.from_pretrained(model_))
-            model = ViTForImageClassification.from_pretrained(
-                model_,
-                image_size=args.input_size,
-                num_labels=args.nb_classes,
-                id2label={0: "control", 1: "ad"},
-                label2id={"control": 0, "ad": 1},
-                ignore_mismatched_sizes=True,
-                attn_implementation="eager"
-            )
+        # ViT-base-patch16-224 preprocessor
+        model_ = args.finetune if args.finetune else 'google/vit-base-patch16-224'
+        processor = TransformWrapper(ViTImageProcessor.from_pretrained(model_))
+        model = ViTForImageClassification.from_pretrained(
+            model_,
+            image_size=args.input_size,
+            num_labels=args.nb_classes,
+            id2label={0: "control", 1: "ad"},
+            label2id={"control": 0, "ad": 1},
+            ignore_mismatched_sizes=True,
+            attn_implementation="eager"
+        )
+        patch_size = 16
     elif 'efficientnet-b0' in args.model:
         # EfficientNet-B0 preprocessor
         model_ = args.finetune if args.finetune else 'google/efficientnet-b0'
@@ -326,7 +330,7 @@ def main(args, criterion):
     elif args.xai == 'attn':
         XAI_module = Attention_Map(model, args.model, input_size=args.input_size, N=11, use_rollout=args.use_rollout, print_layers=True)
     elif args.xai == 'gradcam':
-        XAI_module = GradCAM(model, model_name=args.model, patch_size=args.input_size)
+        XAI_module = GradCAM(model, model_name=args.model, patch_size=patch_size)
     else:
         raise ValueError(f"Unknown XAI method: {args.xai}")
     XAI_module.to(device)
