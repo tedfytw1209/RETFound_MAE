@@ -79,7 +79,7 @@ class GradCAM(torch.nn.Module):
         cam_bs = self.compute_cam(pixel_values, target_class).detach().cpu()
         # back to original image size
         cam_bs = F.interpolate(cam_bs.unsqueeze(1), size=(self.img_size, self.img_size), mode='bilinear', align_corners=False)
-        return cam_bs.squeeze(1) #shape: (B, img_size, img_size)
+        return cam_bs.squeeze(1).numpy() #shape: (B, img_size, img_size)
 
     def overlay_cam(self, image, cam):
         cam = np.uint8(255 * cam.detach().cpu().numpy())
