@@ -1,6 +1,6 @@
 #! /bin/bash
 
-SCRIPT=$1 #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_split 6, DR_all_split_binary 2, Glaucoma_all_split_binary 2
+SCRIPT=$1 #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_split 6, DR_binary_all_split 2, Glaucoma_binary_all_split 2
 MODEL=${2:-"RETFound_mae"}
 FINETUNED_MODEL=${3:-"RETFound_mae_natureOCT"}
 LR=${4:-"5e-4"}
@@ -14,7 +14,7 @@ ADDCMD2=${10:-""}
 NUM_K=0
 
 #bash baseline_multirun_v2.sh finetune_retfound_UFbenchmark_v2.sh RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 mcc OCT --testval
-DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_all_split_binary Glaucoma_all_split_binary)  # List of datasets
+DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_binary_all_split Glaucoma_binary_all_split)  # List of datasets
 CLASSES=(2 2 6 6 2 2)  # Number of classes for each dataset
 for i in "${!DATASETS[@]}"
 do
