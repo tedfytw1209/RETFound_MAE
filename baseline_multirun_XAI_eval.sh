@@ -6,7 +6,7 @@ FINETUNED_MODEL=${3:-"RETFound_mae_natureOCT"}
 
 NUM_K=0
 
-#bash baseline_multirun_v2.sh finetune_retfound_UFbenchmark_v2.sh RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 mcc OCT --testval
+#output_dir/AMD_all_split-IRB2024_v2-all-RETFound_mae-OCT-mcceval---testval-/checkpoint-best.pth
 DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_binary_all_split Glaucoma_binary_all_split)  # List of datasets
 CLASSES=(2 2 6 6 2 2)  # Number of classes for each dataset
 XAI_METHODS=("attn" "gradcam")  # List of XAI methods
@@ -19,8 +19,8 @@ do
     for XAI in "${XAI_METHODS[@]}"
     do
         # Submit the job to Slurm
-        echo "sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL {$DATASET}-IRB2024_v2-all-RETFound_mae-OCT-mcceval---testval-/checkpoint-best.pth $NUM_CLASS $XAI"
-        sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL {$DATASET}-IRB2024_v2-all-RETFound_mae-OCT-mcceval---testval-/checkpoint-best.pth $NUM_CLASS $XAI
+        echo "sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL output_dir/$DATASET-IRB2024_v2-all-RETFound_mae-OCT-mcceval---testval-/checkpoint-best.pth $NUM_CLASS $XAI"
+        sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL output_dir/$DATASET-IRB2024_v2-all-RETFound_mae-OCT-mcceval---testval-/checkpoint-best.pth $NUM_CLASS $XAI
         sleep 1 # Optional: sleep to avoid overwhelming the scheduler
     done
 done
