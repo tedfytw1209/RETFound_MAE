@@ -138,7 +138,8 @@ class CausalMetric():
             pred = pred.logits
         else:
             pred = pred
-        top, c = torch.max(pred, 1)
+        probs = torch.softmax(pred, dim=1)
+        top, c = torch.max(probs, 1)
         c = c.cpu().numpy()[0]
         n_steps = (self.img_size*self.img_size + self.step - 1) // self.step
 
@@ -162,11 +163,12 @@ class CausalMetric():
                 pred = pred.logits
             else:
                 pred = pred
-            pr, cl = torch.topk(pred, 2)
+            probs = torch.softmax(pred, dim=1)
+            pr, cl = torch.topk(probs, 2)
             if verbose == 2:
                 print('{}: {:.3f}'.format(get_class_name(cl[0][0]), float(pr[0][0])))
                 print('{}: {:.3f}'.format(get_class_name(cl[0][1]), float(pr[0][1])))
-            scores[i] = pred[0, c]
+            scores[i] = probs[0, c]
             # Render image if verbose, if it's the last step or if save is required.
             if verbose == 2 or (verbose == 1 and i == n_steps) or save_to:
                 plt.figure(figsize=(10, 5))
@@ -214,7 +216,8 @@ class CausalMetric():
                 preds = output.logits.cpu().detach()
             else:
                 preds = output.cpu().detach()
-            predictions[i*batch_size:(i+1)*batch_size] = preds
+            probs = torch.softmax(preds, dim=1)
+            predictions[i*batch_size:(i+1)*batch_size] = probs
         img_batch = img_batch.cpu().float()
         top = np.argmax(predictions.numpy(), -1)
         n_steps = (self.img_size*self.img_size + self.step - 1) // self.step
@@ -236,6 +239,8 @@ class CausalMetric():
             caption = 'Inserting '
             start = substrate
             finish = img_batch.clone()
+        else:
+            raise ValueError('Unknown mode: {}'.format(self.mode))
 
         # While not all pixels are changed
         for i in tqdm(range(n_steps+1), desc=caption + 'pixels'):
