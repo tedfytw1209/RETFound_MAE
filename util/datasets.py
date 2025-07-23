@@ -73,14 +73,9 @@ class CSV_Dataset(Dataset):
             self.class_to_idx = class_to_idx
         print('Class to idx: ', self.class_to_idx)
         self.channel = 3
-        if modality == 'OCT':
-            image_names = self.annotations['OCT']
-            print('OCT images: ', len(image_names))
-            print('OCT image example: ', image_names.head())
-        elif modality == 'CFP':
-            image_names = self.annotations['folder'] + '/' + self.annotations['fundus_imgname']
-            print('CFP images: ', len(image_names))
-            print('CFP image example: ', image_names.head())
+        image_names = self.annotations['image_path']
+        print('OCT images: ', len(image_names))
+        print('OCT image example: ', image_names.head())
         labels = self.annotations['label']
         #case for 2.5D
         if k>0:
@@ -114,12 +109,7 @@ class CSV_Dataset(Dataset):
         self.samples = samples
         self.targets = [s[1] for s in samples]
         self.k = k
-        if k>0 and k<1:
-            self.max_slice = int(((k*25) // 2)*2 + 1)
-        elif k>1:
-            self.max_slice = int((k//2) * 2 + 1)
-        else:
-            self.max_slice = 1
+        self.max_slice = 1
         self.modality = modality
 
     def __len__(self):
