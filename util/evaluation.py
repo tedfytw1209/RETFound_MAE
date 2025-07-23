@@ -252,8 +252,9 @@ class CausalMetric():
                     preds = output.logits
                 else:
                     preds = output
-                preds = preds.detach().cpu().numpy()[range(batch_size), top[j*batch_size:(j+1)*batch_size]]
-                scores[i, j*batch_size:(j+1)*batch_size] = preds
+                probs = torch.softmax(preds, dim=1)
+                probs = probs.detach().cpu().numpy()[range(batch_size), top[j*batch_size:(j+1)*batch_size]]
+                scores[i, j*batch_size:(j+1)*batch_size] = probs
             # Change specified number of most salient pixels to substrate pixels
             coords = salient_order[:, self.step * i:self.step * (i + 1)]
             start.cpu().numpy().reshape(n_samples, 3, self.img_size*self.img_size)[r, :, coords] = finish.cpu().numpy().reshape(n_samples, 3, self.img_size*self.img_size)[r, :, coords]
