@@ -11,6 +11,8 @@ NUM_K=0
 #CLASSES=(2 2 6 6 2 2)  # Number of classes for each dataset
 DATASETS=(AMD_all_split DR_all_split Glaucoma_all_split)  # List of datasets
 CLASSES=(2 6 6)  # Number of classes for each dataset
+
+#bash baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v2_eval.sh
 XAI_METHODS=("attn" "gradcam")  # List of XAI methods
 for i in "${!DATASETS[@]}"
 do
