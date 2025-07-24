@@ -29,6 +29,7 @@ from util.losses import FocalLoss, compute_alpha_from_labels
 from huggingface_hub import hf_hub_download, login
 from engine_finetune import evaluate_half3D, train_one_epoch, evaluate
 import wandb
+from pytorch_pretrained_vit import ViT
 
 import warnings
 import faulthandler
@@ -218,6 +219,9 @@ def main(args, criterion):
                 label2id={"control": 0, "ad": 1},
                 ignore_mismatched_sizes=True
             )
+    elif 'pytorchvit' in args.model:
+        model_name = args.finetune if args.finetune else 'B_16_imagenet1k'
+        model = ViT(model_name, image_size=args.input_size, num_classes=args.nb_classes, pretrained=True)
     elif 'efficientnet-b0' in args.model:
         # EfficientNet-B0 preprocessor
         model_ = args.finetune if args.finetune else 'google/efficientnet-b0'
