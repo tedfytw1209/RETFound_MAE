@@ -12,7 +12,7 @@ class RISE(nn.Module):
         self.input_size = input_size
         self.gpu_batch = gpu_batch
         if not os.path.isfile(maskspath):
-            self.generate_masks(N=5000, s=10, p1=0.1, savepath=maskspath)
+            self.generate_masks(N=1000, s=10, p1=0.1, savepath=maskspath)
         else:
             self.load_masks(maskspath)
             print('Masks are loaded.')
