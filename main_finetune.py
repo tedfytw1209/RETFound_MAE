@@ -13,6 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 from timm.models.layers import trunc_normal_
 from timm.data.mixup import Mixup
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
+from torch.optim import lr_scheduler
 from transformers import (
     ViTImageProcessor, ViTForImageClassification,
     AutoImageProcessor, EfficientNetForImageClassification,
@@ -70,8 +71,12 @@ def get_args_parser():
                         help='layer-wise lr decay from ELECTRA/BEiT')
     parser.add_argument('--min_lr', type=float, default=1e-6, metavar='LR',
                         help='lower lr bound for cyclic schedulers that hit 0')
+    parser.add_argument('--lr_scheduler', type=str, default='cosine', 
+                        help='LR scheduler (default: "cosine")')
     parser.add_argument('--warmup_epochs', type=int, default=10, metavar='N',
                         help='epochs to warmup LR')
+    parser.add_argument("--schedule_step", type=int, default=10)
+    parser.add_argument("--schedule_gamma", type=float, default=0.1)
     
     #Loss parameters
     parser.add_argument('--use_focal_loss', action='store_true',
@@ -482,6 +487,10 @@ def main(args, criterion):
                                             layer_decay=args.layer_decay
                                             )
         optimizer = torch.optim.AdamW(param_groups, lr=args.lr)
+    if args.lr_scheduler == 'cosine':
+        exp_lr_scheduler = None
+    elif args.lr_scheduler == 'step':
+        exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=args.schedule_step, gamma=args.schedule_gamma)
     loss_scaler = NativeScaler()
 
     if mixup_fn is not None:
@@ -526,6 +535,7 @@ def main(args, criterion):
             model, criterion, data_loader_train,
             optimizer, device, epoch, loss_scaler,
             args.clip_grad, mixup_fn,
+            scheduler=exp_lr_scheduler,
             log_writer=log_writer,
             args=args
         )

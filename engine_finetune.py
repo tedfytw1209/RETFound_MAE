@@ -59,6 +59,7 @@ def train_one_epoch(
     device: torch.device,
     epoch: int,
     loss_scaler,
+    scheduler = None,
     max_norm: float = 0,
     mixup_fn: Optional[Mixup] = None,
     log_writer=None,
@@ -76,7 +77,7 @@ def train_one_epoch(
         print(f'log_dir: {log_writer.log_dir}')
     
     for data_iter_step, data_bs in enumerate(metric_logger.log_every(data_loader, print_freq, f'Epoch: [{epoch}]')):
-        if data_iter_step % accum_iter == 0:
+        if scheduler is None and data_iter_step % accum_iter == 0:
             lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
         samples = data_bs[0]
         targets = data_bs[1]
@@ -127,6 +128,8 @@ def train_one_epoch(
             log_writer.add_scalar('loss/train', loss_value_reduce, epoch_1000x)
             log_writer.add_scalar('lr', max_lr, epoch_1000x)
     
+    if scheduler is not None:
+        scheduler.step()
     #Metric
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
