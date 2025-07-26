@@ -56,6 +56,8 @@ def get_args_parser():
                         help='Drop path rate (default: 0.1)')
 
     # Optimizer parameters
+    parser.add_argument('--optimizer', default='adamw', type=str, metavar='OPTIMIZER',
+                        help='Optimizer (default: "adamw")')
     parser.add_argument('--clip_grad', type=float, default=None, metavar='NORM',
                         help='Clip gradient norm (default: None, no clipping)')
     parser.add_argument('--weight_decay', type=float, default=0.05,
@@ -465,12 +467,16 @@ def main(args, criterion):
     # HF transformers model (ViT / EfficientNet) AdamW ---
     no_weight_decay = model_without_ddp.no_weight_decay() if hasattr(model_without_ddp, 'no_weight_decay') else []
     if 'RETFound' not in args.model:
-        optimizer = torch.optim.AdamW(
-            model_without_ddp.parameters(),
-            lr=args.lr,
-            weight_decay=args.weight_decay
-        )
+        if args.optimizer == 'adamw':
+            print("Using AdamW optimizer")
+            optimizer = torch.optim.AdamW(model_without_ddp.parameters(),lr=args.lr,weight_decay=args.weight_decay)
+        elif args.optimizer == 'sgd':
+            print("Using SGD optimizer")
+            optimizer = torch.optim.SGD(model_without_ddp.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
+        else:
+            raise ValueError(f"Unknown optimizer: {args.optimizer}")
     else:
+        print("Using AdamW optimizer with layer-wise learning rate decay for RETFound")
         param_groups = lrd.param_groups_lrd(model_without_ddp, args.weight_decay,
                                             no_weight_decay_list=no_weight_decay,
                                             layer_decay=args.layer_decay
