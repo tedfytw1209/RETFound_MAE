@@ -81,7 +81,6 @@ def train_one_epoch(
         samples = data_bs[0]
         targets = data_bs[1]
         samples, targets = samples.to(device, non_blocking=True), targets.to(device, non_blocking=True)
-        print(targets)
         target_onehot = F.one_hot(targets.to(torch.int64), num_classes=args.nb_classes)
         if mixup_fn:
             samples, targets = mixup_fn(samples, targets)
