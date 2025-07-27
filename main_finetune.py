@@ -534,8 +534,8 @@ def main(args, criterion):
         train_stats = train_one_epoch(
             model, criterion, data_loader_train,
             optimizer, device, epoch, loss_scaler,
+            exp_lr_scheduler,
             args.clip_grad, mixup_fn,
-            scheduler=exp_lr_scheduler,
             log_writer=log_writer,
             args=args
         )
