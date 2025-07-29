@@ -14,8 +14,8 @@ ADDCMD2=${10:-""}
 NUM_K=0
 
 #bash baseline_multirun_irb2024_ad.sh finetune_retfound_adcon_irb2024_imgf.sh RETFound_mae RETFound_mae_natureOCT 5e-4 100 2 default OCT --bal_sampler
-#bash baseline_multirun_irb2024_ad.sh finetune_retfound_adcon_irb2024_imgf.sh efficientnet_b4 google/efficientnet-b4 5e-4 100 2 default OCT --bal_sampler
-#bash baseline_multirun_irb2024_ad.sh finetune_retfound_adcon_irb2024_imgf.sh vit_base_patch16_224 google/vit-base-patch16-224 5e-4 100 2 default OCT --bal_sampler
+#bash baseline_multirun_irb2024_ad.sh finetune_retfound_adcon_irb2024_imgf.sh efficientnet-b4 google/efficientnet-b4 5e-4 100 2 default OCT --bal_sampler
+#bash baseline_multirun_irb2024_ad.sh finetune_retfound_adcon_irb2024_imgf.sh vit-base-patch16-224 google/vit-base-patch16-224 5e-4 100 2 default OCT --bal_sampler
 #bash baseline_multirun_irb2024_ad.sh finetune_retfound_adcon_irb2024_imgf.sh resnet-50 microsoft/resnet-50 5e-4 100 2 default OCT --bal_sampler
 DATASETS=(ad_control_detect_data ad_mci_control_detect_data ad_mci_detect_data mci_control_detect_data)  # List of datasets
 CLASSES=(2 3 2 2)  # Number of classes for each dataset
