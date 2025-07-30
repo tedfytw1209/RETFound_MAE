@@ -10,6 +10,7 @@ from pathlib import Path
 import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import Subset
 from timm.models.layers import trunc_normal_
 from timm.data.mixup import Mixup
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
@@ -177,6 +178,8 @@ def get_args_parser():
     parser.add_argument('--norm', default='IMAGENET', type=str, help='Normalization method')
     parser.add_argument('--enhance', action='store_true', default=False, help='Use enhanced data')
     parser.add_argument('--datasets_seed', default=2026, type=int)
+    parser.add_argument('--subset_ratio', default=0, type=float,
+                        help='Subset ratio for sampling dataset. If > 0, sample subset_ratio * minor_class_numbers from train/val/test datasets with seed 42')
 
     return parser
 
@@ -312,6 +315,46 @@ def main(args, criterion):
         dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
         dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
         dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
+    
+    # Apply subset sampling if subset_ratio > 0
+    if args.subset_ratio > 0:
+        print(f'Applying subset sampling with ratio {args.subset_ratio}')
+        
+        def create_subset(dataset, split_name):
+            """Create a subset of the dataset based on minor class numbers"""
+            targets = np.array(dataset.targets)
+            unique_classes, class_counts = np.unique(targets, return_counts=True)
+            minor_class_count = np.min(class_counts)
+            subset_size = int(args.subset_ratio * minor_class_count)
+            
+            print(f'{split_name} - Original size: {len(dataset)}, Minor class count: {minor_class_count}, Subset size: {subset_size}')
+            
+            # Sample equal number of samples from each class
+            subset_indices = []
+            for class_idx in unique_classes:
+                class_indices = np.where(targets == class_idx)[0]
+                if len(class_indices) >= subset_size:
+                    # Randomly sample subset_size samples from this class
+                    rng = np.random.RandomState(args.seed)
+                    sampled_indices = rng.choice(class_indices, subset_size, replace=False)
+                else:
+                    # If class has fewer samples than subset_size, use all samples
+                    sampled_indices = class_indices
+                subset_indices.extend(sampled_indices)
+            
+            # Create subset dataset
+            subset_dataset = Subset(dataset, subset_indices)
+            
+            # Add targets attribute to subset for compatibility
+            subset_dataset.targets = [dataset.targets[i] for i in subset_indices]
+            subset_dataset.classes = dataset.classes
+            subset_dataset.class_to_idx = dataset.class_to_idx
+            
+            return subset_dataset
+        
+        dataset_train = create_subset(dataset_train, 'Train')
+        dataset_val = create_subset(dataset_val, 'Validation')
+        dataset_test = create_subset(dataset_test, 'Test')
     
     #for weighted loss
     if args.loss_weight:
