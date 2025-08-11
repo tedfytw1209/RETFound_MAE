@@ -43,7 +43,7 @@ def select_n_slices(k,depth):
         return k//2
 
 class CSV_Dataset(Dataset):
-    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT'):
+    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=None):
         #common args
         self.transfroms = transfroms
         self.root_dir = img_dir
@@ -54,7 +54,11 @@ class CSV_Dataset(Dataset):
         else:
             is_train_l = is_train
         is_train = is_train_l[0]
-        self.annotations = data[data['split'].isin(is_train_l)]
+        if patient_ids is not None:
+            self.annotations = self.annotations[self.annotations['patient_id'].isin(patient_ids)]
+            self.annotations['split'] = is_train
+        else:
+            self.annotations = data[data['split'].isin(is_train_l)]
         print('Split: ', is_train_l,' Data len: ', self.annotations.shape[0])
         self.classes = [str(c) for c in self.annotations['label'].unique()]
         self.num_class = len(self.classes)
@@ -146,12 +150,12 @@ class CSV_Dataset(Dataset):
         #print(image)
         return image, label, image_len
 
-def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None):
+def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, patient_ids=None):
     if transform is None:
         transform = build_transform(is_train, args)
     
     if args.data_path.endswith('.csv'):
-        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality=args.modality)
+        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality=args.modality, patient_ids=patient_ids)
     else:
         root = os.path.join(args.data_path, is_train)
         dataset = datasets.ImageFolder(root, transform=transform)
@@ -163,10 +167,10 @@ def build_transform(is_train, args):
     mean = IMAGENET_DEFAULT_MEAN
     std = IMAGENET_DEFAULT_STD
     #!!TODO: debug in 'train' not the first
-    if isinstance(is_train, list):
-        is_train = is_train[0]
+    if not isinstance(is_train, list):
+        is_train = [is_train]
     # train transform
-    if is_train == 'train':
+    if 'train' in is_train:
         # this should always dispatch to transforms_imagenet_train
         transform = create_transform(
             input_size=args.input_size,
