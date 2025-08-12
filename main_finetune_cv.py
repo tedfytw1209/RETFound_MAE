@@ -322,6 +322,7 @@ def main(args, criterion):
     cudnn.benchmark = True
     Kfold = args.kfold
     #dataset selection
+    processor = None
     dataset_all = build_dataset(is_train=['train','val','test'], args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
     full_pat_list = dataset_all.annotations['patient_id'].unique()
     full_pat_len = len(full_pat_list)
