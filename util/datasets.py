@@ -57,8 +57,10 @@ class CSV_Dataset(Dataset):
         if patient_ids is not None:
             self.annotations = data[data[pid_key].isin(patient_ids)]
             self.annotations['split'] = is_train
-        else:
+        elif 'split' in data.columns:
             self.annotations = data[data['split'].isin(is_train_l)]
+        else:
+            self.annotations = data
         print('Split: ', is_train_l,' Data len: ', self.annotations.shape[0])
         self.classes = [str(c) for c in self.annotations['label'].unique()]
         self.num_class = len(self.classes)
@@ -77,14 +79,18 @@ class CSV_Dataset(Dataset):
             self.class_to_idx = class_to_idx
         print('Class to idx: ', self.class_to_idx)
         self.channel = 3
-        if modality == 'OCT':
+        if modality == 'OCT' and 'OCT' in self.annotations.columns:
             image_names = self.annotations['OCT']
             print('OCT images: ', len(image_names))
             print('OCT image example: ', image_names.head())
-        elif modality == 'CFP':
+        elif modality == 'CFP' and 'folder' in self.annotations.columns and 'fundus_imgname' in self.annotations.columns:
             image_names = self.annotations['folder'] + '/' + self.annotations['fundus_imgname']
             print('CFP images: ', len(image_names))
             print('CFP image example: ', image_names.head())
+        else:
+            print('Incompatible modality or missing columns: ', self.annotations.columns)
+            image_names = self.annotations['image']
+            print('Images: ', len(image_names))
         labels = self.annotations['label']
         #case for 2.5D
         if k>0:
@@ -162,7 +168,6 @@ def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_A
 
     return dataset
 
-
 def build_transform(is_train, args):
     mean = IMAGENET_DEFAULT_MEAN
     std = IMAGENET_DEFAULT_STD
@@ -201,6 +206,14 @@ def build_transform(is_train, args):
     t.append(transforms.ToTensor())
     t.append(transforms.Normalize(mean, std))
     return transforms.Compose(t)
+
+def build_transform_public(is_train, args):
+    tfms = transforms.Compose([
+        transforms.Resize((380,380)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225]),
+    ])
+    return tfms
 
 class DistributedSamplerWrapper(torch.utils.data.distributed.DistributedSampler):
     def __init__(
