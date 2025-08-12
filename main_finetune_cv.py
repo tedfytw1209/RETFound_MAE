@@ -324,7 +324,11 @@ def main(args, criterion):
     #dataset selection
     processor = None
     dataset_all = build_dataset(is_train=['train','val','test'], args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
-    full_pat_list = dataset_all.annotations['patient_id'].unique()
+    if 'person_id' in dataset_all.annotations.columns:
+        pid_key = 'person_id'
+    else:
+        pid_key = 'patient_id'
+    full_pat_list = dataset_all.annotations[pid_key].unique()
     full_pat_len = len(full_pat_list)
     print(f"Total number of patients: {full_pat_len} Samples: {len(dataset_all)}")
     skf = KFold(n_splits=args.kfold, shuffle=True, random_state=args.seed)
@@ -336,9 +340,9 @@ def main(args, criterion):
         va_pats = full_pat_list[va_idx]
         #train_idx = dataset_all.annotations.index[dataset_all.annotations["patient_id"].isin(tr_pats)].tolist()
         #val_idx = dataset_all.annotations.index[dataset_all.annotations["patient_id"].isin(va_pats)].tolist()
-        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k, img_dir=args.img_dir, transform=processor, patient_ids=tr_pats)
-        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k, img_dir=args.img_dir, transform=processor, patient_ids=va_pats)
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k, img_dir=args.img_dir, transform=processor, patient_ids=va_pats)
+        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k, img_dir=args.img_dir, transform=processor, patient_ids=tr_pats, pid_key=pid_key)
+        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k, img_dir=args.img_dir, transform=processor, patient_ids=va_pats, pid_key=pid_key)
+        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k, img_dir=args.img_dir, transform=processor, patient_ids=va_pats, pid_key=pid_key)
         print('Debug:')
         print(f"train set length: {len(dataset_train)}, patient ids: {tr_pats}")
         print(f"val set length: {len(dataset_val)}, patient ids: {va_pats}")

@@ -43,7 +43,7 @@ def select_n_slices(k,depth):
         return k//2
 
 class CSV_Dataset(Dataset):
-    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=None):
+    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=None, pid_key = 'patient_id'):
         #common args
         self.transfroms = transfroms
         self.root_dir = img_dir
@@ -55,7 +55,7 @@ class CSV_Dataset(Dataset):
             is_train_l = is_train
         is_train = is_train_l[0]
         if patient_ids is not None:
-            self.annotations = self.annotations[self.annotations['patient_id'].isin(patient_ids)]
+            self.annotations = self.annotations[self.annotations[pid_key].isin(patient_ids)]
             self.annotations['split'] = is_train
         else:
             self.annotations = data[data['split'].isin(is_train_l)]
@@ -150,12 +150,12 @@ class CSV_Dataset(Dataset):
         #print(image)
         return image, label, image_len
 
-def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, patient_ids=None):
+def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, patient_ids=None, pid_key='patient_id'):
     if transform is None:
         transform = build_transform(is_train, args)
     
     if args.data_path.endswith('.csv'):
-        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality=args.modality, patient_ids=patient_ids)
+        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality=args.modality, patient_ids=patient_ids, pid_key=pid_key)
     else:
         root = os.path.join(args.data_path, is_train)
         dataset = datasets.ImageFolder(root, transform=transform)
