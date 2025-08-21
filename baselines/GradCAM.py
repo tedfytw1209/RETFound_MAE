@@ -4,9 +4,80 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 from transformers import ViTForImageClassification, ViTImageProcessor
+import re
+import torch.nn as nn
+
+
+def _get(obj, name, default=None):
+    return getattr(obj, name, default)
+def _resolve_target_layer(model, model_name=None):
+    """
+    嘗試解析各框架最後一個適合掛勾的層：
+    - timm ViT:           model.blocks[-1]
+    - HF ViT:             model.vit.encoder.layer[-1]
+    - HF ViT (base_model):model.base_model.vit.encoder.layer[-1]
+    - timm Swin:          model.layers[-1].blocks[-1]
+    - HF Swin:            model.swin.encoder.layers[-1].blocks[-1]
+    - torchvision ResNet: model.layer4[-1]
+    - EfficientNet/MobileNet: model.features[-1] 或 blocks[-1]
+    找不到就丟 ValueError，請外部顯式傳入。
+    """
+    # --- timm ViT 風格
+    if _get(model, "blocks") is not None:
+        blocks = model.blocks
+        if isinstance(blocks, (nn.ModuleList, list)) and len(blocks) > 0:
+            return blocks[-1]
+
+    # --- HuggingFace ViT 風格
+    vit = _get(model, "vit")
+    if vit is not None:
+        enc = _get(vit, "encoder")
+        layers = _get(enc, "layer")
+        if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
+            return layers[-1]
+
+    # --- HF 某些包裝在 base_model
+    base = _get(model, "base_model")
+    if base is not None:
+        vit = _get(base, "vit")
+        if vit is not None:
+            enc = _get(vit, "encoder")
+            layers = _get(enc, "layer")
+            if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
+                return layers[-1]
+
+    # --- timm Swin
+    if _get(model, "layers") is not None:
+        layers = model.layers
+        if len(layers) > 0 and _get(layers[-1], "blocks") is not None:
+            blks = layers[-1].blocks
+            if len(blks) > 0:
+                return blks[-1]
+
+    # --- HF Swin
+    swin = _get(model, "swin")
+    if swin is not None:
+        enc = _get(swin, "encoder")
+        layers = _get(enc, "layers")
+        if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
+            blks = _get(layers[-1], "blocks")
+            if isinstance(blks, (nn.ModuleList, list)) and len(blks) > 0:
+                return blks[-1]
+
+    # --- torchvision ResNet
+    if _get(model, "layer4") is not None and len(model.layer4) > 0:
+        return model.layer4[-1]
+
+    # --- EfficientNet / MobileNet 系
+    for name in ["features", "blocks"]:
+        seq = _get(model, name)
+        if isinstance(seq, (nn.Sequential, nn.ModuleList, list)) and len(seq) > 0:
+            return seq[-1]
+
+    raise ValueError("Unsupported model for GradCAM: cannot resolve target layer automatically.")
 
 class GradCAM(torch.nn.Module):
-    def __init__(self, model, model_name, img_size, patch_size=14):
+    def __init__(self, model, model_name, img_size, patch_size=14, target_layer=None):
         super(GradCAM, self).__init__()
         self.model = model
         self.model_name = model_name
@@ -18,16 +89,11 @@ class GradCAM(torch.nn.Module):
         self.gradients = None
 
         # Register hooks on the last layer of the encoder
-        if 'RETFound' in model_name or 'vit' in model_name:
+        if 'RETFound' in model_name:
             # timm or HuggingFace ViT
             self.target_layer = model.blocks[-1]
-        elif 'efficientnet' in model_name:
-            # HuggingFace EfficientNet (feature_extractor -> classifier)
-            self.target_layer = model.encoder.top_conv
-        elif 'resnet' in model_name:
-            self.target_layer = model.resnet.encoder.stages[-1]  # last ResNet layer
         else:
-            raise ValueError(f"Unsupported model type for GradCAM: {model_name}")
+            self.target_layer = _resolve_target_layer(model, model_name)
         self.forward_handle = self.target_layer.register_forward_hook(self._forward_hook)
         self.backward_handle = self.target_layer.register_full_backward_hook(self._backward_hook)
 
