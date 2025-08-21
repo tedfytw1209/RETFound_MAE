@@ -11,6 +11,7 @@ import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import Subset
+from torchvision import datasets, transforms
 from timm.models.layers import trunc_normal_
 from timm.data.mixup import Mixup
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
@@ -183,23 +184,24 @@ def get_args_parser():
 
     return parser
 
+def get_timm_model(args):
+    import timm
+    processor = None
+    if 'efficientnet-b4' in args.model:
+        model = timm.create_model('efficientnet_b4', pretrained=True, num_classes=1)
+        processor  = transforms.Compose([
+            transforms.Resize((380,380)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225]),
+        ])
+    else:
+        print(f"Model {args.model} not supported in timm.")
+        exit(1)
+    return model, processor
 
-def main(args, criterion):
-
-    misc.init_distributed_mode(args)
-
-    print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
-    print("{}".format(args).replace(', ', ',\n'))
-
-    device = torch.device(args.device)
-
-    # fix the seed for reproducibility
-    seed = args.seed + misc.get_rank()
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-
-    cudnn.benchmark = True
-
+def get_model(args):
+    if args.model.startswith('timm'):
+        return get_timm_model(args)
     processor = None
     if 'RETFound_mae' in args.model:
         model = models.__dict__['RETFound_mae'](
@@ -221,10 +223,10 @@ def main(args, criterion):
             processor = TransformWrapper(ViTImageProcessor.from_pretrained(model_))
             model = ViTForImageClassification.from_pretrained(
                 model_,
-                image_size=args.input_size,
+                image_size=args.input_size, #Not in tianhao code, default 224
                 num_labels=args.nb_classes,
-                hidden_dropout_prob=args.drop_path,
-                attention_probs_dropout_prob=args.drop_path,
+                hidden_dropout_prob=args.drop_path, #Not in tianhao code, default 0.0
+                attention_probs_dropout_prob=args.drop_path, #Not in tianhao code, default 0.0
                 id2label={0: "control", 1: "ad"},
                 label2id={"control": 0, "ad": 1},
                 ignore_mismatched_sizes=True
@@ -274,7 +276,6 @@ def main(args, criterion):
             drop_path_rate=args.drop_path,
             args=args,
         )
-    
     #RETFound special case: load checkpoint
     if args.finetune and not args.eval:
         if 'RETFound' in args.finetune: 
@@ -305,6 +306,26 @@ def main(args, criterion):
             processor = None
         else:
             print("No checkpoints from: %s" % args.finetune)
+    return model, processor
+
+def main(args, criterion):
+
+    misc.init_distributed_mode(args)
+
+    print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
+    print("{}".format(args).replace(', ', ',\n'))
+
+    device = torch.device(args.device)
+
+    # fix the seed for reproducibility
+    seed = args.seed + misc.get_rank()
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    cudnn.benchmark = True
+
+    model, processor = get_model(args)
+    
     #dataset selection
     if args.testval:
         print('Using test set for validation')
