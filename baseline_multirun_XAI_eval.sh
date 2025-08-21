@@ -13,7 +13,8 @@ CLASSES=(2 2 6 6 2 2)  # Number of classes for each dataset
 #CLASSES=(2 6 6)  # Number of classes for each dataset
 
 #bash baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v2_eval.sh
-XAI_METHODS=("attn" "gradcam")  # List of XAI methods
+#XAI_METHODS=("attn" "gradcam")  # List of XAI methods
+XAI_METHODS=("gradcam")  # List of XAI methods
 for i in "${!DATASETS[@]}"
 do
     # Create a job name based on the variables
