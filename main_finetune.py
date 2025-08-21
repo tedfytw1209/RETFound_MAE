@@ -184,11 +184,20 @@ def get_args_parser():
 
     return parser
 
+def get_label_mappings(args):
+    if 'ad_control' in args.task:
+        id2label = {0: "control", 1: "ad"}
+        label2id = {v: k for k, v in id2label.items()}
+    else:
+        id2label = {i: f"class_{i}" for i in range(args.nb_classes)}
+        label2id = {v: k for k, v in id2label.items()}
+    return id2label, label2id
+
 def get_timm_model(args):
     import timm
     processor = None
     if 'efficientnet-b4' in args.model:
-        model = timm.create_model('efficientnet_b4', pretrained=True, num_classes=1)
+        model = timm.create_model('efficientnet_b4', pretrained=True, num_classes=args.nb_classes)
         processor  = transforms.Compose([
             transforms.Resize((380,380)),
             transforms.ToTensor(),
@@ -200,6 +209,7 @@ def get_timm_model(args):
     return model, processor
 
 def get_model(args):
+    id2label, label2id = get_label_mappings(args)
     if args.model.startswith('timm'):
         return get_timm_model(args)
     processor = None
@@ -227,8 +237,8 @@ def get_model(args):
                 num_labels=args.nb_classes,
                 hidden_dropout_prob=args.drop_path, #Not in tianhao code, default 0.0
                 attention_probs_dropout_prob=args.drop_path, #Not in tianhao code, default 0.0
-                id2label={0: "control", 1: "ad"},
-                label2id={"control": 0, "ad": 1},
+                id2label=id2label,
+                label2id=label2id,
                 ignore_mismatched_sizes=True
             )
     elif 'pytorchvit' in args.model:
@@ -243,8 +253,8 @@ def get_model(args):
             image_size=args.input_size,
             num_labels=args.nb_classes,
             dropout_rate=args.drop_path,
-            id2label={0: "control", 1: "ad"},
-            label2id={"control": 0, "ad": 1},
+            id2label=id2label,
+            label2id=label2id,
             ignore_mismatched_sizes=True
         )
     elif 'efficientnet-b4' in args.model:
@@ -256,8 +266,8 @@ def get_model(args):
             image_size=args.input_size,
             num_labels=args.nb_classes,
             dropout_rate=args.drop_path,
-            id2label={0: "control", 1: "ad"},
-            label2id={"control": 0, "ad": 1},
+            id2label=id2label,
+            label2id=label2id,
             ignore_mismatched_sizes=True
         )
     elif 'resnet-50' in args.model:
@@ -266,8 +276,8 @@ def get_model(args):
         model = ResNetForImageClassification.from_pretrained(
             model_name,
             num_labels=args.nb_classes,
-            id2label={i: str(i) for i in range(args.nb_classes)},
-            label2id={str(i): i for i in range(args.nb_classes)},
+            id2label=id2label,
+            label2id=label2id,
             ignore_mismatched_sizes=True
         )
     else:
