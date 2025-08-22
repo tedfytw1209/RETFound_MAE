@@ -84,7 +84,7 @@ class CSV_Dataset(Dataset):
             print('OCT images: ', len(image_names))
             print('OCT image example: ', image_names.head())
         elif modality == 'CFP' or modality == 'Fundus' and 'folder' in self.annotations.columns and 'fundus_imgname' in self.annotations.columns:
-            image_names = self.annotations['folder'] + '/' + self.annotations['fundus_imgname']
+            image_names = os.path.join(self.annotations['folder'], self.annotations['fundus_imgname'])
             print('CFP images: ', len(image_names))
             print('CFP image example: ', image_names.head())
         else:
@@ -119,7 +119,7 @@ class CSV_Dataset(Dataset):
                     samples.append(([image_name for i in range(idx_start,idx_end)], self.class_to_idx[str(label)]))
                 self.half3D = True
         else:
-            samples = [(image_name if image_name.endswith('.jpg') else image_name + '.jpg', self.class_to_idx[str(label)]) for image_name,label in zip(image_names, labels)]
+            samples = [(image_name if image_name.endswith('.jpg') or image_name.endswith('.jpeg') else image_name + '.jpg', self.class_to_idx[str(label)]) for image_name,label in zip(image_names, labels)]
             self.half3D = False
         self.samples = samples
         self.targets = [s[1] for s in samples]
