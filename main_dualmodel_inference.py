@@ -376,80 +376,39 @@ def main(args, criterion):
     else:
         train_weight = None
         alpha = None
-    
-
-
-    if True:  # args.distributed:
-        num_tasks = misc.get_world_size()
-        global_rank = misc.get_rank()
-        if args.bal_sampler:
-            train_target = np.array(dataset_train.targets)
-            class_weight = np.zeros(len(dataset_train.classes))
-            class_idx = [dataset_train.class_to_idx[c] for c in dataset_train.classes]
-            print('train_target:',train_target)
-            print('train_classes idx:',class_idx)
-            for i in class_idx:
-                class_weight[i] = np.sum(train_target == i)
-            class_weight = np.sum(class_weight) / class_weight
-            print('class_weight:',class_weight)
-            sample_weight = class_weight[train_target]
-            sample_weight = sample_weight / np.sum(sample_weight)
-            bal_train_sampler = torch.utils.data.WeightedRandomSampler(sample_weight, len(sample_weight), replacement=True)
-            sampler_train = DistributedSamplerWrapper(
-                bal_train_sampler, num_replicas=num_tasks, rank=global_rank, shuffle=True
-            )
-            sampler_val = torch.utils.data.DistributedSampler(
-                dataset_val, num_replicas=num_tasks, rank=global_rank,
-                shuffle=True)  # shuffle=True to reduce monitor bias
-        else:
-            if not args.eval:
-                sampler_train = torch.utils.data.DistributedSampler(
-                        dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
-                    )
-                print("Sampler_train = %s" % str(sampler_train))
-            if args.dist_eval:
-                if len(dataset_val) % num_tasks != 0:
-                    print(
-                        'Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. '
-                        'This will slightly alter validation results as extra duplicate entries are added to achieve '
-                        'equal num of samples per-process.')
-                sampler_val = torch.utils.data.DistributedSampler(
-                    dataset_val, num_replicas=num_tasks, rank=global_rank,
-                    shuffle=True)  # shuffle=True to reduce monitor bias
-            else:
-                sampler_val = torch.utils.data.SequentialSampler(dataset_val)
-
-        if args.dist_eval:
-            if len(dataset_test) % num_tasks != 0:
-                print('Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. '
-                      'This will slightly alter validation results as extra duplicate entries are added to achieve '
-                      'equal num of samples per-process.')
-            sampler_test = torch.utils.data.DistributedSampler(
-                dataset_test, num_replicas=num_tasks, rank=global_rank,
-                shuffle=True)  # shuffle=True to reduce monitor bias
-        else:
-            sampler_test = torch.utils.data.SequentialSampler(dataset_test)
+    num_tasks = misc.get_world_size()
+    global_rank = misc.get_rank()
+    if args.dist_eval:
+        if len(oct_dataset_test) % num_tasks != 0:
+            print('Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. '
+                    'This will slightly alter validation results as extra duplicate entries are added to achieve '
+                    'equal num of samples per-process.')
+        oct_sampler_test = torch.utils.data.DistributedSampler(oct_dataset_test, num_replicas=num_tasks, rank=global_rank)
+        cfp_sampler_test = torch.utils.data.DistributedSampler(cfp_dataset_test, num_replicas=num_tasks, rank=global_rank)
+    else:
+        oct_sampler_test = torch.utils.data.SequentialSampler(oct_dataset_test)
+        cfp_sampler_test = torch.utils.data.SequentialSampler(cfp_dataset_test)
     wandb.init(
         project="RETFound_MAE",
         name=args.task,
         config=args,
         dir=os.path.join(args.log_dir,args.task),
     )
-    if global_rank == 0 and args.log_dir is not None and not args.eval:
+    if args.log_dir is not None and not args.eval:
         os.makedirs(args.log_dir, exist_ok=True)
         log_writer = SummaryWriter(log_dir=os.path.join(args.log_dir,args.task))
     else:
         log_writer = None
 
     oct_data_loader_test = torch.utils.data.DataLoader(
-        oct_dataset_test, sampler=sampler_test,
+        oct_dataset_test, sampler=oct_sampler_test,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
         drop_last=False
     )
     cfp_data_loader_test = torch.utils.data.DataLoader(
-        cfp_dataset_test, sampler=sampler_test,
+        cfp_dataset_test, sampler=cfp_sampler_test,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
