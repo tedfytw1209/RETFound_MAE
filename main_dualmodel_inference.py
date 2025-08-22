@@ -275,10 +275,14 @@ def evaluate_dual(data_loader_oct, data_loader_cfp, model, device, args, epoch, 
     
     model.eval()
     true_onehot, pred_onehot, true_labels, pred_labels, pred_softmax = [], [], [], [], []
-    
-    for zip_batch in metric_logger.log_every(zip(data_loader_oct,data_loader_cfp), 10, f'{mode}:'):
-        print(zip_batch)
-        oct_batch, cfp_batch = zip_batch
+    total = len(data_loader_oct)
+    it_oct = iter(data_loader_oct)
+    it_cfp = iter(data_loader_cfp)
+    for _ in metric_logger.log_every(range(total), 10, f'{mode}:'):
+        oct_batch = next(it_oct)
+        cfp_batch = next(it_cfp)
+        print(oct_batch)
+        print(cfp_batch)
         oct_images, target = oct_batch[0].to(device, non_blocking=True), oct_batch[1].to(device, non_blocking=True)
         cfp_images, cfp_target = cfp_batch[0].to(device, non_blocking=True), cfp_batch[1].to(device, non_blocking=True)
         target_onehot = F.one_hot(target.to(torch.int64), num_classes=num_class)
