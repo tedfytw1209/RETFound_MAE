@@ -84,7 +84,7 @@ class CSV_Dataset(Dataset):
             print('OCT images: ', len(image_names))
             print('OCT image example: ', image_names.head())
         elif modality == 'CFP' or modality == 'Fundus' and 'folder' in self.annotations.columns and 'fundus_imgname' in self.annotations.columns:
-            image_names = os.path.join(self.annotations['folder'], self.annotations['fundus_imgname'])
+            image_names = self.annotations['folder'] + '/' + self.annotations['fundus_imgname']
             print('CFP images: ', len(image_names))
             print('CFP image example: ', image_names.head())
         else:
