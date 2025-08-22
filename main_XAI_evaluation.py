@@ -256,10 +256,10 @@ def main(args, criterion):
         msg = model.load_state_dict(checkpoint_model, strict=False)
         trunc_normal_(model.head.weight, std=2e-5)
         processor = None
-            
-    dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
-    dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
-    dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,transform=processor)
+
+    dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir, modality=args.modality,transform=processor)
+    dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir, modality=args.modality,transform=processor)
+    dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir, modality=args.modality,transform=processor)
 
     sampler_train = None
     sampler_val = None

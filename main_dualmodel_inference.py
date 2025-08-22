@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import Subset
@@ -30,7 +32,12 @@ from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.losses import FocalLoss, compute_alpha_from_labels
 from huggingface_hub import hf_hub_download, login
-from engine_finetune import evaluate_half3D, train_one_epoch, evaluate
+from sklearn.metrics import (
+    accuracy_score, roc_auc_score, f1_score, average_precision_score,
+    hamming_loss, jaccard_score, recall_score, precision_score, cohen_kappa_score,matthews_corrcoef,
+    multilabel_confusion_matrix,confusion_matrix
+)
+#from engine_finetune import evaluate_half3D, train_one_epoch, evaluate
 import wandb
 from pytorch_pretrained_vit import ViT
 
@@ -146,7 +153,9 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=0, type=int)
-    parser.add_argument('--resume', default='',
+    parser.add_argument('--oct_resume', default='',
+                        help='resume from checkpoint')
+    parser.add_argument('--cfp_resume', default='',
                         help='resume from checkpoint')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
@@ -184,36 +193,27 @@ def get_args_parser():
 
     return parser
 
-def get_label_mappings(args):
-    if 'ad_control' in args.task:
-        id2label = {0: "control", 1: "ad"}
-        label2id = {v: k for k, v in id2label.items()}
-    else:
-        id2label = {i: f"class_{i}" for i in range(args.nb_classes)}
-        label2id = {v: k for k, v in id2label.items()}
-    return id2label, label2id
-
-def get_timm_model(args):
-    import timm
-    processor = None
-    if 'efficientnet-b4' in args.model:
-        model = timm.create_model('efficientnet_b4', pretrained=True, num_classes=args.nb_classes)
-        processor  = transforms.Compose([
-            transforms.Resize((380,380)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225]),
-        ])
-    else:
-        print(f"Model {args.model} not supported in timm.")
-        exit(1)
-    return model, processor
-
 def get_model(args):
-    id2label, label2id = get_label_mappings(args)
-    if args.model.startswith('timm'):
-        return get_timm_model(args)
     processor = None
-    if 'RETFound_mae' in args.model:
+    if 'DualViT' in args.model:
+        sub_model_oct = models.__dict__['RETFound_mae'](
+            img_size=args.input_size,
+            num_classes=args.nb_classes,
+            drop_path_rate=args.drop_path,
+            global_pool=args.global_pool,
+        )
+        sub_model_cfp = models.__dict__['RETFound_mae'](
+            img_size=args.input_size,
+            num_classes=args.nb_classes,
+            drop_path_rate=args.drop_path,
+            global_pool=args.global_pool,
+        )
+        model = models.__dict__['DualViT'](
+            vit_model_1=sub_model_oct, 
+            vit_model_2=sub_model_cfp, 
+            num_classes=args.nb_classes
+        )
+    elif 'RETFound_mae' in args.model:
         model = models.__dict__['RETFound_mae'](
         img_size=args.input_size,
         num_classes=args.nb_classes,
@@ -227,59 +227,6 @@ def get_model(args):
         drop_path_rate=args.drop_path,
         global_pool="token",
     )
-    elif 'vit-base-patch16-224' in args.model:
-            # ViT-base-patch16-224 preprocessor
-            model_ = args.finetune if args.finetune else 'google/vit-base-patch16-224'
-            processor = TransformWrapper(ViTImageProcessor.from_pretrained(model_))
-            model = ViTForImageClassification.from_pretrained(
-                model_,
-                image_size=args.input_size, #Not in tianhao code, default 224
-                num_labels=args.nb_classes,
-                hidden_dropout_prob=args.drop_path, #Not in tianhao code, default 0.0
-                attention_probs_dropout_prob=args.drop_path, #Not in tianhao code, default 0.0
-                id2label=id2label,
-                label2id=label2id,
-                ignore_mismatched_sizes=True
-            )
-    elif 'pytorchvit' in args.model:
-        model_name = args.finetune if args.finetune else 'B_16_imagenet1k'
-        model = ViT(model_name, image_size=args.input_size, num_classes=args.nb_classes, pretrained=True)
-    elif 'efficientnet-b0' in args.model:
-        # EfficientNet-B0 preprocessor
-        model_ = args.finetune if args.finetune else 'google/efficientnet-b0'
-        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_))
-        model = EfficientNetForImageClassification.from_pretrained(
-            model_,
-            image_size=args.input_size,
-            num_labels=args.nb_classes,
-            dropout_rate=args.drop_path,
-            id2label=id2label,
-            label2id=label2id,
-            ignore_mismatched_sizes=True
-        )
-    elif 'efficientnet-b4' in args.model:
-        # EfficientNet-B0 preprocessor
-        model_ = args.finetune if args.finetune else 'google/efficientnet-b4'
-        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_))
-        model = EfficientNetForImageClassification.from_pretrained(
-            model_,
-            image_size=args.input_size,
-            num_labels=args.nb_classes,
-            dropout_rate=args.drop_path,
-            id2label=id2label,
-            label2id=label2id,
-            ignore_mismatched_sizes=True
-        )
-    elif 'resnet-50' in args.model:
-        model_name = args.finetune if args.finetune else 'microsoft/resnet-50'
-        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_name))
-        model = ResNetForImageClassification.from_pretrained(
-            model_name,
-            num_labels=args.nb_classes,
-            id2label=id2label,
-            label2id=label2id,
-            ignore_mismatched_sizes=True
-        )
     else:
         model = models.__dict__[args.model](
             num_classes=args.nb_classes,
@@ -318,6 +265,77 @@ def get_model(args):
             print("No checkpoints from: %s" % args.finetune)
     return model, processor
 
+#evaluate for dual model
+@torch.no_grad()
+def evaluate_dual(data_loader_oct, data_loader_cfp, model, device, args, epoch, mode, num_class, k, log_writer, eval_score=''):
+    """Evaluate the model."""
+    criterion = nn.CrossEntropyLoss()
+    metric_logger = misc.MetricLogger(delimiter="  ")
+    os.makedirs(os.path.join(args.output_dir, args.task), exist_ok=True)
+    
+    model.eval()
+    true_onehot, pred_onehot, true_labels, pred_labels, pred_softmax = [], [], [], [], []
+    
+    for zip_batch in metric_logger.log_every(zip(data_loader_oct,data_loader_cfp), 10, f'{mode}:'):
+        print(zip_batch)
+        oct_batch, cfp_batch = zip_batch
+        oct_images, target = oct_batch[0].to(device, non_blocking=True), oct_batch[1].to(device, non_blocking=True)
+        cfp_images, cfp_target = cfp_batch[0].to(device, non_blocking=True), cfp_batch[1].to(device, non_blocking=True)
+        target_onehot = F.one_hot(target.to(torch.int64), num_classes=num_class)
+        
+        with torch.cuda.amp.autocast():
+            output = model(oct_images, cfp_images)
+            if hasattr(output, 'logits'):
+                output = output.logits
+            else:
+                output = output
+            loss = criterion(output, target)
+        output_ = nn.Softmax(dim=1)(output)
+        output_label = output_.argmax(dim=1)
+        output_onehot = F.one_hot(output_label.to(torch.int64), num_classes=num_class)
+        
+        metric_logger.update(loss=loss.item())
+        true_onehot.extend(target_onehot.cpu().numpy())
+        pred_onehot.extend(output_onehot.detach().cpu().numpy())
+        true_labels.extend(target.cpu().numpy())
+        pred_labels.extend(output_label.detach().cpu().numpy())
+        pred_softmax.extend(output_.detach().cpu().numpy())
+    
+    accuracy = accuracy_score(true_labels, pred_labels)
+    hamming = hamming_loss(true_onehot, pred_onehot)
+    jaccard = jaccard_score(true_onehot, pred_onehot, average='macro')
+    average_precision = average_precision_score(true_onehot, pred_softmax, average='macro')
+    kappa = cohen_kappa_score(true_labels, pred_labels)
+    f1 = f1_score(true_onehot, pred_onehot, zero_division=0, average='macro')
+    roc_auc = roc_auc_score(true_onehot, pred_softmax, multi_class='ovr', average='macro')
+    precision = precision_score(true_onehot, pred_onehot, zero_division=0, average='macro')
+    recall = recall_score(true_onehot, pred_onehot, zero_division=0, average='macro')
+    mcc = matthews_corrcoef(true_labels, pred_labels)
+    
+    conf = confusion_matrix(true_labels, pred_labels)
+    if eval_score == 'mcc':
+        score = mcc
+    elif eval_score == 'roc_auc':
+        score = roc_auc
+    else:
+        score = (f1 + roc_auc + kappa) / 3
+    metric_dict = {}
+    if log_writer:
+        for metric_name, value in zip(['accuracy', 'f1', 'roc_auc', 'hamming', 'jaccard', 'precision', 'recall', 'average_precision', 'kappa', 'mcc', 'score'],
+                                       [accuracy, f1, roc_auc, hamming, jaccard, precision, recall, average_precision, kappa, mcc, score]):
+            log_writer.add_scalar(f'perf/{metric_name}', value, epoch)
+            metric_dict[metric_name] = value
+    
+    print(f'val loss: {metric_logger.meters["loss"].global_avg}')
+    print(f'Accuracy: {accuracy:.4f}, F1 Score: {f1:.4f}, ROC AUC: {roc_auc:.4f}, Hamming Loss: {hamming:.4f},\n'
+          f' Jaccard Score: {jaccard:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f},\n'
+          f' Average Precision: {average_precision:.4f}, Kappa: {kappa:.4f}, MCC: {mcc:.4f}, Score: {score:.4f}')
+    print("confusion_matrix:\n", conf)
+    metric_logger.synchronize_between_processes()
+    out_dict = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    out_dict.update(metric_dict)
+    return out_dict, score
+
 def main(args, criterion):
 
     misc.init_distributed_mode(args)
@@ -337,55 +355,8 @@ def main(args, criterion):
     model, processor = get_model(args)
     
     #dataset selection
-    if args.testval:
-        print('Using test set for validation')
-        dataset_train = build_dataset(is_train=['train','val'], args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
-        dataset_val = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
-    else:
-        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
-        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
-
-    # Apply subset sampling if subset_ratio > 0
-    if args.subset_ratio > 0:
-        print(f'Applying subset sampling with ratio {args.subset_ratio}')
-        
-        def create_subset(dataset, split_name):
-            """Create a subset of the dataset based on minor class numbers"""
-            targets = np.array(dataset.targets)
-            unique_classes, class_counts = np.unique(targets, return_counts=True)
-            minor_class_count = np.min(class_counts)
-            subset_size = int(args.subset_ratio * minor_class_count)
-            
-            print(f'{split_name} - Original size: {len(dataset)}, Minor class count: {minor_class_count}, Subset size: {subset_size}')
-            
-            # Sample equal number of samples from each class
-            subset_indices = []
-            for class_idx in unique_classes:
-                class_indices = np.where(targets == class_idx)[0]
-                if len(class_indices) >= subset_size:
-                    # Randomly sample subset_size samples from this class
-                    rng = np.random.RandomState(args.seed)
-                    sampled_indices = rng.choice(class_indices, subset_size, replace=False)
-                else:
-                    # If class has fewer samples than subset_size, use all samples
-                    sampled_indices = class_indices
-                subset_indices.extend(sampled_indices)
-            
-            # Create subset dataset
-            subset_dataset = Subset(dataset, subset_indices)
-            
-            # Add targets attribute to subset for compatibility
-            subset_dataset.targets = [dataset.targets[i] for i in subset_indices]
-            subset_dataset.classes = dataset.classes
-            subset_dataset.class_to_idx = dataset.class_to_idx
-            
-            return subset_dataset
-        
-        dataset_train = create_subset(dataset_train, 'Train')
-        dataset_val = create_subset(dataset_val, 'Validation')
-        dataset_test = create_subset(dataset_test, 'Test')
+    oct_dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality='OCT',transform=processor)
+    cfp_dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality='CFP',transform=processor)
     
     #for weighted loss
     if args.loss_weight:
@@ -470,27 +441,15 @@ def main(args, criterion):
     else:
         log_writer = None
 
-    if not args.eval:
-        data_loader_train = torch.utils.data.DataLoader(
-            dataset_train, sampler=sampler_train,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            pin_memory=args.pin_mem,
-            drop_last=True,
-        )
-
-        print(f'len of train_set: {len(data_loader_train) * args.batch_size}')
-
-        data_loader_val = torch.utils.data.DataLoader(
-            dataset_val, sampler=sampler_val,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            pin_memory=args.pin_mem,
-            drop_last=False
-        )
-
-    data_loader_test = torch.utils.data.DataLoader(
-        dataset_test, sampler=sampler_test,
+    oct_data_loader_test = torch.utils.data.DataLoader(
+        oct_dataset_test, sampler=sampler_test,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        pin_memory=args.pin_mem,
+        drop_last=False
+    )
+    cfp_data_loader_test = torch.utils.data.DataLoader(
+        cfp_dataset_test, sampler=sampler_test,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
@@ -506,24 +465,17 @@ def main(args, criterion):
             prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, mode=args.mixup_mode,
             label_smoothing=args.smoothing, num_classes=args.nb_classes)
 
-    if args.resume and args.eval:
-        checkpoint = torch.load(args.resume, map_location='cpu')
-        print("Load checkpoint from: %s" % args.resume)
-        model.load_state_dict(checkpoint['model'])
+    ### 08/22 add OCT/CFP Resume
+    checkpoint = torch.load(args.oct_resume, map_location='cpu')
+    print("Load checkpoint from: %s" % args.oct_resume)
+    model.vit_model_1.load_state_dict(checkpoint['model'])
+
+    checkpoint = torch.load(args.cfp_resume, map_location='cpu')
+    print("Load checkpoint from: %s" % args.cfp_resume)
+    model.vit_model_2.load_state_dict(checkpoint['model'])
 
     model.to(device)
     model_without_ddp = model
-
-    if args.fix_extractor:
-        print("Fixing the backbone parameters")
-        # Hugging Face models with 'classifier' as the head
-        hf_models_with_classifier = ['vit_base_patch16_224', 'efficientnet_b0', 'efficientnet_b4', 'resnet-50']
-        if args.model in hf_models_with_classifier:
-            head_keyword = 'classifier'
-        else:
-            head_keyword = 'head'  # timm or custom models
-        for name, param in model.named_parameters():
-            param.requires_grad = head_keyword in name
     
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of model params (M): %.2f' % (n_parameters / 1.e6))
@@ -582,92 +534,15 @@ def main(args, criterion):
 
     # misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
-    if args.eval:
-        if 'epoch' in checkpoint:
-            print("Test with the best model at epoch = %d" % checkpoint['epoch'])
-        test_stats, auc_roc = evaluate(data_loader_test, model, device, args, epoch=0, mode='test',
-                                       num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
-        wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
-        wandb.log(wandb_dict)
-        wandb.finish()
-        if log_writer is not None:
-            log_writer.close()
-        exit(0)
-
-    print(f"Start training for {args.epochs} epochs")
-    print(f"Number of training samples: {len(dataset_train)}")
-    print(f"Number of validation samples: {len(dataset_val)}")
-    print(f'Evaluation score: {args.eval_score}')
-    start_time = time.time()
-    max_score = 0.0
-    best_epoch = 0
-    for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed:
-            data_loader_train.sampler.set_epoch(epoch)
-
-        train_stats = train_one_epoch(
-            model, criterion, data_loader_train,
-            optimizer, device, epoch, loss_scaler,
-            exp_lr_scheduler,
-            args.clip_grad, mixup_fn,
-            log_writer=log_writer,
-            args=args
-        )
-
-        val_stats, val_score = evaluate(data_loader_val, model, device, args, epoch, mode='val',
-                                        num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
-        if log_writer is not None and misc.is_main_process():
-            wandb_dict = {"epoch": epoch}
-            wandb_dict.update({f'train_{k}': v for k, v in train_stats.items()})
-            wandb_dict.update({f'val_{k}': v for k, v in val_stats.items()})
-            wandb.log(wandb_dict, step=epoch)
-        if max_score < val_score:
-            max_score = val_score
-            best_epoch = epoch
-            if args.output_dir and args.savemodel:
-                misc.save_model(
-                    args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
-                    loss_scaler=loss_scaler, epoch=epoch, mode='best')
-        print("Best epoch = %d, Best score = %.4f" % (best_epoch, max_score))
-
-
-        if epoch == (args.epochs - 1):
-            checkpoint = torch.load(os.path.join(args.output_dir, args.task, 'checkpoint-best.pth'), map_location='cpu')
-            model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
-            model.to(device)
-            print("Validation with the best model, epoch = %d:" % checkpoint['epoch'])
-            val_stats, val_score = evaluate(data_loader_val, model, device, args, -1, mode='val',
-                                           num_class=args.nb_classes, k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
-            wandb_dict = {}
-            wandb_dict.update({f'best_val_{k}': v for k, v in val_stats.items()})
-            wandb.log(wandb_dict)
-
-        if log_writer is not None:
-            log_writer.add_scalar('loss/val', val_stats['loss'], epoch)
-
-        log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                     'epoch': epoch,
-                     'n_parameters': n_parameters}
-
-        if args.output_dir and misc.is_main_process():
-            if log_writer is not None:
-                log_writer.flush()
-            with open(os.path.join(args.output_dir, args.task, "log.txt"), mode="a", encoding="utf-8") as f:
-                f.write(json.dumps(log_stats) + "\n")
-
-    total_time = time.time() - start_time
-    total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    print('Training time {}'.format(total_time_str))
-    state_dict_best = torch.load(os.path.join(args.output_dir,args.task,'checkpoint-best.pth'), map_location='cpu')
-    model_without_ddp.load_state_dict(state_dict_best['model'])
-    print("Test with the best model, epoch = %d:" % checkpoint['epoch'])
-    test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
-    wandb_dict = {}
-    wandb_dict.update({f'test_{k}': v for k, v in test_stats.items()})
+    if 'epoch' in checkpoint:
+        print("Test with the best model at epoch = %d" % checkpoint['epoch'])
+    test_stats, auc_roc = evaluate_dual(oct_data_loader_test, cfp_data_loader_test, model, device, args, epoch=0, mode='test',
+                                    num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+    wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
     wandb.log(wandb_dict)
-    if log_writer is not None and misc.is_main_process():
+    wandb.finish()
+    if log_writer is not None:
         log_writer.close()
-        wandb.finish()
 
 if __name__ == '__main__':
     args = get_args_parser()

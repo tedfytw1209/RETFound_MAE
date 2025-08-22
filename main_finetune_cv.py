@@ -340,9 +340,9 @@ def main(args, criterion):
         va_pats = full_pat_list[va_idx]
         #train_idx = dataset_all.annotations.index[dataset_all.annotations["patient_id"].isin(tr_pats)].tolist()
         #val_idx = dataset_all.annotations.index[dataset_all.annotations["patient_id"].isin(va_pats)].tolist()
-        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k, img_dir=args.img_dir, transform=processor, patient_ids=tr_pats, pid_key=pid_key)
-        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k, img_dir=args.img_dir, transform=processor, patient_ids=va_pats, pid_key=pid_key)
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k, img_dir=args.img_dir, transform=processor, patient_ids=va_pats, pid_key=pid_key)
+        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k, img_dir=args.img_dir, modality=args.modality, transform=processor, patient_ids=tr_pats, pid_key=pid_key)
+        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k, img_dir=args.img_dir, modality=args.modality, transform=processor, patient_ids=va_pats, pid_key=pid_key)
+        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k, img_dir=args.img_dir, modality=args.modality, transform=processor, patient_ids=va_pats, pid_key=pid_key)
         print('Debug:')
         print(f"train set length: {len(dataset_train)}, patient ids: {tr_pats}")
         print(f"val set length: {len(dataset_val)}, patient ids: {va_pats}")
