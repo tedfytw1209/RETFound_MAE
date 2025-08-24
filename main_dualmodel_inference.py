@@ -281,8 +281,6 @@ def evaluate_dual(data_loader_oct, data_loader_cfp, model, device, args, epoch, 
     for _ in metric_logger.log_every(range(total), 10, f'{mode}:'):
         oct_batch = next(it_oct)
         cfp_batch = next(it_cfp)
-        print(oct_batch)
-        print(cfp_batch)
         oct_images, target = oct_batch[0].to(device, non_blocking=True), oct_batch[1].to(device, non_blocking=True)
         cfp_images, cfp_target = cfp_batch[0].to(device, non_blocking=True), cfp_batch[1].to(device, non_blocking=True)
         target_onehot = F.one_hot(target.to(torch.int64), num_classes=num_class)
@@ -363,23 +361,8 @@ def main(args, criterion):
     cfp_dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality='CFP',transform=processor)
     
     #for weighted loss
-    if args.loss_weight:
-        train_target = np.array(dataset_train.targets)
-        train_weight = np.zeros(len(dataset_train.classes))
-        class_idx = [dataset_train.class_to_idx[c] for c in dataset_train.classes]
-        print('train_target:',train_target)
-        print('train_classes idx:',class_idx)
-        for i in class_idx:
-            train_weight[i] = np.sum(train_target == i)
-        train_weight = np.sum(train_weight) / train_weight
-        print('train_weight:',train_weight)
-        train_labels = dataset_train.targets
-        alpha = compute_alpha_from_labels(train_labels, num_classes=args.nb_classes)
-        alpha = alpha.to(torch.float32).to(device)
-        print('train_alpha:',alpha)
-    else:
-        train_weight = None
-        alpha = None
+    train_weight = None
+    alpha = None
     num_tasks = misc.get_world_size()
     global_rank = misc.get_rank()
     if args.dist_eval:
