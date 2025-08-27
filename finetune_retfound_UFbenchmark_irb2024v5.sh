@@ -28,7 +28,7 @@ ADDCMD=${9:-""}
 ADDCMD2=${10:-""}
 
 NUM_K=0
-data_type="IRB2024_v4"
+data_type="IRB2024_v5"
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
 Epochs=50
 OPTIMIZER="adamw" # "adamw" or "sgd"
