@@ -27,6 +27,7 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
 
             del self.norm  # remove the original norm
 
+    #TODO: Decide on attention mask handling (timm==0.9.16 or timm==1.0.9)
     def forward_features(self, x, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B = x.shape[0]
         x = self.patch_embed(x)
