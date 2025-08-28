@@ -9,6 +9,7 @@ import timm.models.vision_transformer
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Any, Callable, Dict, Optional, Set, Tuple, Type, Union, List
 from torch import Tensor
 
 ###!!! hard to change https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/vision_transformer.py#L676
@@ -26,7 +27,7 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
 
             del self.norm  # remove the original norm
 
-    def forward_features(self, x):
+    def forward_features(self, x, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B = x.shape[0]
         x = self.patch_embed(x)
 
