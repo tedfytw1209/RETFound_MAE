@@ -369,15 +369,16 @@ def main(args, criterion):
     model, processor = get_model(args)
     
     #dataset selection
+    Select_Layer = ['RNFL-GCL (RNFL-GCL)_GCL-IPL (GCL-IPL)', 'GCL-IPL (GCL-IPL)_IPL-INL (IPL-INL)']
     if args.testval:
         print('Using test set for validation')
-        dataset_train = build_dataset(is_train=['train','val'], args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
-        dataset_val = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
+        dataset_train = build_dataset(is_train=['train','val'], args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+        dataset_val = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
     else:
-        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
-        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
+        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
 
     # Apply subset sampling if subset_ratio > 0
     if args.subset_ratio > 0:

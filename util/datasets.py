@@ -137,7 +137,20 @@ class CSV_Dataset(Dataset):
                     samples.append(([image_name for i in range(idx_start,idx_end)], self.class_to_idx[str(label)]))
                 self.half3D = True
         else:
-            samples = [(image_name if image_name.endswith('.jpg') or image_name.endswith('.jpeg') else image_name + '.jpg', self.class_to_idx[str(label)]) for image_name,label in zip(image_names, labels)]
+            samples = []
+            for image_name, label in zip(image_names, labels):
+                # Handle different file extensions
+                if image_name.endswith('.jpg') or image_name.endswith('.jpeg'):
+                    final_image_name = image_name
+                elif image_name.endswith('.png'):
+                    final_image_name = image_name
+                elif image_name.endswith('.npy'):
+                    final_image_name = image_name
+                else:
+                    # Default to .jpg if no extension specified
+                    final_image_name = image_name + '.jpg'
+                
+                samples.append((final_image_name, self.class_to_idx[str(label)]))
             self.half3D = False
         self.samples = samples
         self.targets = [s[1] for s in samples]
@@ -192,12 +205,13 @@ class CSV_Dataset(Dataset):
         #print(image)
         return image, label, image_len
 
-def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, modality='OCT', patient_ids=None, pid_key='patient_id'):
+def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, modality='OCT', patient_ids=None, pid_key='patient_id', 
+                  select_layers=None,th_resize=True,th_heatmap=False):
     if transform is None:
         transform = build_transform(is_train, args)
     
     if args.data_path.endswith('.csv'):
-        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality=modality, patient_ids=patient_ids, pid_key=pid_key)
+        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality=modality, patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap)
     else:
         root = os.path.join(args.data_path, is_train)
         dataset = datasets.ImageFolder(root, transform=transform)
