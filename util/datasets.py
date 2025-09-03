@@ -14,6 +14,7 @@ import pandas as pd
 from torch.utils.data import Dataset
 from PIL import Image
 import pydicom
+import matplotlib.pyplot as plt
 import math
 
 AD_LIST = ['control','mci','ad']
@@ -42,8 +43,17 @@ def select_n_slices(k,depth):
     else:
         return k//2
 
+def get_path(row,col):
+    return os.path.join(row['folder'],row[col])
+
+Thickness_List = ['ILM (ILM)_RNFL-GCL (RNFL-GCL)', 'RNFL-GCL (RNFL-GCL)_GCL-IPL (GCL-IPL)', 'GCL-IPL (GCL-IPL)_IPL-INL (IPL-INL)', 
+                  'IPL-INL (IPL-INL)_INL-OPL (INL-OPL)', 'INL-OPL (INL-OPL)_OPL-Henles fiber layer (OPL-HFL)', 
+                  'OPL-Henles fiber layer (OPL-HFL)_Boundary of myoid and ellipsoid of inner segments (BMEIS)', 
+                  'Boundary of myoid and ellipsoid of inner segments (BMEIS)_IS/OS junction (IS/OSJ)', 'IS/OS junction (IS/OSJ)_Inner boundary of OPR (IB_OPR)', 'Inner boundary of OPR (IB_OPR)_Inner boundary of RPE (IB_RPE)', 'Inner boundary of RPE (IB_RPE)_Outer boundary of RPE (OB_RPE)'
+                  ]
+
 class CSV_Dataset(Dataset):
-    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=None, pid_key = 'patient_id'):
+    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=None, pid_key = 'patient_id', select_layers=None,th_resize=True,th_heatmap=False):
         #common args
         self.transfroms = transfroms
         self.root_dir = img_dir
@@ -79,6 +89,10 @@ class CSV_Dataset(Dataset):
             self.class_to_idx = class_to_idx
         print('Class to idx: ', self.class_to_idx)
         self.channel = 3
+        if th_resize:
+            th_col = 'Thickness Resize Name'
+        else:
+            th_col = 'Thickness Name'
         if modality == 'OCT' and 'OCT' in self.annotations.columns:
             image_names = self.annotations['OCT']
             print('OCT images: ', len(image_names))
@@ -87,6 +101,10 @@ class CSV_Dataset(Dataset):
             image_names = self.annotations['folder'] + '/' + self.annotations['fundus_imgname']
             print('CFP images: ', len(image_names))
             print('CFP image example: ', image_names.head())
+        elif modality == 'Thickness':
+            image_names = self.annotations.apply(lambda row: get_path(row, th_col), axis=1)
+            print('Thickness images: ', len(image_names))
+            print('Thickness image example: ', image_names.head())
         else:
             print('Incompatible modality or missing columns: ', self.annotations.columns)
             image_names = self.annotations['image']
@@ -131,6 +149,8 @@ class CSV_Dataset(Dataset):
         else:
             self.max_slice = 1
         self.modality = modality
+        self.select_layers = select_layers
+        self.th_heatmap = th_heatmap
 
     def __len__(self):
         return len(self.targets)
@@ -147,10 +167,26 @@ class CSV_Dataset(Dataset):
             image = torch.nn.functional.pad(image, p3d, mode='constant', value=0)
         else:
             img_name = os.path.join(self.root_dir, sample[0])
-            image = self.loader(img_name)
+            if self.modality != 'Thickness':
+                image = self.loader(img_name)
+                image = self.transfroms(image)
+            else:
+                npy_data = np.load(img_name)
+                image = np.sum(npy_data[self.select_layers], axis=0, keepdims=True) #C,H,W
+                if self.th_heatmap:
+                    # Normalize
+                    normed = (image[0] - image.min()) / (image.max() - image.min())
+                    # Apply colormap
+                    cmap = plt.get_cmap("jet")
+                    heatmap_rgba = cmap(normed)  # (H, W, 4)
+                    image = (heatmap_rgba[..., :self.channel] * 255).astype(np.uint8).transpose(2, 0, 1)  # (C, H, W)
+                else:
+                    # Expand to N channels (repeat)
+                    image = np.repeat(image, self.channel, axis=0)  # (C,H,W)
+            # To tensor (C,H,W)
             image = self.transfroms(image)
             image_len = 1
-        
+
         label = int(sample[1])
         #debug visualization
         #print(image)
