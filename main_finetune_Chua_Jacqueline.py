@@ -373,7 +373,7 @@ def build_transform(is_train, args):
         # Normalize with ImageNet-1K mean and std
         t.append(transforms.Normalize(mean, std))
         return transforms.Compose(t)
-
+    
     # eval transform
     t = []
     # Resize all images to 224x224 for evaluation
