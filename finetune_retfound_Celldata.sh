@@ -30,7 +30,7 @@ ADDCMD2=${10:-""}
 NUM_K=0
 data_type="CellData"
 IMG_Path="/orange/ruogu.fang/tienyuchang/CellData/"
-Epochs=10
+Epochs=3
 OPTIMIZER="adamw" # "adamw" or "sgd"
 BATCH_SIZE=16
 
