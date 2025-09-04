@@ -187,7 +187,6 @@ class CSV_Dataset(Dataset):
             img_name = os.path.join(self.root_dir, sample[0])
             if self.modality != 'Thickness':
                 image = self.loader(img_name)
-                image = self.transfroms(image)
             else:
                 npy_data = np.load(img_name)
                 image = np.sum(npy_data[self.select_idx], axis=0, keepdims=True) #C,H,W
@@ -202,7 +201,6 @@ class CSV_Dataset(Dataset):
                     # Expand to N channels (repeat)
                     image = np.repeat(image, self.channel, axis=0)  # (C,H,W)
             # To tensor (C,H,W)
-            print(image.shape)
             image = self.transfroms(image)
             image_len = 1
 
