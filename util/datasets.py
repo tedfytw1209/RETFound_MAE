@@ -195,11 +195,12 @@ class CSV_Dataset(Dataset):
                     # Apply colormap
                     cmap = plt.get_cmap("jet")
                     heatmap_rgba = cmap(normed)  # (H, W, 4)
-                    image = (heatmap_rgba[..., :self.channel] * 255).astype(np.uint8).transpose(2, 0, 1)  # (C, H, W)
+                    image = (heatmap_rgba[..., :self.channel] * 255).astype(np.uint8).transpose(2, 0, 1)  # (H,W,C)->(C, H, W)
                 else:
                     # Expand to N channels (repeat)
                     image = np.repeat(image, self.channel, axis=0)  # (C,H,W)
             # To tensor (C,H,W)
+            print(image.shape)
             image = self.transfroms(image)
             image_len = 1
 
