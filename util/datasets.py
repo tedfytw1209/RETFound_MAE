@@ -162,8 +162,10 @@ class CSV_Dataset(Dataset):
         else:
             self.max_slice = 1
         self.modality = modality
-        self.select_idx = [Thickness_List.index(n) for n in select_layers if n in Thickness_List]
-        if self.select_idx:
+        if select_layers is None:
+            self.select_idx = None
+        else:
+            self.select_idx = [Thickness_List.index(n) for n in select_layers if n in Thickness_List]
             print('Selected layers: ', select_layers)
             print('Selected idx: ', self.select_idx)
         self.th_heatmap = th_heatmap
