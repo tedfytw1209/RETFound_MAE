@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-OCTID_path = 'OCTID'
+OCTID_path = '/orange/ruogu.fang/tienyuchang/OCTID'
 
 csr = os.listdir(f'{OCTID_path}/CSR')
 dr = os.listdir(f'{OCTID_path}/DR')
