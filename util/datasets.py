@@ -162,7 +162,10 @@ class CSV_Dataset(Dataset):
         else:
             self.max_slice = 1
         self.modality = modality
-        self.select_layers = select_layers
+        self.select_idx = [Thickness_List.index(n) for n in select_layers if n in Thickness_List]
+        if self.select_idx:
+            print('Selected layers: ', select_layers)
+            print('Selected idx: ', self.select_idx)
         self.th_heatmap = th_heatmap
 
     def __len__(self):
@@ -185,7 +188,7 @@ class CSV_Dataset(Dataset):
                 image = self.transfroms(image)
             else:
                 npy_data = np.load(img_name)
-                image = np.sum(npy_data[self.select_layers], axis=0, keepdims=True) #C,H,W
+                image = np.sum(npy_data[self.select_idx], axis=0, keepdims=True) #C,H,W
                 if self.th_heatmap:
                     # Normalize
                     normed = (image[0] - image.min()) / (image.max() - image.min())
