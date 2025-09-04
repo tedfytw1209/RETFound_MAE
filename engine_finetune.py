@@ -128,7 +128,7 @@ def train_one_epoch(
             log_writer.add_scalar('loss/train', loss_value_reduce, epoch_1000x)
             log_writer.add_scalar('lr', max_lr, epoch_1000x)
     
-    if scheduler is not None:
+    if scheduler is not None and scheduler:
         scheduler.step()
     #Metric
     metric_logger.synchronize_between_processes()
