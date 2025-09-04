@@ -21,6 +21,7 @@ from transformers import (
     AutoImageProcessor, EfficientNetForImageClassification,
     ResNetForImageClassification
 )
+from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 import models_vit as models
 import util.lr_decay as lrd
@@ -350,6 +351,38 @@ def get_model(args):
             print("No checkpoints from: %s" % args.finetune)
     return model, processor
 
+def build_transform(is_train, args):
+    mean = IMAGENET_DEFAULT_MEAN
+    std = IMAGENET_DEFAULT_STD
+    #!!TODO: debug in 'train' not the first
+    if not isinstance(is_train, list):
+        is_train = [is_train]
+    # train transform
+    if 'train' in is_train:
+        # Custom training transform with 224x224 resize, horizontal flips, and random transformations
+        t = []
+        # Convert to tensor
+        t.append(transforms.ToTensor())
+        # Resize all images to 224x224
+        t.append(transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BICUBIC))
+        # Add horizontal flips
+        t.append(transforms.RandomHorizontalFlip(p=0.5))
+        # Random rotation and affine transformations
+        t.append(transforms.RandomRotation(degrees=10))
+        t.append(transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=(0.9, 1.1)))
+        # Normalize with ImageNet-1K mean and std
+        t.append(transforms.Normalize(mean, std))
+        return transforms.Compose(t)
+
+    # eval transform
+    t = []
+    # Resize all images to 224x224 for evaluation
+    # Convert to tensor
+    t.append(transforms.ToTensor())
+    t.append(transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BICUBIC))
+    t.append(transforms.Normalize(mean, std))
+    return transforms.Compose(t)
+
 def main(args, criterion):
 
     misc.init_distributed_mode(args)
@@ -367,18 +400,20 @@ def main(args, criterion):
     cudnn.benchmark = True
 
     model, processor = get_model(args)
+    transform_train = build_transform(is_train=['train','val'], args=args)
+    transform_eval = build_transform(is_train='test', args=args)
     
     #dataset selection
     Select_Layer = ['RNFL-GCL (RNFL-GCL)_GCL-IPL (GCL-IPL)', 'GCL-IPL (GCL-IPL)_IPL-INL (IPL-INL)']
     if args.testval:
         print('Using test set for validation')
-        dataset_train = build_dataset(is_train=['train','val'], args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
-        dataset_val = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+        dataset_train = build_dataset(is_train=['train','val'], args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_train, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+        dataset_val = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
     else:
-        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
-        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_train, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
 
     # Apply subset sampling if subset_ratio > 0
     if args.subset_ratio > 0:
