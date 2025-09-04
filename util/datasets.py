@@ -198,7 +198,7 @@ class CSV_Dataset(Dataset):
                     heatmap_rgba = cmap(normed)  # (H, W, 4)
                     heatmap_array = (heatmap_rgba[..., :self.channel] * 255).astype(np.uint8) # (H,W,C)
                     image = Image.fromarray(heatmap_array, mode='RGB')  # RGB
-                    print('Heatmap image shape: ', image.shape)
+                    print('Heatmap image shape: ', image.size)
                 else:
                     # Expand to N channels (repeat)
                     image = np.repeat(image, self.channel, axis=0).transpose(1,2,0)  # (C,H,W)->(H,W,C)
