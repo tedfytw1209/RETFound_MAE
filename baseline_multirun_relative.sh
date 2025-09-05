@@ -11,6 +11,8 @@ BSS=(32)
 #LRS=(0.0001 0.0005 0.001 0.005 0.01 0.05)
 #WDS=(0.005 0.0005)
 #BSS=(16 32 64)
+
+#bash baseline_multirun_XAI_eval.sh finetune_relative_adcon_irb2024_v5.sh
 DATASET="ad_control_detect_data"
 NUM_CLASS=2
 # Nested loops to test all combinations
