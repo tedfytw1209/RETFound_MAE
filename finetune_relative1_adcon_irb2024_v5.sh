@@ -30,7 +30,7 @@ Modality="Thickness"
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 Patience="10"
 
-data_type="Chua_Jacqueline_IRB2024_v5"
+data_type="IRB2024v5_Jacqueline_ADCON_DL_data"
 
 #MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 MASTER_PORT=29501
@@ -39,5 +39,5 @@ echo $SUBSTUDY
 echo $Num_CLASS
 
 # Modify the path to your singularity container 
-# sbatch finetune_relative_adcon_irb2024_v5.sh ad_control_detect_data alexnet 16 1e-4 0.005 2
-torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py --savemodel --global_pool --batch_size $BS --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --weight_decay $wd --nb_classes $Num_CLASS --data_path /blue/ruogu.fang/tienyuchang/IRB2024v5_ADCON_DL_data/${STUDY}.csv --task $STUDY-${data_type}-all-$MODEL-${Modality}-${Eval_score}eval-subset${SUBSET_RATIO} --eval_score $Eval_score --modality $Modality --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers 0 --input_size 224 --num_k 0 --optimizer sgd --momentum 0.9 --lr_scheduler false --early_stopping --patience $Patience --subset_ratio $SUBSET_RATIO --visualize_samples
+# sbatch finetune_relative1_adcon_irb2024_v5.sh ad_control_detect_data alexnet 16 1e-4 0.005 2
+torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py --savemodel --global_pool --batch_size $BS --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --weight_decay $wd --nb_classes $Num_CLASS --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv --task $STUDY-${data_type}-all-$MODEL-${Modality}-${Eval_score}eval-subset${SUBSET_RATIO} --eval_score $Eval_score --modality $Modality --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers 0 --input_size 224 --num_k 0 --optimizer sgd --momentum 0.9 --lr_scheduler false --early_stopping --patience $Patience --subset_ratio $SUBSET_RATIO --visualize_samples
