@@ -21,6 +21,7 @@ from transformers import (
     AutoImageProcessor, EfficientNetForImageClassification,
     ResNetForImageClassification
 )
+import matplotlib.pyplot as plt
 
 import models_vit as models
 import util.lr_decay as lrd
@@ -181,6 +182,8 @@ def get_args_parser():
     parser.add_argument('--datasets_seed', default=2026, type=int)
     parser.add_argument('--subset_ratio', default=0, type=float,
                         help='Subset ratio for sampling dataset. If > 0, sample subset_ratio * minor_class_numbers from train/val/test datasets with seed 42')
+    parser.add_argument('--visualize_samples', action='store_true', default=False,
+                        help='Visualize sample images from the dataset')
 
     return parser
 
@@ -192,6 +195,98 @@ def get_label_mappings(args):
         id2label = {i: f"class_{i}" for i in range(args.nb_classes)}
         label2id = {v: k for k, v in id2label.items()}
     return id2label, label2id
+
+def visualize_dataset_samples(dataset, args, num_samples=8, save_path=None):
+    """
+    Visualize sample images from the dataset
+    
+    Args:
+        dataset: Dataset object
+        args: Arguments containing modality and other info
+        num_samples: Number of samples to visualize
+        save_path: Path to save the visualization (optional)
+    """
+    print(f"Visualizing {num_samples} sample images from {args.modality} dataset...")
+    
+    # Get class names
+    if hasattr(dataset, 'classes'):
+        class_names = dataset.classes
+    else:
+        class_names = [f"Class {i}" for i in range(args.nb_classes)]
+    
+    # Create figure
+    fig, axes = plt.subplots(2, 4, figsize=(16, 8))
+    axes = axes.flatten()
+    
+    # Sample random indices
+    indices = np.random.choice(len(dataset), min(num_samples, len(dataset)), replace=False)
+    
+    for i, idx in enumerate(indices):
+        if i >= num_samples:
+            break
+            
+        try:
+            # Get sample
+            if hasattr(dataset, 'half3D') and dataset.half3D:
+                # Handle multi-slice case
+                image, label, image_len = dataset[idx]
+                if isinstance(image, list):
+                    # Take the middle slice for visualization
+                    middle_idx = len(image) // 2
+                    img_tensor = image[middle_idx] if middle_idx < len(image) else image[0]
+                else:
+                    img_tensor = image[image_len//2] if image_len > 1 else image[0]
+            else:
+                image, label, _ = dataset[idx]
+                img_tensor = image
+            
+            # Convert tensor to numpy for visualization
+            if isinstance(img_tensor, torch.Tensor):
+                # Denormalize if normalized
+                if img_tensor.min() < 0:  # Likely normalized
+                    mean = np.array([0.485, 0.456, 0.406])
+                    std = np.array([0.229, 0.224, 0.225])
+                    img_np = img_tensor.permute(1, 2, 0).numpy()
+                    img_np = img_np * std + mean
+                    img_np = np.clip(img_np, 0, 1)
+                else:
+                    img_np = img_tensor.permute(1, 2, 0).numpy()
+                    img_np = np.clip(img_np, 0, 1)
+            else:
+                img_np = np.array(img_tensor)
+                if img_np.max() > 1:
+                    img_np = img_np / 255.0
+            
+            # Handle different number of channels
+            if img_np.shape[-1] == 1:
+                img_np = np.repeat(img_np, 3, axis=-1)
+            elif img_np.shape[-1] > 3:
+                img_np = img_np[:, :, :3]
+            
+            # Display image
+            axes[i].imshow(img_np)
+            axes[i].set_title(f'{class_names[label]} (idx: {idx})', fontsize=10)
+            axes[i].axis('off')
+            
+        except Exception as e:
+            print(f"Error visualizing sample {idx}: {e}")
+            axes[i].text(0.5, 0.5, f'Error\n{idx}', ha='center', va='center')
+            axes[i].axis('off')
+    
+    # Hide unused subplots
+    for i in range(len(indices), len(axes)):
+        axes[i].axis('off')
+    
+    plt.suptitle(f'Sample Images from {args.modality} Dataset', fontsize=14)
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Visualization saved to: {save_path}")
+    else:
+        plt.show()
+    
+    plt.close()
 
 def get_timm_model(args):
     import timm
@@ -335,6 +430,7 @@ def main(args, criterion):
     cudnn.benchmark = True
 
     model, processor = get_model(args)
+    print(model)
     
     #dataset selection
     if args.testval:
@@ -386,6 +482,23 @@ def main(args, criterion):
         dataset_train = create_subset(dataset_train, 'Train')
         dataset_val = create_subset(dataset_val, 'Validation')
         dataset_test = create_subset(dataset_test, 'Test')
+    
+    # Visualize sample images if requested
+    if args.visualize_samples and misc.is_main_process():
+        print("Generating dataset visualizations...")
+        # Create output directory for visualizations
+        vis_dir = os.path.join(args.output_dir, args.task, 'visualizations')
+        os.makedirs(vis_dir, exist_ok=True)
+        # Visualize training samples
+        train_vis_path = os.path.join(vis_dir, f'train_samples_{args.modality}.png')
+        visualize_dataset_samples(dataset_train, args, num_samples=8, save_path=train_vis_path)
+        # Visualize validation samples
+        val_vis_path = os.path.join(vis_dir, f'val_samples_{args.modality}.png')
+        visualize_dataset_samples(dataset_val, args, num_samples=8, save_path=val_vis_path)
+        # Visualize test samples
+        test_vis_path = os.path.join(vis_dir, f'test_samples_{args.modality}.png')
+        visualize_dataset_samples(dataset_test, args, num_samples=8, save_path=test_vis_path)
+        print(f"Dataset visualizations saved to: {vis_dir}")
     
     #for weighted loss
     if args.loss_weight:
