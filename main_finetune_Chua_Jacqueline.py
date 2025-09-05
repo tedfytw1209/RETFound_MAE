@@ -54,7 +54,7 @@ def get_args_parser():
 
     # Model parameters
     parser.add_argument('--model', default='vit_large_patch16', type=str, metavar='MODEL',
-                        help='Name of model to train')
+                        help='Name of model to train (e.g., resnet18_paper for paper-specific ResNet-18)')
     parser.add_argument('--input_size', default=224, type=int,
                         help='images input size')
     parser.add_argument('--drop_path', type=float, default=0.2, metavar='PCT',
@@ -89,6 +89,8 @@ def get_args_parser():
                         help='Gamma parameter for Focal Loss')
 
     # Augmentation parameters
+    parser.add_argument('--transform', default=1, type=int,
+                        help='Transform type: 1 for relative work 1, 2 for relative work 2')
     parser.add_argument('--color_jitter', type=float, default=None, metavar='PCT',
                         help='Color jitter factor (enabled only when not using Auto/RandAug)')
     parser.add_argument('--aa', type=str, default='rand-m9-mstd0.5-inc1', metavar='NAME',
@@ -190,7 +192,9 @@ def get_args_parser():
     parser.add_argument('--momentum', type=float, default=0.9,
                         help='SGD momentum (default: 0.9)')
     parser.add_argument('--l1_reg', type=float, default=0.0,
-                        help='L1 regularization coefficient (default: 0.0)')
+                        help='L1 regularization coefficient for FC layers (default: 0.0)')
+    parser.add_argument('--l2_reg', type=float, default=0.0,
+                        help='L2 regularization coefficient for entire model (default: 0.0)')
     parser.add_argument('--early_stopping', action='store_true', default=False,
                         help='Enable early stopping')
     parser.add_argument('--patience', type=int, default=10,
@@ -299,6 +303,129 @@ def visualize_dataset_samples(dataset, args, num_samples=8, save_path=None):
     
     plt.close()
 
+class CustomResNet18Paper(torch.nn.Module):
+    """
+    Custom ResNet-18 implementation based on paper specifications:
+    - First 5 layers only (conv1, bn1, relu, maxpool, layer1)
+    - Two key modifications from original ResNet-18:
+      1) Stride size of first conv layer changed from 2 to 1
+      2) Pooling size changed from 2x2 to 4x4
+    - Layer1 has 64 channels (n=64)
+    - Total parameters: 166,936 (157,504 for feature extractor + 9,432 for FC layers)
+    - Modality-specific FC layers for different imaging modalities
+    """
+    def __init__(self, num_classes=2, pretrained=True):
+        super(CustomResNet18Paper, self).__init__()
+        
+        # Load pretrained ResNet18
+        resnet18 = torchvision_models.resnet18(pretrained=pretrained)
+        
+        # Extract first 5 layers only (conv1, bn1, relu, maxpool, layer1)
+        self.conv1 = resnet18.conv1
+        self.bn1 = resnet18.bn1
+        self.relu = resnet18.relu
+        self.layer1 = resnet18.layer1
+        
+        # Apply paper modifications:
+        # 1) Stride size of first conv layer changed from 2 to 1
+        self.conv1.stride = (1, 1)
+        
+        # 2) Pooling size changed from 2x2 to 4x4
+        self.avgpool = torch.nn.AvgPool2d(kernel_size=4, stride=4, padding=1)
+        self.avgpool2 = torch.nn.AvgPool2d(kernel_size=4, stride=4)
+        
+        self.num_classes = num_classes
+        
+        # Calculate output feature map size after first 5 layers for 128x128 input:
+        # conv1: 128x128 -> 128x128 (stride=1, padding=3)
+        # avgpool: 128x128 -> 32x32 (4x4 kernel, stride=4, padding=1)
+        # layer1: 32x32 -> 32x32 (no downsampling, 64 channels)
+        # avgpool2: 32x32 -> 7x7 (4x4 kernel, stride=4)
+        # So final feature map is 7x7 with 64 channels = 3,136 features
+
+        # Modality-specific FC layers
+        self.fc_uwf_color_faf = torch.nn.Linear(64 * 7 * 7, num_classes,bias=True)  # UWF color and FAF 3137
+        self.fc_octa = torch.nn.Linear(64 * 7 * 7, num_classes,bias=True)  # OCTA 3137
+        self.fc_gc_ipl = torch.nn.Linear(64 * 7 * 7, num_classes,bias=True)  # GC-IPL maps 3137
+        self.fc_quantitative = torch.nn.Linear(20, num_classes,bias=True)  # Quantitative features (21 weights) 21
+        
+        # Final fusion layer (averaging pre-classification scores)
+        self.fusion = torch.nn.Identity()  # Simple averaging in forward pass
+        
+        # Initialize weights
+        if not pretrained:
+            self._initialize_weights()
+    
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, torch.nn.Conv2d):
+                torch.nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, torch.nn.BatchNorm2d):
+                torch.nn.init.constant_(m.weight, 1)
+                torch.nn.init.constant_(m.bias, 0)
+            elif isinstance(m, torch.nn.Linear):
+                torch.nn.init.normal_(m.weight, 0, 0.01)
+                torch.nn.init.constant_(m.bias, 0)
+    
+    def forward(self, x, modality='gc_ipl'):
+        """
+        Forward pass with modality-specific processing
+        
+        Args:
+            x: Input tensor (batch_size, 3, 128, 128)
+            modality: Modality type ('uwf_color_faf', 'octa', 'gc_ipl', 'quantitative')
+        """
+        # Feature extraction (first 5 layers only)
+        x = self.conv1(x)  # stride=1, padding=3 (modified from original stride=2)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.avgpool(x)  # 4x4 kernel, stride=4, padding=1 (modified from original 2x2)
+        x = self.layer1(x)  # ResNet layer1 (2 basic blocks, 64 channels)
+        x = self.avgpool2(x)  # 4x4 kernel, stride=4 (modified from original 2x2)
+        
+        # Flatten and dimension reduction
+        x = x.view(x.size(0), -1)  # Flatten: (batch_size, 64*7*7)
+
+        # Modality-specific pre-classification
+        if modality == 'uwf_color_faf':
+            x = self.fc_uwf_color_faf(x)
+        elif modality == 'octa':
+            x = self.fc_octa(x)
+        elif modality == 'gc_ipl':
+            x = self.fc_gc_ipl(x)
+        elif modality == 'quantitative':
+            # For quantitative features, input should be 21-dimensional
+            x = self.fc_quantitative(x)
+        else:
+            # Default to UWF color/FAF
+            x = self.fc_uwf_color_faf(x)
+        
+        return x
+    
+    def forward_multimodal(self, uwf_color_faf, octa, gc_ipl, quantitative_features):
+        """
+        Forward pass for multimodal inputs (as described in paper)
+        
+        Args:
+            uwf_color_faf: UWF color and FAF images
+            octa: OCTA images  
+            gc_ipl: GC-IPL maps
+            quantitative_features: Quantitative OCT/OCTA features (batch_size, 21)
+        """
+        # Get pre-classification scores for each modality
+        score_uwf = self.forward(uwf_color_faf, modality='uwf_color_faf')
+        score_octa = self.forward(octa, modality='octa')
+        score_gc_ipl = self.forward(gc_ipl, modality='gc_ipl')
+        score_quant = self.forward(quantitative_features, modality='quantitative')
+        
+        # Average pre-classification scores (as described in paper)
+        combined_score = (score_uwf + score_octa + score_gc_ipl + score_quant) / 4
+        
+        # Apply sigmoid to get probabilities in [0, 1] range
+        probabilities = torch.sigmoid(combined_score)
+        
+        return probabilities
+
 def get_timm_model(args):
     import timm
     processor = None
@@ -367,6 +494,9 @@ def get_model(args):
         model = torchvision_models.resnet18(pretrained=True)
         # Replace the classifier head
         model.fc = torch.nn.Linear(model.fc.in_features, args.nb_classes)
+    elif 'resnet18_paper' in args.model:
+        # Custom ResNet-18 implementation based on paper specifications
+        model = CustomResNet18Paper(num_classes=args.nb_classes, pretrained=True)
     elif 'resnet101' in args.model:
         model = torchvision_models.resnet101(pretrained=True)
         # Replace the classifier head
@@ -459,7 +589,7 @@ def build_transform(is_train, args):
         # Convert to tensor
         t.append(transforms.ToTensor())
         # Resize all images to 224x224
-        t.append(transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BICUBIC))
+        t.append(transforms.Resize((args.input_size, args.input_size), interpolation=transforms.InterpolationMode.BICUBIC))
         # Add horizontal flips
         t.append(transforms.RandomHorizontalFlip(p=0.5))
         # Random rotation and affine transformations
@@ -475,6 +605,66 @@ def build_transform(is_train, args):
     # Convert to tensor
     t.append(transforms.ToTensor())
     t.append(transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BICUBIC))
+    t.append(transforms.Normalize(mean, std))
+    return transforms.Compose(t)
+
+def build_transform2(is_train, args):
+    """
+    Enhanced data augmentation transform function based on paper specifications.
+    Implements rotating, shifting, cropping, and zooming as described in the paper:
+    "Data augmentation can be used to reduce over-fitting and increase the amount of training
+    data. It creates new images by transforming (rotating, translating, scaling, flipping, distorting)
+    and adding some noise (e.g. Gaussian noise) to the images in the training dataset."
+    """
+    mean = IMAGENET_DEFAULT_MEAN
+    std = IMAGENET_DEFAULT_STD
+    
+    if not isinstance(is_train, list):
+        is_train = [is_train]
+    
+    # Training transform with enhanced data augmentation
+    if 'train' in is_train:
+        t = []
+        
+        # Convert to tensor first
+        t.append(transforms.ToTensor())
+        
+        # Resize to a larger size first for better cropping
+        t.append(transforms.Resize((160, 160), interpolation=transforms.InterpolationMode.BICUBIC))
+        
+        # Random rotation: rotate images by random angles
+        t.append(transforms.RandomRotation(degrees=15, interpolation=transforms.InterpolationMode.BICUBIC))
+        
+        # Random shifting (translation): translate images randomly
+        t.append(transforms.RandomAffine(degrees=0, translate=(0.15, 0.15), interpolation=transforms.InterpolationMode.BICUBIC))
+        
+        # Random cropping: crop random portions of the image
+        t.append(transforms.RandomCrop((args.input_size, args.input_size)))
+        
+        # Random zooming (scaling): scale images randomly
+        t.append(transforms.RandomAffine(degrees=0, scale=(0.8, 1.2), interpolation=transforms.InterpolationMode.BICUBIC))
+        
+        # Random horizontal flip
+        t.append(transforms.RandomHorizontalFlip(p=0.5))
+        
+        # Random vertical flip (additional augmentation)
+        t.append(transforms.RandomVerticalFlip(p=0.3))
+        
+        # Color jitter for additional diversity
+        t.append(transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1))
+        
+        # Random erasing to simulate noise/distortion
+        t.append(transforms.RandomErasing(p=0.2, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0))
+        
+        # Normalize with ImageNet-1K mean and std
+        t.append(transforms.Normalize(mean, std))
+        
+        return transforms.Compose(t)
+    
+    # Evaluation transform (no augmentation)
+    t = []
+    t.append(transforms.ToTensor())
+    t.append(transforms.Resize((128, 128), interpolation=transforms.InterpolationMode.BICUBIC))
     t.append(transforms.Normalize(mean, std))
     return transforms.Compose(t)
 
@@ -495,8 +685,14 @@ def main(args, criterion):
     cudnn.benchmark = True
 
     model, processor = get_model(args)
-    transform_train = build_transform(is_train=['train','val'], args=args)
-    transform_eval = build_transform(is_train='test', args=args)
+    if args.transform == 1:
+        transform_train = build_transform(is_train=['train','val'], args=args)
+        transform_eval = build_transform(is_train='test', args=args)
+    elif args.transform == 2:
+        transform_train = build_transform2(is_train=['train','val'], args=args)
+        transform_eval = build_transform2(is_train='test', args=args)
+    else:
+        raise ValueError(f'Invalid transform type: {args.transform}')
     
     #dataset selection
     Select_Layer = ['RNFL-GCL (RNFL-GCL)_GCL-IPL (GCL-IPL)', 'GCL-IPL (GCL-IPL)_IPL-INL (IPL-INL)']
@@ -644,6 +840,14 @@ def main(args, criterion):
         config=args,
         dir=os.path.join(args.log_dir,args.task),
     )
+    
+    # Log regularization settings to wandb
+    if args.l1_reg > 0 or args.l2_reg > 0:
+        wandb.log({
+            "l1_reg": args.l1_reg,
+            "l2_reg": args.l2_reg,
+            "regularization": True
+        })
     if global_rank == 0 and args.log_dir is not None and not args.eval:
         os.makedirs(args.log_dir, exist_ok=True)
         log_writer = SummaryWriter(log_dir=os.path.join(args.log_dir,args.task))
@@ -765,6 +969,16 @@ def main(args, criterion):
         criterion = torch.nn.CrossEntropyLoss(weight=torch.tensor(train_weight).to(torch.float32).to(device) if train_weight is not None else None)
 
     print("criterion = %s" % str(criterion))
+    
+    # Print regularization settings
+    if args.l1_reg > 0 or args.l2_reg > 0:
+        print(f"Regularization enabled:")
+        if args.l1_reg > 0:
+            print(f"  L1 regularization (FC layers only): {args.l1_reg}")
+        if args.l2_reg > 0:
+            print(f"  L2 regularization (entire model): {args.l2_reg}")
+    else:
+        print("No regularization applied")
 
     # misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 

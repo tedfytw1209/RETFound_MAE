@@ -17,6 +17,35 @@ from pycm import ConfusionMatrix
 import util.misc as misc
 import util.lr_sched as lr_sched
 
+def compute_regularization_loss(model, l1_reg=0.0, l2_reg=0.0):
+    """
+    Compute L1 and L2 regularization losses for the model.
+    
+    Args:
+        model: PyTorch model
+        l1_reg: L1 regularization coefficient for FC layers only
+        l2_reg: L2 regularization coefficient for entire model
+    
+    Returns:
+        total_reg_loss: Combined regularization loss
+    """
+    l1_loss = 0.0
+    l2_loss = 0.0
+    
+    # L1 regularization on FC layers only
+    if l1_reg > 0:
+        for name, param in model.named_parameters():
+            if 'fc' in name.lower() or 'classifier' in name.lower() or 'head' in name.lower():
+                l1_loss += torch.sum(torch.abs(param))
+    
+    # L2 regularization on entire model
+    if l2_reg > 0:
+        for param in model.parameters():
+            l2_loss += torch.sum(param ** 2)
+    
+    total_reg_loss = l1_reg * l1_loss + l2_reg * l2_loss
+    return total_reg_loss
+
 def misc_measures(confusion_matrix):
     
     acc = []
@@ -93,6 +122,12 @@ def train_one_epoch(
             else:
                 outputs = outputs
             loss = criterion(outputs, targets)
+            
+            # Add regularization loss if specified
+            if hasattr(args, 'l1_reg') and hasattr(args, 'l2_reg'):
+                if args.l1_reg > 0 or args.l2_reg > 0:
+                    reg_loss = compute_regularization_loss(model, args.l1_reg, args.l2_reg)
+                    loss = loss + reg_loss
         loss_value = loss.item()
         loss /= accum_iter
         probs = torch.softmax(outputs, dim=1)
