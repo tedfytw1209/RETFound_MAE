@@ -15,6 +15,7 @@ BSS=(32)
 #bash baseline_multirun_XAI_eval.sh finetune_relative_adcon_irb2024_v5.sh
 DATASET="ad_control_detect_data"
 NUM_CLASS=2
+SUBSET_RATIO=1
 # Nested loops to test all combinations
 for MODEL in "${MODELS[@]}"
 do
@@ -26,8 +27,8 @@ do
             do
                 echo "Running MODEL: $MODEL, LR: $LR, WD: $WD, BS: $BS"
                 # Submit the job to Slurm
-                echo "sbatch $SCRIPT $DATASET $MODEL $BS $LR $WD $NUM_CLASS"
-                sbatch $SCRIPT $DATASET $MODEL $BS $LR $WD $NUM_CLASS
+                echo "sbatch $SCRIPT $DATASET $MODEL $BS $LR $WD $NUM_CLASS $SUBSET_RATIO"
+                sbatch $SCRIPT $DATASET $MODEL $BS $LR $WD $NUM_CLASS $SUBSET_RATIO
             done
         done
     done
