@@ -28,7 +28,7 @@ SUBSET_RATIO=${7:-"0"}
 Eval_score="roc_auc"
 Modality="Thickness"
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
-Patience="5"
+Patience="10"
 
 data_type="Chua_Jacqueline_IRB2024_v5"
 
