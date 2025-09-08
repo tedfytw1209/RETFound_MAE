@@ -25,6 +25,7 @@ wd=${5:-"0.005"} # 0.005, 0.0005
 Epochs="50"
 Num_CLASS=${6:-"2"}
 SUBSET_RATIO=${7:-"0"}
+Regularization=${8:-"0.01"} # 0.001 to 1 for regularisation loss
 Eval_score="roc_auc"
 Modality="Thickness"
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"

@@ -835,7 +835,7 @@ def main(args, criterion):
         else:
             sampler_test = torch.utils.data.SequentialSampler(dataset_test)
     wandb.init(
-        project="RETFound_MAE",
+        project="OCTAD_Relatives",
         name=args.task,
         config=args,
         dir=os.path.join(args.log_dir,args.task),
