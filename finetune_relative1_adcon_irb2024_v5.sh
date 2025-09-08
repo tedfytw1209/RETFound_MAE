@@ -5,7 +5,7 @@
 #SBATCH --mem-per-cpu=4gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
-#SBATCH --time=48:00:00
+#SBATCH --time=12:00:00
 #SBATCH --output=%x.%j.out
 #SBATCH --account=ruogu.fang
 #SBATCH --qos=ruogu.fang
@@ -29,7 +29,7 @@ Regularization=${8:-"0.01"} # 0.001 to 1 for regularisation loss
 Eval_score="roc_auc"
 Modality="Thickness"
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
-Patience="5"
+Patience="10"
 
 data_type="IRB2024v5_Jacqueline_ADCON_DL_data"
 
