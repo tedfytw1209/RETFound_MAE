@@ -29,7 +29,7 @@ Regularization=${8:-"0.01"} # 0.001 to 1 for regularisation loss
 Eval_score="roc_auc"
 Modality="Thickness"
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
-Patience="10"
+Patience="5"
 
 data_type="IRB2024v5_Jacqueline_ADCON_DL_data"
 
