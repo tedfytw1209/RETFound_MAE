@@ -4,7 +4,8 @@ SCRIPT=$1
 
 NUM_K=0
 
-MODELS=(alexnet vgg11 resnet18 googlenet shufflenet convnext_tiny regnet_x_16gf efficientnet_b0 vit_b_16 swin_b)  # List of models
+#MODELS=(alexnet vgg11 resnet18 googlenet shufflenet convnext_tiny regnet_x_16gf efficientnet_b0 vit_b_16 swin_b)  # List of models
+MODELS=(efficientnet_b0 vit_b_16)  # List of models
 #LRS=(0.0001)
 WDS=(0.005)
 BSS=(32)
