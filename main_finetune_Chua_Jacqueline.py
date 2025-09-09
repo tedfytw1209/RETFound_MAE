@@ -1026,6 +1026,7 @@ def main(args, criterion):
         if max_score < val_score:
             max_score = val_score
             best_epoch = epoch
+            best_dict = {f'best_{k}': v for k, v in val_stats.items()}
             patience_counter = 0  # Reset patience counter
             if args.output_dir and args.savemodel:
                 misc.save_model(
@@ -1039,6 +1040,7 @@ def main(args, criterion):
         # Early stopping
         if args.early_stopping and patience_counter >= args.patience:
             print(f"Early stopping triggered after {epoch + 1} epochs (patience: {args.patience})")
+            wandb.log(best_dict)
             break
 
 
@@ -1047,11 +1049,11 @@ def main(args, criterion):
             model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
             model.to(device)
             print("Validation with the best model, epoch = %d:" % checkpoint['epoch'])
-            val_stats, val_score = evaluate(data_loader_val, model, device, args, -1, mode='val',
-                                           num_class=args.nb_classes, k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
-            wandb_dict = {}
-            wandb_dict.update({f'best_val_{k}': v for k, v in val_stats.items()})
-            wandb.log(wandb_dict)
+            #val_stats, val_score = evaluate(data_loader_val, model, device, args, -1, mode='val',
+            #                               num_class=args.nb_classes, k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+            #wandb_dict = {}
+            #wandb_dict.update({f'best_{k}': v for k, v in val_stats.items()})
+            wandb.log(best_dict)
 
         if log_writer is not None:
             log_writer.add_scalar('loss/val', val_stats['loss'], epoch)
