@@ -33,8 +33,7 @@ Patience="10"
 
 data_type="IRB2024v5_Jacqueline_ADCON_DL_data"
 
-#MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
-MASTER_PORT=29501
+MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
 echo $SUBSTUDY
 echo $Num_CLASS

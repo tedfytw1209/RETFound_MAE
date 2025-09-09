@@ -6,11 +6,11 @@ NUM_K=0
 
 MODELS=(alexnet vgg11 resnet18 googlenet shufflenet convnext_tiny regnet_x_16gf efficientnet_b0 vit_b_16 swin_b)  # List of models
 #LRS=(0.0001)
-WDS=(0.005)
-BSS=(32)
+#WDS=(0.005)
+#BSS=(32)
 LRS=(0.0005 0.005 0.05 0.05 0.05 0.001 0.005 0.01 0.05 0.01)
-#WDS=(0.005 0.0005)
-#BSS=(16 32 64)
+WDS=(0.005 0.0005)
+BSS=(16 32 64)
 REGULARIZATION=(0.01)
 
 #bash baseline_multirun_relative_tmp.sh finetune_relative1_adcon_irb2024_v5.sh
