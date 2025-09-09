@@ -529,11 +529,15 @@ def get_model(args):
     elif 'efficientnet_b0' in args.model:
         model = torchvision_models.efficientnet_b0(pretrained=True)
         # Replace the classifier head
-        model.classifier = torch.nn.Linear(model.classifier.in_features, args.nb_classes)
+        last_layer = model.classifier[-1]
+        in_features = last_layer.in_features
+        model.classifier[-1] = torch.nn.Linear(in_features, args.nb_classes)
     elif 'vit_b_16' in args.model:
         model = torchvision_models.vit_b_16(pretrained=True)
         # Replace the classifier head
-        model.heads = torch.nn.Linear(model.heads.in_features, args.nb_classes)
+        last_layer = model.heads[-1]
+        in_features = last_layer.in_features
+        model.heads[-1] = torch.nn.Linear(in_features, args.nb_classes)
     elif 'swin_b' in args.model:
         model = torchvision_models.swin_b(pretrained=True)
         # Replace the classifier head
