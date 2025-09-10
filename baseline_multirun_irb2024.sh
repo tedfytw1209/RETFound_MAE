@@ -8,8 +8,9 @@ Num_CLASS=${5:-"2"}
 weight_decay=${6:-"0.05"}
 Eval_score=${7:-"default"}
 Modality=${8:-"OCT"} # CFP, OCT, OCT_CFP
-ADDCMD=${9:-""}
-ADDCMD2=${10:-""}
+SUBSETNUM=${9:-0} # 0, 500, 1000
+ADDCMD=${10:-""}
+ADDCMD2=${11:-""}
 
 NUM_K=0
 
@@ -27,6 +28,6 @@ do
     echo "Running dataset: $DATASET with num_class=$NUM_CLASS"
     # Submit the job to Slurm
     echo "sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $ADDCMD $ADDCMD2"
-    sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $ADDCMD $ADDCMD2
+    sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2
     sleep 1 # Optional: sleep to avoid overwhelming the scheduler
 done

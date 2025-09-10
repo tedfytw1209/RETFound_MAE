@@ -182,6 +182,8 @@ def get_args_parser():
     parser.add_argument('--datasets_seed', default=2026, type=int)
     parser.add_argument('--subset_ratio', default=0, type=float,
                         help='Subset ratio for sampling dataset. If > 0, sample subset_ratio * minor_class_numbers from train/val/test datasets with seed 42')
+    parser.add_argument('--subset_num', default=0, type=float,
+                        help='Subset number for sampling dataset. If > 0, sample subset_num from train datasets with seed 42')
     parser.add_argument('--visualize_samples', action='store_true', default=False,
                         help='Visualize sample images from the dataset')
 
@@ -482,6 +484,45 @@ def main(args, criterion):
         dataset_train = create_subset(dataset_train, 'Train')
         dataset_val = create_subset(dataset_val, 'Validation')
         dataset_test = create_subset(dataset_test, 'Test')
+    # Apply subset sampling by absolute number if subset_num > 0
+    if args.subset_num > 0:
+        print(f'Applying subset sampling with absolute number {args.subset_num}')
+        
+        def create_subset_by_num(dataset, split_name, subset_num):
+            """Create a subset of the dataset with specified absolute number"""
+            targets = np.array(dataset.targets)
+            unique_classes, class_counts = np.unique(targets, return_counts=True)
+            n_classes = len(unique_classes)
+            
+            print(f'{split_name} - Original size: {len(dataset)}, Classes: {n_classes}, Target subset size: {subset_num}')
+            
+            if subset_num < n_classes:
+                # Too small to guarantee at least one per class → fall back to plain random sample
+                print(f'Warning: subset_num ({subset_num}) < number of classes ({n_classes}), using random sampling')
+                rng = np.random.RandomState(args.seed)
+                subset_indices = rng.choice(len(dataset), min(subset_num, len(dataset)), replace=False)
+            else:
+                # Use stratified sampling to maintain class distribution
+                from sklearn.model_selection import StratifiedShuffleSplit
+                if subset_num >= len(dataset):
+                    print(f'Warning: subset_num ({subset_num}) >= dataset size ({len(dataset)}), using full dataset')
+                    subset_indices = list(range(len(dataset)))
+                else:
+                    sss = StratifiedShuffleSplit(n_splits=1, train_size=subset_num, random_state=args.seed)
+                    subset_indices = next(sss.split(range(len(dataset)), targets))[0]
+            
+            # Create subset dataset
+            subset_dataset = Subset(dataset, subset_indices)
+            
+            # Add targets attribute to subset for compatibility
+            subset_dataset.targets = [dataset.targets[i] for i in subset_indices]
+            subset_dataset.classes = dataset.classes
+            subset_dataset.class_to_idx = dataset.class_to_idx
+            
+            print(f'{split_name} - Final subset size: {len(subset_dataset)}')
+            return subset_dataset
+        
+        dataset_train = create_subset_by_num(dataset_train, 'Train', args.subset_num)
     
     # Visualize sample images if requested
     if args.visualize_samples and misc.is_main_process():
