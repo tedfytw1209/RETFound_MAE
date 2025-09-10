@@ -608,7 +608,7 @@ def build_transform(is_train, args):
     # Resize all images to 224x224 for evaluation
     # Convert to tensor
     t.append(transforms.ToTensor())
-    t.append(transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BICUBIC))
+    t.append(transforms.Resize((args.input_size, args.input_size), interpolation=transforms.InterpolationMode.BICUBIC))
     t.append(transforms.Normalize(mean, std))
     return transforms.Compose(t)
 
@@ -647,7 +647,7 @@ def build_transform2(is_train, args):
     # Resize all images to 224x224 for evaluation
     # Convert to tensor
     t.append(transforms.ToTensor())
-    t.append(transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BICUBIC))
+    t.append(transforms.Resize((args.input_size, args.input_size), interpolation=transforms.InterpolationMode.BICUBIC))
     t.append(transforms.Normalize(mean, std))
     return transforms.Compose(t)
 
