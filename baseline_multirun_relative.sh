@@ -5,11 +5,11 @@ SCRIPT=$1
 NUM_K=0
 
 #MODELS=(alexnet vgg11 resnet18 googlenet shufflenet convnext_tiny regnet_x_16gf efficientnet_b0 vit_b_16 swin_b)  # List of models
-MODELS=(shufflenet regnet_x_16gf vit_b_16)  # List of models
+MODELS=(resnet18_paper)  # List of models
 #LRS=(0.0001)
 WDS=(0.005)
 BSS=(32)
-LRS=(0.0001 0.0005 0.001 0.005 0.01 0.05)
+LRS=(0.001 0.005 0.01 0.05)
 #WDS=(0.005 0.0005)
 #BSS=(16 32 64)
 REGULARIZATION=(0.01)
