@@ -625,38 +625,29 @@ def build_transform2(is_train, args):
     
     if not isinstance(is_train, list):
         is_train = [is_train]
-    
-    # Training transform with enhanced data augmentation
+    # train transform
     if 'train' in is_train:
+        # Custom training transform with 224x224 resize, horizontal flips, and random transformations
         t = []
-        # Convert to tensor first
+        # Convert to tensor
         t.append(transforms.ToTensor())
-        # Resize to a larger size first for better cropping
-        t.append(transforms.Resize((160, 160), interpolation='nearest'))
-        # Random rotation: rotate images by random angles
-        t.append(transforms.RandomRotation(degrees=15, interpolation='nearest'))
-        # Random shifting (translation): translate images randomly
-        t.append(transforms.RandomAffine(degrees=0, translate=(0.15, 0.15), interpolation='nearest'))
-        # Random cropping: crop random portions of the image
-        t.append(transforms.RandomCrop((args.input_size, args.input_size)))
-        # Random zooming (scaling): scale images randomly
-        t.append(transforms.RandomAffine(degrees=0, scale=(0.8, 1.2), interpolation='nearest'))
-        # Random horizontal flip
+        # Resize all images to 224x224
+        t.append(transforms.Resize((args.input_size, args.input_size), interpolation=transforms.InterpolationMode.BICUBIC))
+        # Add horizontal flips
         t.append(transforms.RandomHorizontalFlip(p=0.5))
-        # Random vertical flip (additional augmentation)
-        t.append(transforms.RandomVerticalFlip(p=0.3))
-        # Color jitter for additional diversity
-        t.append(transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1))
-        # Random erasing to simulate noise/distortion
-        t.append(transforms.RandomErasing(p=0.2, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0))
+        # Random rotation and affine transformations
+        t.append(transforms.RandomRotation(degrees=10))
+        t.append(transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=(0.9, 1.1)))
         # Normalize with ImageNet-1K mean and std
         t.append(transforms.Normalize(mean, std))
         return transforms.Compose(t)
     
-    # Evaluation transform (no augmentation)
+    # eval transform
     t = []
+    # Resize all images to 224x224 for evaluation
+    # Convert to tensor
     t.append(transforms.ToTensor())
-    t.append(transforms.Resize((128, 128), interpolation=transforms.InterpolationMode.BICUBIC))
+    t.append(transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BICUBIC))
     t.append(transforms.Normalize(mean, std))
     return transforms.Compose(t)
 
