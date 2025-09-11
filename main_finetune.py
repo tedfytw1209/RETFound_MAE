@@ -183,7 +183,7 @@ def get_args_parser():
     parser.add_argument('--datasets_seed', default=2026, type=int)
     parser.add_argument('--subset_ratio', default=0, type=float,
                         help='Subset ratio for sampling dataset. If > 0, sample subset_ratio * minor_class_numbers from train/val/test datasets with seed 42')
-    parser.add_argument('--subset_num', default=0, type=float,
+    parser.add_argument('--subset_num', default=0, type=int,
                         help='Subset number for sampling dataset. If > 0, sample subset_num from train datasets with seed 42')
     parser.add_argument('--visualize_samples', action='store_true', default=False,
                         help='Visualize sample images from the dataset')
@@ -526,9 +526,9 @@ def main(args, criterion):
             
             print(f'{split_name} - Final subset size: {len(subset_dataset)}')
             return subset_dataset
-        
-        dataset_train = create_subset_by_num(dataset_train, 'Train', args.subset_num)
-    
+
+        dataset_train = create_subset_by_num(dataset_train, 'Train', int(args.subset_num))
+
     # Visualize sample images if requested
     if args.visualize_samples and misc.is_main_process():
         print("Generating dataset visualizations...")
