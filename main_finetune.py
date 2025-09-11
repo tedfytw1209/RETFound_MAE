@@ -24,6 +24,7 @@ from transformers import (
 import matplotlib.pyplot as plt
 
 import models_vit as models
+from relaynet import ReLayNet, relynet_load_pretrained
 import util.lr_decay as lrd
 import util.misc as misc
 from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapper
@@ -377,6 +378,8 @@ def get_model(args):
             label2id=label2id,
             ignore_mismatched_sizes=True
         )
+    elif 'relaynet' in args.model:
+        model = ReLayNet(num_classes=args.nb_classes)
     else:
         model = models.__dict__[args.model](
             num_classes=args.nb_classes,
@@ -411,6 +414,8 @@ def get_model(args):
             msg = model.load_state_dict(checkpoint_model, strict=False)
             trunc_normal_(model.head.weight, std=2e-5)
             processor = None
+        elif 'relaynet' in args.model:
+            model = relynet_load_pretrained(model, args.finetune, args.device)
         else:
             print("No checkpoints from: %s" % args.finetune)
     return model, processor
