@@ -28,5 +28,4 @@ do
     # Submit the job to Slurm
     echo "sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $Epochs $NUM_CLASS $Eval_score $Modality $ADDCMD $ADDCMD2"
     sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $Epochs $NUM_CLASS $Eval_score $Modality $ADDCMD $ADDCMD2
-    sleep 1 # Optional: sleep to avoid overwhelming the scheduler
 done
