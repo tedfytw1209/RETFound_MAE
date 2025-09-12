@@ -18,7 +18,7 @@ NUM_K=0
 #bash baseline_multirun_irb2024_addfea.sh finetune_retfound_UFbenchmark_irb2024v5.sh RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 roc_auc OCT
 #bash baseline_multirun_irb2024_addfea.sh finetune_retfound_UFbenchmark_pytorchvit.sh pytorchvit B_16_imagenet1k 0.01 2 1e-6 mcc OCT --testval
 #bash baseline_multirun_irb2024_addfea.sh finetune_retfound_UFbenchmark_irb2024v3.sh RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 mcc OCT --testval
-DATASETS=(DME CSR Drusen ERM MH CRVO_CRAO PVD RNV DME_binary) 
+DATASETS=(DME_all_split CSR_all_split Drusen_all_split ERM_all_split MH_all_split CRVO_CRAO_all_split PVD_all_split RNV_all_split DME_binary_all_split) 
 CLASSES=(5 2 2 2 2 2 2 2 2)  # Number of classes for each dataset
 for i in "${!DATASETS[@]}"
 do
