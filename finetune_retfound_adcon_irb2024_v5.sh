@@ -24,8 +24,9 @@ Epochs=${5:-"100"}
 Num_CLASS=${6:-"2"}
 Eval_score=${7:-"default"}
 Modality=${8:-"OCT"} # CFP, OCT, OCT_CFP
-ADDCMD=${9:-""}
-ADDCMD2=${10:-""}
+SUBSETNUM=${9:-0} # 0, 500, 1000
+ADDCMD=${10:-""}
+ADDCMD2=${11:-""}
 
 data_type="IRB2024v5_ADCON_DL_data"
 
