@@ -42,6 +42,7 @@ echo $Num_CLASS
 
 # Modify the path to your singularity container 
 # sbatch finetune_retfound_UFbenchmark_irb2024v5.sh DR_all_split RETFound_mae RETFound_mae_natureCFP 5e-4 6 0.05 default CFP
+# sbatch finetune_retfound_UFbenchmark_irb2024v5.sh DR_binary_all_split vig_b_224_gelu vig_b_82.6 5e-4 2 0.05 default OCT
 # sbatch finetune_retfound_UFbenchmark_irb2024v5.sh Glaucoma_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 6 0.05 default OCT
 # sbatch finetune_retfound_UFbenchmark_irb2024v5.sh AMD_all_split RETFound_dinov2 RETFound_dinov2_meh 5e-4 2
 # sbatch finetune_retfound_UFbenchmark_irb2024v5.sh Cataract_all_split pytorchvit B_16_imagenet1k 5e-4 6 0.05 mcc OCT --testval

@@ -429,7 +429,7 @@ def get_model(args):
         elif args.model.startswith('pvig') or args.model.startswith('vig'):
             pretrain_root = "/orange/ruogu.fang/tienyuchang/visionGNN_pretrain/"
             print('Loading:', args.finetune)
-            state_dict = torch.load(os.path.join(pretrain_root, args.finetune))
+            state_dict = torch.load(os.path.join(pretrain_root, args.finetune + '.pth'))
             model.load_state_dict(state_dict, strict=False)
             print('Pretrain weights loaded.')
         elif 'relaynet' in args.model:
