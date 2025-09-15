@@ -430,8 +430,12 @@ def get_model(args):
             pretrain_root = "/orange/ruogu.fang/tienyuchang/visionGNN_pretrain/"
             print('Loading:', args.finetune)
             state_dict = torch.load(os.path.join(pretrain_root, args.finetune + '.pth'))
-            model.load_state_dict(state_dict, strict=False)
-            print('Pretrain weights loaded.')
+            drop_keys = ["prediction.4.weight", "prediction.4.bias"]
+            for k in drop_keys:
+                if k in state_dict:
+                    del state_dict[k]
+            missing, unexpected = model.load_state_dict(state_dict, strict=False)
+            print(f"[load] missing: {len(missing)}, unexpected: {len(unexpected)}")
         elif 'relaynet' in args.model:
             model = relynet_load_pretrained(model, args.finetune, args.device)
         else:
