@@ -24,6 +24,8 @@ from transformers import (
 import matplotlib.pyplot as plt
 
 import models_vit as models
+import vig as vig_models
+import pyramid_vig as pvig_models
 from relaynet import ReLayNet, relynet_load_pretrained
 import util.lr_decay as lrd
 import util.misc as misc
@@ -380,6 +382,16 @@ def get_model(args):
         )
     elif 'relaynet' in args.model:
         model = ReLayNet(num_classes=args.nb_classes)
+    elif args.model.startswith('vig'):
+        model = vig_models.__dict__[args.model](
+            pretrained=True,
+            num_classes=args.nb_classes,
+        )
+    elif args.model.startswith('pvig'):
+        model = pvig_models.__dict__[args.model](
+            pretrained=True,
+            num_classes=args.nb_classes,
+        )
     else:
         model = models.__dict__[args.model](
             num_classes=args.nb_classes,
@@ -414,6 +426,12 @@ def get_model(args):
             msg = model.load_state_dict(checkpoint_model, strict=False)
             trunc_normal_(model.head.weight, std=2e-5)
             processor = None
+        elif args.model.startswith('pvig') or args.model.startswith('vig'):
+            pretrain_root = "/orange/ruogu.fang/tienyuchang/visionGNN_pretrain/"
+            print('Loading:', args.finetune)
+            state_dict = torch.load(os.path.join(pretrain_root, args.finetune))
+            model.load_state_dict(state_dict, strict=False)
+            print('Pretrain weights loaded.')
         elif 'relaynet' in args.model:
             model = relynet_load_pretrained(model, args.finetune, args.device)
         else:
