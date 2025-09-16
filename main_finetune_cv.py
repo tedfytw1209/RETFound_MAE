@@ -831,12 +831,12 @@ def main(args, criterion):
                 if args.output_dir and args.savemodel:
                     misc.save_model(
                         args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
-                        loss_scaler=loss_scaler, epoch=epoch, mode='best')
+                        loss_scaler=loss_scaler, epoch=epoch, mode='best', add_dir=f"CV{fold_idx}")
             print("Best epoch = %d, Best score = %.4f" % (best_epoch, max_score))
 
 
             if epoch == (args.epochs - 1):
-                checkpoint = torch.load(os.path.join(args.output_dir, args.task, 'checkpoint-best.pth'), map_location='cpu')
+                checkpoint = torch.load(os.path.join(args.output_dir, args.task, f"CV{fold_idx}", 'checkpoint-best.pth'), map_location='cpu')
                 model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
                 model.to(device)
                 print("Validation with the best model, epoch = %d:" % checkpoint['epoch'])
@@ -862,7 +862,7 @@ def main(args, criterion):
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         print('Training time {}'.format(total_time_str))
-        state_dict_best = torch.load(os.path.join(args.output_dir,args.task,'checkpoint-best.pth'), map_location='cpu')
+        state_dict_best = torch.load(os.path.join(args.output_dir,args.task, f"CV{fold_idx}",'checkpoint-best.pth'), map_location='cpu')
         model_without_ddp.load_state_dict(state_dict_best['model'])
         print("Test with the best model, epoch = %d:" % state_dict_best['epoch'])
         test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
