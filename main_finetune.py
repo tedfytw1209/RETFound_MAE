@@ -19,7 +19,7 @@ from torch.optim import lr_scheduler
 from transformers import (
     ViTImageProcessor, ViTForImageClassification,
     AutoImageProcessor, EfficientNetForImageClassification,
-    ResNetForImageClassification
+    ResNetForImageClassification, AutoModel
 )
 import matplotlib.pyplot as plt
 
@@ -382,6 +382,9 @@ def get_model(args):
         )
     elif 'relaynet' in args.model:
         model = ReLayNet(num_classes=args.nb_classes)
+    elif 'dinov3' in args.model:
+        processor = AutoImageProcessor.from_pretrained(f"facebook/{args.finetune}")
+        model = AutoModel.from_pretrained(f"facebook/{args.finetune}")
     elif args.model.startswith('vig'):
         model = vig_models.__dict__[args.model](
             pretrained=True,
