@@ -384,7 +384,8 @@ def get_model(args):
     elif 'relaynet' in args.model:
         model = ReLayNet(num_classes=args.nb_classes)
     elif 'dinov3' in args.model:
-        processor = TransformWrapper(AutoImageProcessor.from_pretrained(f"facebook/{args.finetune}"))
+        model_name = f"facebook/{args.finetune}" if args.finetune else "facebook/dinov3-vitb16-pretrain-lvd1689m"
+        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_name))
         config = AutoConfig.from_pretrained(model_name, num_labels=args.nb_classes)
         model  = AutoModelForImageClassification.from_pretrained(
             model_name, config=config, ignore_mismatched_sizes=True
