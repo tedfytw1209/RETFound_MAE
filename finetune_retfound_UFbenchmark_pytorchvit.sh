@@ -43,5 +43,5 @@ echo $SUBSTUDY
 echo $Num_CLASS
 
 # Modify the path to your singularity container 
-# sbatch finetune_retfound_UFbenchmark_pytorchvit.sh AMD_all_split pytorchvit B_16_imagenet1k 0.01 2 1e-6 mcc OCT --testval
+# sbatch finetune_retfound_UFbenchmark_pytorchvit.sh DR_binary_all_split pytorchvit B_16_imagenet1k 5e-3 2 0 mcc OCT --testval
 torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune.py --savemodel --global_pool --batch_size $BATCH_SIZE --world_size 1 --model $MODEL --epochs $Epochs --optimizer $OPTIMIZER --lr $LR --layer_decay 0.65 --weight_decay $weight_decay --lr_scheduler cosine --schedule_step 20 --schedule_gamma 0.5 --drop_path 0.2 --smoothing $SMOOTH --warmup_epochs $WARMUP_EPOCHS --nb_classes $Num_CLASS --data_path /orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/${data_type}/split/tune5-eval5/${STUDY}.csv --task $STUDY-${data_type}-all-$FINETUNED_MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}opt${OPTIMIZER}-${Eval_score}eval-trsub${SUBSETNUM}-$ADDCMD-$ADDCMD2/ --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k $NUM_K --eval_score $Eval_score --modality $Modality --subset_num $SUBSETNUM $ADDCMD $ADDCMD2
