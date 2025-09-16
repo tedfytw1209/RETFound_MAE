@@ -19,8 +19,7 @@ from torch.optim import lr_scheduler
 from transformers import (
     ViTImageProcessor, ViTForImageClassification,
     AutoImageProcessor, EfficientNetForImageClassification,
-    ResNetForImageClassification, AutoModelForImageClassification,
-    AutoConfig
+    ResNetForImageClassification, AutoModel
 )
 import matplotlib.pyplot as plt
 
@@ -386,10 +385,8 @@ def get_model(args):
     elif 'dinov3' in args.model:
         model_name = f"facebook/{args.finetune}" if args.finetune else "facebook/dinov3-vitb16-pretrain-lvd1689m"
         processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_name))
-        config = AutoConfig.from_pretrained(model_name, num_labels=args.nb_classes)
-        model  = AutoModelForImageClassification.from_pretrained(
-            model_name, config=config, ignore_mismatched_sizes=True
-        )
+        feature_extractor = AutoModel.from_pretrained(model_name)
+        model = models.DinoV3Classifier(feature_extractor, num_labels=args.nb_classes)
     elif args.model.startswith('vig'):
         model = vig_models.__dict__[args.model](
             pretrained=True,

@@ -85,6 +85,21 @@ class DualViTClassifier(nn.Module):
 
         return combined_features
 
+class DinoV3Classifier(nn.Module):
+    def __init__(self, backbone, num_labels):
+        super().__init__()
+        self.backbone = backbone
+        hidden = backbone.config.hidden_size  # dinov3-vit-large = 1024
+        self.classifier = nn.Linear(hidden, num_labels)
+
+    def forward(self, pixel_values=None, labels=None, **kwargs):
+        out = self.backbone(pixel_values=pixel_values, **kwargs)  # BaseModelOutputWithPooling
+        pooled = getattr(out, "pooler_output", None)
+        if pooled is None:                       # 有些權重沒有 pooler，就用 CLS
+            pooled = out.last_hidden_state[:, 0]
+        logits = self.classifier(pooled)
+        return logits  # 回傳 logits tensor，方便現有 criterion 直接吃
+
 def DualViT(**kwargs):
     model = DualViTClassifier(**kwargs)
     return model
