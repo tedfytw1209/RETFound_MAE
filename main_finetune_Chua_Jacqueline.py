@@ -548,6 +548,77 @@ def get_model(args):
         model = torchvision_models.swin_b(pretrained=True)
         # Replace the classifier head
         model.head = torch.nn.Linear(model.head.in_features, args.nb_classes)
+    elif 'vgg16' in args.model:
+        model = torchvision_models.vgg16(pretrained=True)
+        # Replace the classifier head
+        model.classifier = torch.nn.Sequential(
+            torch.nn.Linear(model.classifier[0].in_features, 4096),
+            torch.nn.ReLU(True),
+            torch.nn.Dropout(p=0.5),
+            torch.nn.Linear(4096, 4096),
+            torch.nn.ReLU(True),
+            torch.nn.Dropout(p=0.5),
+            torch.nn.Linear(4096, args.nb_classes),
+        )
+    elif 'resnet50' in args.model:
+        model = torchvision_models.resnet50(pretrained=True)
+        # Replace the classifier head
+        model.fc = torch.nn.Linear(model.fc.in_features, args.nb_classes)
+    elif 'inception_v3' in args.model:
+        model = torchvision_models.inception_v3(pretrained=True)
+        # Replace the classifier head
+        model.fc = torch.nn.Linear(model.fc.in_features, args.nb_classes)
+        # Also replace aux classifier if it exists
+        if hasattr(model, 'AuxLogits') and model.AuxLogits is not None:
+            model.AuxLogits.fc = torch.nn.Linear(model.AuxLogits.fc.in_features, args.nb_classes)
+    elif 'densenet121' in args.model:
+        model = torchvision_models.densenet121(pretrained=True)
+        # Replace the classifier head
+        model.classifier = torch.nn.Linear(model.classifier.in_features, args.nb_classes)
+    elif 'nasnet_mobile' in args.model:
+        model = torchvision_models.nasnet_mobile(pretrained=True)
+        # Replace the classifier head
+        model.classifier = torch.nn.Linear(model.classifier.in_features, args.nb_classes)
+    elif 'swin_t' in args.model:
+        model = torchvision_models.swin_t(pretrained=True)
+        # Replace the classifier head
+        model.head = torch.nn.Linear(model.head.in_features, args.nb_classes)
+    elif 'swin_s' in args.model:
+        model = torchvision_models.swin_s(pretrained=True)
+        # Replace the classifier head
+        model.head = torch.nn.Linear(model.head.in_features, args.nb_classes)
+    elif 'swin_v2_t' in args.model:
+        model = torchvision_models.swin_v2_t(pretrained=True)
+        # Replace the classifier head
+        model.head = torch.nn.Linear(model.head.in_features, args.nb_classes)
+    elif 'swin_v2_s' in args.model:
+        model = torchvision_models.swin_v2_s(pretrained=True)
+        # Replace the classifier head
+        model.head = torch.nn.Linear(model.head.in_features, args.nb_classes)
+    elif 'swin_v2_b' in args.model:
+        model = torchvision_models.swin_v2_b(pretrained=True)
+        # Replace the classifier head
+        model.head = torch.nn.Linear(model.head.in_features, args.nb_classes)
+    elif 'simple_cnn' in args.model:
+        # Simple CNN architecture for basic image classification
+        model = models.__dict__['SimpleCNN'](
+            num_classes=args.nb_classes,
+            input_channels=3,
+            dropout_rate=args.dropout
+        )
+    elif 'transnet_oct' in args.model:
+        # TransNetOCT: Transformer-based network for OCT classification
+        # Combines CNN feature extraction with transformer attention mechanisms
+        model = models.__dict__['TransNetOCT'](
+            num_classes=args.nb_classes,
+            input_channels=3,
+            img_size=args.input_size,
+            patch_size=16,
+            embed_dim=768,
+            num_heads=12,
+            num_layers=12,
+            dropout_rate=args.dropout
+        )
     elif 'dual_input_cnn' in args.model:
         # Flexible CNN model for MCI classification
         # Supports different input combinations based on input_mode
