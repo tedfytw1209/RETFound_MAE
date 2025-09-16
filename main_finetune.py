@@ -383,7 +383,7 @@ def get_model(args):
     elif 'relaynet' in args.model:
         model = ReLayNet(num_classes=args.nb_classes)
     elif 'dinov3' in args.model:
-        model_name = f"facebook/{args.finetune}" if args.finetune else "facebook/dinov3-vitb16-pretrain-lvd1689m"
+        model_name = f"facebook/{args.finetune}" if args.finetune else "facebook/dinov3-vitl16-pretrain-lvd1689m"
         processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_name))
         feature_extractor = AutoModel.from_pretrained(model_name)
         model = models.DinoV3Classifier(feature_extractor, num_labels=args.nb_classes)
@@ -726,7 +726,7 @@ def main(args, criterion):
     print("effective batch size: %d" % eff_batch_size)
 
     if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=True)
         model_without_ddp = model.module
 
     # HF transformers model (ViT / EfficientNet) AdamW ---

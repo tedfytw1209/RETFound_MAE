@@ -95,10 +95,10 @@ class DinoV3Classifier(nn.Module):
     def forward(self, pixel_values=None, labels=None, **kwargs):
         out = self.backbone(pixel_values=pixel_values, **kwargs)  # BaseModelOutputWithPooling
         pooled = getattr(out, "pooler_output", None)
-        if pooled is None:                       # 有些權重沒有 pooler，就用 CLS
+        if pooled is None:
             pooled = out.last_hidden_state[:, 0]
         logits = self.classifier(pooled)
-        return logits  # 回傳 logits tensor，方便現有 criterion 直接吃
+        return logits
 
 def DualViT(**kwargs):
     model = DualViTClassifier(**kwargs)
