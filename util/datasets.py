@@ -210,12 +210,37 @@ class CSV_Dataset(Dataset):
         #print(image)
         return image, label, image_len
 
+class DualCSV_Dataset(Dataset):
+    def __init__(self,data_oct,data_cfp):
+        self.data_oct = data_oct
+        self.data_cfp = data_cfp
+        #TODO:Merge to csv to match to modality
+        self.annotations = self.data_oct.annotations
+        self.num_class = self.data_oct.num_class
+        self.class_to_idx = self.data_oct.class_to_idx
+        self.channel = 3
+        self.targets = self.data_oct.targets #!!! Assume the targets are the same
+        assert len(data_oct) == len(data_cfp), "The number of OCT and CFP data must be the same"
+    def __len__(self):
+        return len(self.data_oct)
+    def __getitem__(self, idx):
+        sample_oct, label_oct, image_len_oct = self.data_oct[idx]
+        sample_cfp, label_cfp, image_len_cfp = self.data_cfp[idx]
+        assert label_oct == label_cfp, "The label of OCT and CFP must be the same"
+        return sample_oct, sample_cfp, label_oct
+
 def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, modality='OCT', patient_ids=None, pid_key='patient_id', 
                   select_layers=None,th_resize=True,th_heatmap=False):
     if transform is None:
         transform = build_transform(is_train, args)
     
-    if args.data_path.endswith('.csv'):
+    if 'dual_input_cnn'  in args.model: #Dual model special dataset
+        img_dir_oct = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
+        img_dir_cfp = "/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
+        dataset_oct = CSV_Dataset(args.data_path, img_dir_oct, is_train, transform, k, modality="Thickness", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap)
+        dataset_cfp = CSV_Dataset(args.data_path, img_dir_cfp, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap)
+        dataset = DualCSV_Dataset(dataset_oct, dataset_cfp)
+    elif args.data_path.endswith('.csv'):
         dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality=modality, patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap)
     else:
         root = os.path.join(args.data_path, is_train)

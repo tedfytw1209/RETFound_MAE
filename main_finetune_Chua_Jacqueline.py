@@ -32,7 +32,7 @@ from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.losses import FocalLoss, compute_alpha_from_labels
 from huggingface_hub import hf_hub_download, login
-from engine_finetune import evaluate_half3D, train_one_epoch, evaluate
+from engine_finetune import evaluate_half3D, train_one_epoch, evaluate, train_one_epoch_dual, evaluate_dualv2
 import wandb
 from pytorch_pretrained_vit import ViT
 
@@ -59,6 +59,12 @@ def get_args_parser():
                         help='images input size')
     parser.add_argument('--drop_path', type=float, default=0.2, metavar='PCT',
                         help='Drop path rate (default: 0.1)')
+    parser.add_argument('--input_mode', default='all', type=str, 
+                        choices=['all', 'images_only', 'gc_ipl_only', 'octa_only', 
+                                'quantitative_only', 'gc_ipl_quantitative', 'octa_quantitative'],
+                        help='Input mode for dual_input_cnn model (default: all)')
+    parser.add_argument('--quantitative_features', default=10, type=int,
+                        help='Number of quantitative features for dual_input_cnn model (default: 10)')
 
     # Optimizer parameters
     parser.add_argument('--optimizer', default='sgd', type=str, metavar='OPTIMIZER',
@@ -542,6 +548,16 @@ def get_model(args):
         model = torchvision_models.swin_b(pretrained=True)
         # Replace the classifier head
         model.head = torch.nn.Linear(model.head.in_features, args.nb_classes)
+    elif 'dual_input_cnn' in args.model:
+        # Flexible CNN model for MCI classification
+        # Supports different input combinations based on input_mode
+        model = models.__dict__['DualInputCNN'](
+            num_classes=args.nb_classes,
+            quantitative_features=args.quantitative_features,
+            dropout_rate=args.dropout,
+            pretrained=True,
+            input_mode=args.input_mode
+        )
     else:
         model = models.__dict__[args.model](
             num_classes=args.nb_classes,
@@ -989,17 +1005,30 @@ def main(args, criterion):
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             data_loader_train.sampler.set_epoch(epoch)
+        if 'dual_input_cnn'  in args.model:
+            train_stats = train_one_epoch_dual(
+                model, criterion, data_loader_train,
+                optimizer, device, epoch, loss_scaler,
+                exp_lr_scheduler,
+                args.clip_grad, mixup_fn,
+                log_writer=log_writer,
+                args=args
+            )
+        else:
+            train_stats = train_one_epoch(
+                model, criterion, data_loader_train,
+                optimizer, device, epoch, loss_scaler,
+                exp_lr_scheduler,
+                args.clip_grad, mixup_fn,
+                log_writer=log_writer,
+                args=args
+            )
 
-        train_stats = train_one_epoch(
-            model, criterion, data_loader_train,
-            optimizer, device, epoch, loss_scaler,
-            exp_lr_scheduler,
-            args.clip_grad, mixup_fn,
-            log_writer=log_writer,
-            args=args
-        )
-
-        val_stats, val_score = evaluate(data_loader_val, model, device, args, epoch, mode='val',
+        if 'dual_input_cnn'  in args.model:
+            val_stats, val_score = evaluate_dualv2(data_loader_val, model, device, args, epoch, mode='val',
+                                        num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+        else:
+            val_stats, val_score = evaluate(data_loader_val, model, device, args, epoch, mode='val',
                                         num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
         if log_writer is not None and misc.is_main_process():
             wandb_dict = {"epoch": epoch}
@@ -1057,7 +1086,10 @@ def main(args, criterion):
     state_dict_best = torch.load(os.path.join(args.output_dir,args.task,'checkpoint-best.pth'), map_location='cpu')
     model_without_ddp.load_state_dict(state_dict_best['model'])
     print("Test with the best model, epoch = %d:" % state_dict_best['epoch'])
-    test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+    if 'dual_input_cnn'  in args.model:
+        test_stats,test_score = evaluate_dualv2(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+    else:
+        test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
     wandb_dict = {}
     wandb_dict.update({f'test_{k}': v for k, v in test_stats.items()})
     wandb.log(wandb_dict)
