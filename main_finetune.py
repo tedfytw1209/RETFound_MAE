@@ -703,7 +703,7 @@ def main(args, criterion):
     if args.fix_extractor:
         print("Fixing the backbone parameters")
         # Hugging Face models with 'classifier' as the head
-        hf_models_with_classifier = ['vit_base_patch16_224', 'efficientnet_b0', 'efficientnet_b4', 'resnet-50']
+        hf_models_with_classifier = ['vit_base_patch16_224', 'efficientnet_b0', 'efficientnet_b4', 'resnet-50', 'dinov3']
         if args.model in hf_models_with_classifier:
             head_keyword = 'classifier'
         else:
