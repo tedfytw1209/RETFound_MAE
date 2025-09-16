@@ -116,7 +116,7 @@ def train_one_epoch(
             samples, targets = mixup_fn(samples, targets)
         
         with torch.cuda.amp.autocast():
-            outputs = model(samples)
+            outputs = model(**samples) if isinstance(samples, dict) else model(samples)
             if hasattr(outputs, 'logits'):
                 outputs = outputs.logits
             else:
@@ -297,7 +297,7 @@ def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k,
         true_label=F.one_hot(target.to(torch.int64), num_classes=num_class)
         # compute output
         with torch.cuda.amp.autocast():
-            output = model(images)
+            output = model(**images) if isinstance(images, dict) else model(images)
             if hasattr(output, 'logits'):
                 output = output.logits
             else:
