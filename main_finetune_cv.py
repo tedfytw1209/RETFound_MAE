@@ -11,6 +11,7 @@ import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import Subset
+from torchvision import datasets, transforms
 from timm.models.layers import trunc_normal_
 from timm.data.mixup import Mixup
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
@@ -18,12 +19,15 @@ from torch.optim import lr_scheduler
 from transformers import (
     ViTImageProcessor, ViTForImageClassification,
     AutoImageProcessor, EfficientNetForImageClassification,
-    ResNetForImageClassification
+    ResNetForImageClassification, AutoModel
 )
-from torch.utils.data import ConcatDataset, Subset
 from sklearn.model_selection import KFold
+import matplotlib.pyplot as plt
 
 import models_vit as models
+import vig as vig_models
+import pyramid_vig as pvig_models
+from relaynet import ReLayNet, relynet_load_pretrained
 import util.lr_decay as lrd
 import util.misc as misc
 from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapper
@@ -184,10 +188,133 @@ def get_args_parser():
     parser.add_argument('--datasets_seed', default=2026, type=int)
     parser.add_argument('--subset_ratio', default=0, type=float,
                         help='Subset ratio for sampling dataset. If > 0, sample subset_ratio * minor_class_numbers from train/val/test datasets with seed 42')
+    parser.add_argument('--subset_num', default=0, type=int,
+                        help='Subset number for sampling dataset. If > 0, sample subset_num from train datasets with seed 42')
+    parser.add_argument('--visualize_samples', action='store_true', default=False,
+                        help='Visualize sample images from the dataset')
 
     return parser
 
+def get_label_mappings(args):
+    if 'ad_control' in args.task:
+        id2label = {0: "control", 1: "ad"}
+        label2id = {v: k for k, v in id2label.items()}
+    else:
+        id2label = {i: f"class_{i}" for i in range(args.nb_classes)}
+        label2id = {v: k for k, v in id2label.items()}
+    return id2label, label2id
+
+def visualize_dataset_samples(dataset, args, num_samples=8, save_path=None):
+    """
+    Visualize sample images from the dataset
+    
+    Args:
+        dataset: Dataset object
+        args: Arguments containing modality and other info
+        num_samples: Number of samples to visualize
+        save_path: Path to save the visualization (optional)
+    """
+    print(f"Visualizing {num_samples} sample images from {args.modality} dataset...")
+    
+    # Get class names
+    if hasattr(dataset, 'classes'):
+        class_names = dataset.classes
+    else:
+        class_names = [f"Class {i}" for i in range(args.nb_classes)]
+    
+    # Create figure
+    fig, axes = plt.subplots(2, 4, figsize=(16, 8))
+    axes = axes.flatten()
+    
+    # Sample random indices
+    indices = np.random.choice(len(dataset), min(num_samples, len(dataset)), replace=False)
+    
+    for i, idx in enumerate(indices):
+        if i >= num_samples:
+            break
+            
+        try:
+            # Get sample
+            if hasattr(dataset, 'half3D') and dataset.half3D:
+                # Handle multi-slice case
+                image, label, image_len = dataset[idx]
+                if isinstance(image, list):
+                    # Take the middle slice for visualization
+                    middle_idx = len(image) // 2
+                    img_tensor = image[middle_idx] if middle_idx < len(image) else image[0]
+                else:
+                    img_tensor = image[image_len//2] if image_len > 1 else image[0]
+            else:
+                image, label, _ = dataset[idx]
+                img_tensor = image
+            
+            # Convert tensor to numpy for visualization
+            if isinstance(img_tensor, torch.Tensor):
+                # Denormalize if normalized
+                if img_tensor.min() < 0:  # Likely normalized
+                    mean = np.array([0.485, 0.456, 0.406])
+                    std = np.array([0.229, 0.224, 0.225])
+                    img_np = img_tensor.permute(1, 2, 0).numpy()
+                    img_np = img_np * std + mean
+                    img_np = np.clip(img_np, 0, 1)
+                else:
+                    img_np = img_tensor.permute(1, 2, 0).numpy()
+                    img_np = np.clip(img_np, 0, 1)
+            else:
+                img_np = np.array(img_tensor)
+                if img_np.max() > 1:
+                    img_np = img_np / 255.0
+            
+            # Handle different number of channels
+            if img_np.shape[-1] == 1:
+                img_np = np.repeat(img_np, 3, axis=-1)
+            elif img_np.shape[-1] > 3:
+                img_np = img_np[:, :, :3]
+            
+            # Display image
+            axes[i].imshow(img_np)
+            axes[i].set_title(f'{class_names[label]} (idx: {idx})', fontsize=10)
+            axes[i].axis('off')
+            
+        except Exception as e:
+            print(f"Error visualizing sample {idx}: {e}")
+            axes[i].text(0.5, 0.5, f'Error\n{idx}', ha='center', va='center')
+            axes[i].axis('off')
+    
+    # Hide unused subplots
+    for i in range(len(indices), len(axes)):
+        axes[i].axis('off')
+    
+    plt.suptitle(f'Sample Images from {args.modality} Dataset', fontsize=14)
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Visualization saved to: {save_path}")
+    else:
+        plt.show()
+    
+    plt.close()
+
+def get_timm_model(args):
+    import timm
+    processor = None
+    if 'efficientnet-b4' in args.model:
+        model = timm.create_model('efficientnet_b4', pretrained=True, num_classes=args.nb_classes)
+        processor  = transforms.Compose([
+            transforms.Resize((380,380)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225]),
+        ])
+    else:
+        print(f"Model {args.model} not supported in timm.")
+        exit(1)
+    return model, processor
+
 def get_model(args):
+    id2label, label2id = get_label_mappings(args)
+    if args.model.startswith('timm'):
+        return get_timm_model(args)
     processor = None
     if 'RETFound_mae' in args.model:
         model = models.__dict__['RETFound_mae'](
@@ -204,19 +331,19 @@ def get_model(args):
         global_pool="token",
     )
     elif 'vit-base-patch16-224' in args.model:
-            # ViT-base-patch16-224 preprocessor
-            model_ = args.finetune if args.finetune else 'google/vit-base-patch16-224'
-            processor = TransformWrapper(ViTImageProcessor.from_pretrained(model_))
-            model = ViTForImageClassification.from_pretrained(
-                model_,
-                image_size=args.input_size,
-                num_labels=args.nb_classes,
-                hidden_dropout_prob=args.drop_path,
-                attention_probs_dropout_prob=args.drop_path,
-                id2label={0: "control", 1: "ad"},
-                label2id={"control": 0, "ad": 1},
-                ignore_mismatched_sizes=True
-            )
+        # ViT-base-patch16-224 preprocessor
+        model_ = args.finetune if args.finetune else 'google/vit-base-patch16-224'
+        processor = TransformWrapper(ViTImageProcessor.from_pretrained(model_))
+        model = ViTForImageClassification.from_pretrained(
+            model_,
+            image_size=args.input_size, #Not in tianhao code, default 224
+            num_labels=args.nb_classes,
+            hidden_dropout_prob=args.drop_path, #Not in tianhao code, default 0.0
+            attention_probs_dropout_prob=args.drop_path, #Not in tianhao code, default 0.0
+            id2label=id2label,
+            label2id=label2id,
+            ignore_mismatched_sizes=True
+        )
     elif 'pytorchvit' in args.model:
         model_name = args.finetune if args.finetune else 'B_16_imagenet1k'
         model = ViT(model_name, image_size=args.input_size, num_classes=args.nb_classes, pretrained=True)
@@ -229,8 +356,8 @@ def get_model(args):
             image_size=args.input_size,
             num_labels=args.nb_classes,
             dropout_rate=args.drop_path,
-            id2label={0: "control", 1: "ad"},
-            label2id={"control": 0, "ad": 1},
+            id2label=id2label,
+            label2id=label2id,
             ignore_mismatched_sizes=True
         )
     elif 'efficientnet-b4' in args.model:
@@ -242,8 +369,8 @@ def get_model(args):
             image_size=args.input_size,
             num_labels=args.nb_classes,
             dropout_rate=args.drop_path,
-            id2label={0: "control", 1: "ad"},
-            label2id={"control": 0, "ad": 1},
+            id2label=id2label,
+            label2id=label2id,
             ignore_mismatched_sizes=True
         )
     elif 'resnet-50' in args.model:
@@ -252,9 +379,26 @@ def get_model(args):
         model = ResNetForImageClassification.from_pretrained(
             model_name,
             num_labels=args.nb_classes,
-            id2label={i: str(i) for i in range(args.nb_classes)},
-            label2id={str(i): i for i in range(args.nb_classes)},
+            id2label=id2label,
+            label2id=label2id,
             ignore_mismatched_sizes=True
+        )
+    elif 'relaynet' in args.model:
+        model = ReLayNet(num_classes=args.nb_classes)
+    elif 'dinov3' in args.model:
+        model_name = f"facebook/{args.finetune}" if args.finetune else "facebook/dinov3-vitl16-pretrain-lvd1689m"
+        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_name))
+        feature_extractor = AutoModel.from_pretrained(model_name)
+        model = models.DinoV3Classifier(feature_extractor, num_labels=args.nb_classes)
+    elif args.model.startswith('vig'):
+        model = vig_models.__dict__[args.model](
+            pretrained=True,
+            num_classes=args.nb_classes,
+        )
+    elif args.model.startswith('pvig'):
+        model = pvig_models.__dict__[args.model](
+            pretrained=True,
+            num_classes=args.nb_classes,
         )
     else:
         model = models.__dict__[args.model](
@@ -290,6 +434,18 @@ def get_model(args):
             msg = model.load_state_dict(checkpoint_model, strict=False)
             trunc_normal_(model.head.weight, std=2e-5)
             processor = None
+        elif args.model.startswith('pvig') or args.model.startswith('vig'):
+            pretrain_root = "/orange/ruogu.fang/tienyuchang/visionGNN_pretrain/"
+            print('Loading:', args.finetune)
+            state_dict = torch.load(os.path.join(pretrain_root, args.finetune + '.pth'))
+            drop_keys = ["prediction.4.weight", "prediction.4.bias"]
+            for k in drop_keys:
+                if k in state_dict:
+                    del state_dict[k]
+            missing, unexpected = model.load_state_dict(state_dict, strict=False)
+            print(f"[load] missing: {len(missing)}, unexpected: {len(unexpected)}")
+        elif 'relaynet' in args.model:
+            model = relynet_load_pretrained(model, args.finetune, args.device)
         else:
             print("No checkpoints from: %s" % args.finetune)
     return model, processor
@@ -387,6 +543,61 @@ def main(args, criterion):
             dataset_val = create_subset(dataset_val, 'Validation')
             dataset_test = create_subset(dataset_test, 'Test')
         
+        # Apply subset sampling by absolute number if subset_num > 0
+        if args.subset_num > 0:
+            print(f'Applying subset sampling with absolute number {args.subset_num}')
+            
+            def create_subset_by_num(dataset, split_name, subset_num):
+                """Create a subset of the dataset with specified absolute number"""
+                targets = np.array(dataset.targets)
+                unique_classes, class_counts = np.unique(targets, return_counts=True)
+                n_classes = len(unique_classes)
+                
+                print(f'{split_name} - Original size: {len(dataset)}, Classes: {n_classes}, Target subset size: {subset_num}')
+                
+                if subset_num < n_classes:
+                    # Too small to guarantee at least one per class → fall back to plain random sample
+                    print(f'Warning: subset_num ({subset_num}) < number of classes ({n_classes}), using random sampling')
+                    rng = np.random.RandomState(args.seed)
+                    subset_indices = rng.choice(len(dataset), min(subset_num, len(dataset)), replace=False)
+                else:
+                    # Use stratified sampling to maintain class distribution
+                    from sklearn.model_selection import StratifiedShuffleSplit
+                    if subset_num >= len(dataset):
+                        print(f'Warning: subset_num ({subset_num}) >= dataset size ({len(dataset)}), using full dataset')
+                        subset_indices = list(range(len(dataset)))
+                    else:
+                        sss = StratifiedShuffleSplit(n_splits=1, train_size=subset_num, random_state=args.seed)
+                        subset_indices = next(sss.split(range(len(dataset)), targets))[0]
+                
+                # Create subset dataset
+                subset_dataset = Subset(dataset, subset_indices)
+                
+                # Add targets attribute to subset for compatibility
+                subset_dataset.targets = [dataset.targets[i] for i in subset_indices]
+                subset_dataset.classes = dataset.classes
+                subset_dataset.class_to_idx = dataset.class_to_idx
+                
+                print(f'{split_name} - Final subset size: {len(subset_dataset)}')
+                return subset_dataset
+
+            dataset_train = create_subset_by_num(dataset_train, 'Train', int(args.subset_num))
+        # Visualize sample images if requested
+        if args.visualize_samples and misc.is_main_process():
+            print("Generating dataset visualizations...")
+            # Create output directory for visualizations
+            vis_dir = os.path.join(args.output_dir, args.task, 'visualizations')
+            os.makedirs(vis_dir, exist_ok=True)
+            # Visualize training samples
+            train_vis_path = os.path.join(vis_dir, f'train_samples_{args.modality}.png')
+            visualize_dataset_samples(dataset_train, args, num_samples=8, save_path=train_vis_path)
+            # Visualize validation samples
+            val_vis_path = os.path.join(vis_dir, f'val_samples_{args.modality}.png')
+            visualize_dataset_samples(dataset_val, args, num_samples=8, save_path=val_vis_path)
+            # Visualize test samples
+            test_vis_path = os.path.join(vis_dir, f'test_samples_{args.modality}.png')
+            visualize_dataset_samples(dataset_test, args, num_samples=8, save_path=test_vis_path)
+            print(f"Dataset visualizations saved to: {vis_dir}")
         #for weighted loss
         if args.loss_weight:
             train_target = np.array(dataset_train.targets)
@@ -510,7 +721,7 @@ def main(args, criterion):
         if args.fix_extractor:
             print("Fixing the backbone parameters")
             # Hugging Face models with 'classifier' as the head
-            hf_models_with_classifier = ['vit_base_patch16_224', 'efficientnet_b0', 'efficientnet_b4', 'resnet-50']
+            hf_models_with_classifier = ['vit_base_patch16_224', 'efficientnet_b0', 'efficientnet_b4', 'resnet-50', 'dinov3']
             if args.model in hf_models_with_classifier:
                 head_keyword = 'classifier'
             else:

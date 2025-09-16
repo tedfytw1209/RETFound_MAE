@@ -516,6 +516,7 @@ def main(args, criterion):
         dataset_train = create_subset(dataset_train, 'Train')
         dataset_val = create_subset(dataset_val, 'Validation')
         dataset_test = create_subset(dataset_test, 'Test')
+    
     # Apply subset sampling by absolute number if subset_num > 0
     if args.subset_num > 0:
         print(f'Applying subset sampling with absolute number {args.subset_num}')
