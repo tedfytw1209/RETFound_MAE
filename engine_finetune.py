@@ -295,6 +295,7 @@ def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k,
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
         true_label=F.one_hot(target.to(torch.int64), num_classes=num_class)
+        print(images)
         # compute output
         with torch.cuda.amp.autocast():
             output = model(**images) if isinstance(images, dict) else model(images)
