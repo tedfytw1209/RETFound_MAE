@@ -488,7 +488,7 @@ def main(args, criterion):
     full_pat_len = len(full_pat_list)
     print(f"Total number of patients: {full_pat_len} Samples: {len(dataset_all)}")
     skf = KFold(n_splits=args.kfold, shuffle=True, random_state=args.seed)
-
+    all_test_stats = []
     for fold_idx, (tr_idx, va_idx) in enumerate(skf.split(np.arange(full_pat_len))):
         print(f"Starting KFold {fold_idx + 1}/{Kfold}")
         model, processor = get_model(args)
@@ -869,7 +869,17 @@ def main(args, criterion):
         wandb_dict = {}
         wandb_dict.update({f'CV{fold_idx}/test_{k}': v for k, v in test_stats.items()})
         wandb.log(wandb_dict)
-        #CV End
+        all_test_stats.append(test_stats)
+    #CV End
+    all_dict = {}
+    for k in all_test_stats[0].keys():
+        try:
+            v = np.mean([st[k] for st in all_test_stats])
+            print(f"CV Average {k}: {v:.4f}")
+            all_dict[f'avg_test_{k}'] = v
+        except:
+            pass
+    wandb.log(all_dict)
     if log_writer is not None and misc.is_main_process():
         log_writer.close()
         wandb.finish()
