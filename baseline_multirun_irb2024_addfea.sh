@@ -1,6 +1,6 @@
 #! /bin/bash
 
-SCRIPT=$1 #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_split 6, DR_binary_all_split 2, Glaucoma_binary_all_split 2
+SCRIPT=$1
 MODEL=${2:-"RETFound_mae"}
 FINETUNED_MODEL=${3:-"RETFound_mae_natureOCT"}
 LR=${4:-"5e-4"}
