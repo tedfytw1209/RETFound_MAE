@@ -52,8 +52,6 @@ class LRP:
         return self.model.relprop(torch.tensor(one_hot_vector).to(input.device), method=method, is_ablation=is_ablation,
                                   start_layer=start_layer, **kwargs)
 
-
-
 class Baselines:
     def __init__(self, model):
         self.model = model
