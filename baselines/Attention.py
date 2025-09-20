@@ -85,8 +85,8 @@ class Attention_Map(torch.nn.Module):
         
         if print_layers:
             self.print_model(model, use_timm=False)
-        
-        if 'RETFound' in model_name: #timm RETFound model
+
+        if 'retfound' in model_name.lower(): #timm RETFound model
             # for timm ViT model (e.g., vit_base_patch16_224, RETFound_mae, etc.)
             self.return_attns = [f'blocks.{i}.attn.softmax' for i in range(N)]
             # This is the "one line of code" that does what you want
