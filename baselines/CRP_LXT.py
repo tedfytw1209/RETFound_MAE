@@ -13,6 +13,35 @@ from crp.attribution import CondAttribution
 from lxt.efficient import monkey_patch, monkey_patch_zennit
 from crp.helper import get_layer_names
 
+""" Model wrapper to return a tensor"""
+class HuggingfaceToTensorModelWrapper(torch.nn.Module):
+    def __init__(self, model):
+        super(HuggingfaceToTensorModelWrapper, self).__init__()
+        self.model = model
+
+    def forward(self, x):
+        try:
+            out = self.model(pixel_values=x)
+        except TypeError:
+            out = self.model(x)
+
+        # 3) 统一抽取 logits
+        if isinstance(out, torch.Tensor):
+            logits = out
+        elif hasattr(out, "logits"):
+            logits = out.logits
+        elif isinstance(out, dict) and "logits" in out:
+            logits = out["logits"]
+        elif isinstance(out, (list, tuple)) and len(out) > 0 and isinstance(out[0], torch.Tensor):
+            logits = out[0]
+        else:
+            raise TypeError(
+                f"Cannot extract logits from output of type {type(out)}. "
+                f"Expected Tensor / object with .logits / dict['logits'] / tuple[Tensor,...]."
+            )
+
+        return logits
+
 def _get(obj, name, default=None):
     return getattr(obj, name, default)
 ## CRP
@@ -31,7 +60,7 @@ class CRP(torch.nn.Module):
             hook = _get(self.model, 'vit', None)
         else:
             hook = self.model
-        self.attribution = CondAttribution(hook, no_param_grad=True)
+        self.attribution = CondAttribution(HuggingfaceToTensorModelWrapper(self.model), no_param_grad=True)
 
     def generate_heatmap(self, x, target_class=None):
         # compute heatmap wrt. output 46 (green lizard class)
@@ -50,7 +79,7 @@ class CRP(torch.nn.Module):
         if target_class is None:
             # Get predicted class
             with torch.no_grad():
-                outputs = self.model(image_tensor)
+                outputs = HuggingfaceToTensorModelWrapper(self.model)(image_tensor)
                 target_class = outputs.argmax(dim=1).item()
         heatmaps = self.generate_heatmap(image_tensor, target_class)
         return heatmaps.detach().cpu().numpy()
@@ -76,7 +105,7 @@ class LXT(torch.nn.Module):
         else:
             hook = self.model
         # Apply monkey patch to the model to enable LRP with Gamma rule
-        monkey_patch(hook, verbose=True)
+        monkey_patch(type(hook), verbose=True)
         #monkey_patch_zennit(verbose=True)
 
     def generate_heatmap(self, x, target_class=None):
@@ -90,7 +119,7 @@ class LXT(torch.nn.Module):
         # Register the composite rules with the model
         zennit_comp.register(self.model)
         # Forward pass with gradient tracking enabled
-        y = self.model(x.requires_grad_())
+        y = HuggingfaceToTensorModelWrapper(self.model)(x.requires_grad_())
         # Backward pass for the highest probability class
         # This initiates the LRP computation through the network
         y[0, target_class].backward()
@@ -108,7 +137,7 @@ class LXT(torch.nn.Module):
         if target_class is None:
             # Get predicted class
             with torch.no_grad():
-                outputs = self.model(image_tensor)
+                outputs = HuggingfaceToTensorModelWrapper(self.model)(image_tensor)
                 target_class = outputs.argmax(dim=1).item()
         heatmaps = self.generate_heatmap(image_tensor, target_class)
         return heatmaps.detach().cpu().numpy()
