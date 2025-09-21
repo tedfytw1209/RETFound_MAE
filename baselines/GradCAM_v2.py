@@ -101,6 +101,13 @@ def _resolve_target_layer(model, model_name=None):
 
     raise ValueError("Unsupported model for GradCAM: cannot resolve target layer automatically.")
 
+def reshape_transform_vit_huggingface(x, num_patches=14):
+    activations = x[:, 1:, :]
+    activations = activations.view(activations.shape[0],
+                                   num_patches, num_patches, activations.shape[2])
+    activations = activations.transpose(2, 3).transpose(1, 2)
+    return activations
+
 """ Model wrapper to return a tensor"""
 class HuggingfaceToTensorModelWrapper(torch.nn.Module):
     def __init__(self, model):
@@ -189,7 +196,13 @@ class PytorchCAM(torch.nn.Module):
             self.target_layer = model.blocks[-1]
         else:
             self.target_layer = _resolve_target_layer(model, model_name)
-        self.method = method(model=HuggingfaceToTensorModelWrapper(model),target_layers=[self.target_layer],reshape_transform=reshape_transform)
+        #
+        if reshape_transform is None:
+            if 'vit' in model_name.lower() or 'dino' in model_name.lower() or 'retfound' in model_name.lower():
+                reshape_transform = lambda x: reshape_transform_vit_huggingface(x, num_patches=img_size // patch_size)
+            else:
+                reshape_transform = None
+        self.method = method(model=HuggingfaceToTensorModelWrapper(model), target_layers=[self.target_layer], reshape_transform=reshape_transform)
         self.normalize_cam = normalize_cam
         
     def compute_cam(self, pixel_values, targets_for_gradcam: List[Callable]):
