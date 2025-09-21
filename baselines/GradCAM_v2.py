@@ -115,11 +115,9 @@ class HuggingfaceToTensorModelWrapper(torch.nn.Module):
         self.model = model
 
     def forward(self, x):
-        # 1) 先试 HF 常见签名
         try:
             out = self.model(pixel_values=x)
         except TypeError:
-            # 2) 非 HF / 不接受 pixel_values：按普通 forward
             out = self.model(x)
 
         # 3) 统一抽取 logits
