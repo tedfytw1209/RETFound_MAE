@@ -75,7 +75,25 @@ def _resolve_target_layer(model, model_name=None):
     if _get(model, "layer4") is not None and len(model.layer4) > 0:
         return model.layer4[-1]
 
-    # --- EfficientNet / MobileNet 系
+    # --- HF ResNet (wrapped under .resnet)
+    resnet = _get(model, "resnet")
+    if resnet is not None and _get(resnet, "layer4") is not None and len(resnet.layer4) > 0:
+        return resnet.layer4[-1]
+
+    # --- HF EfficientNet often wrapped under .efficientnet
+    eff = _get(model, "efficientnet")
+    if eff is not None:
+        enc = _get(eff, "encoder")
+        if enc is not None:
+            blks = _get(enc, "blocks")
+            if isinstance(blks, (nn.ModuleList, list)) and len(blks) > 0:
+                return blks[-1]
+        for name in ["features", "blocks"]:
+            seq = _get(eff, name)
+            if isinstance(seq, (nn.Sequential, nn.ModuleList, list)) and len(seq) > 0:
+                return seq[-1]
+
+    # --- EfficientNet / MobileNet at top-level
     for name in ["features", "blocks"]:
         seq = _get(model, name)
         if isinstance(seq, (nn.Sequential, nn.ModuleList, list)) and len(seq) > 0:
@@ -162,23 +180,40 @@ class PytorchCAM(torch.nn.Module):
         Returns:
             torch.Tensor: The CAM for the given pixel values and targets for Grad-CAM.
         """
-        is_batch = (pixel_values.dim() == 4) or (len(targets_for_gradcam) > 1)
-        B = pixel_values.size(0) if is_batch else 1
-        if not is_batch:
+        # Ensure 4D input [B, C, H, W]
+        if pixel_values.dim() == 3:
             pixel_values = pixel_values.unsqueeze(0)
-        # Replicate the tensor for each of the categories we want to create Grad-CAM for:
-        repeated_tensor = pixel_values[None, :].repeat(len(targets_for_gradcam), 1, 1, 1, 1) #shape: (len(targets_for_gradcam), B, 3, img_size, img_size)
-        batch_results = self.method(input_tensor=repeated_tensor,targets=targets_for_gradcam)
+        B = pixel_values.size(0)
+
+        # Expand inputs/targets to match pytorch-grad-cam expectations (batch len == len(targets))
+        if len(targets_for_gradcam) == 1 and B > 1:
+            targets_expanded = [targets_for_gradcam[0]] * B
+            repeated_tensor = pixel_values
+        elif len(targets_for_gradcam) > 1 and B == 1:
+            targets_expanded = targets_for_gradcam
+            repeated_tensor = pixel_values.repeat(len(targets_for_gradcam), 1, 1, 1)
+            B = repeated_tensor.size(0)
+        elif len(targets_for_gradcam) > 1 and B > 1:
+            # replicate each image for each target
+            repeated_tensor = pixel_values.repeat_interleave(len(targets_for_gradcam), dim=0)
+            targets_expanded = targets_for_gradcam * B
+            B = repeated_tensor.size(0)
+        else:
+            targets_expanded = targets_for_gradcam
+            repeated_tensor = pixel_values
+
+        batch_results = self.method(input_tensor=repeated_tensor, targets=targets_expanded)
 
         # Normalize per image
         if self.normalize_cam:
-            cam_min = batch_results.view(len(targets_for_gradcam) * B, -1).min(dim=2)[0].view(len(targets_for_gradcam) * B, 1, 1)
-            cam_max = batch_results.view(len(targets_for_gradcam) * B, -1).max(dim=2)[0].view(len(targets_for_gradcam) * B, 1, 1)
+            flat = batch_results.view(batch_results.size(0), -1)
+            cam_min = flat.min(dim=1)[0].view(-1, 1, 1)
+            cam_max = flat.max(dim=1)[0].view(-1, 1, 1)
             cam = (batch_results - cam_min) / (cam_max - cam_min + 1e-8)
         else:
             cam = batch_results
 
-        return cam if is_batch else cam.squeeze(0) #shape: (len(targets_for_gradcam) * B, img_size, img_size)
+        return cam  # shape: (B', H, W)
 
     def forward(self, pixel_values, targets_for_gradcam: List[Callable]):
         cam_bs = self.compute_cam(pixel_values, targets_for_gradcam).detach().cpu()
