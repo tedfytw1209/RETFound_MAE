@@ -112,14 +112,14 @@ class Attention_Map(torch.nn.Module):
                 # Make sure x is shaped [B,3,224,224] and already normalized by the processor
                 try:
                     # Some HF models will propagate flags through the classifier
-                    outputs = model(pixel_values=x, output_attentions=True, return_dict=True)
+                    outputs = self.model(pixel_values=x, output_attentions=True, return_dict=True)
                     attentions = getattr(outputs, "attentions", None)
                 except TypeError:
                     attentions = None
 
                 if attentions is None:
                     # Call the base ViT encoder directly (works reliably)
-                    base_out = model.vit(pixel_values=x, output_attentions=True, return_dict=True)
+                    base_out = self.model.vit(pixel_values=x, output_attentions=True, return_dict=True)
                     attentions = base_out.attentions
 
                 if attentions is None:
