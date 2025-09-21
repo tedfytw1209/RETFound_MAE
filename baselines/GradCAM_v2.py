@@ -234,7 +234,8 @@ class PytorchCAM(torch.nn.Module):
         else:
             targets_expanded = targets_for_gradcam
             repeated_tensor = pixel_values
-        batch_results = torch.as_tensor(self.method(input_tensor=repeated_tensor, targets=targets_expanded))  # shape: (B', H', W')
+        with torch.set_grad_enabled(True):
+            batch_results = torch.as_tensor(self.method(input_tensor=repeated_tensor, targets=targets_expanded))  # shape: (B', H', W')
         # Normalize per image
         if self.normalize_cam:
             cam_min = batch_results.view(B * len(targets_for_gradcam), -1).min(dim=1)[0].view(B * len(targets_for_gradcam), 1, 1)
