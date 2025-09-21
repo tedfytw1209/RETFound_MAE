@@ -78,35 +78,20 @@ def _resolve_target_layer(model, model_name=None):
     # --- HF ResNet (wrapped under .resnet)
     resnet = _get(model, "resnet")
     if resnet is not None:
-        # Some variants expose torchvision-like layers
-        if _get(resnet, "layer4") is not None and len(resnet.layer4) > 0:
-            return resnet.layer4[-1]
-        # Transformers' ResNet uses encoder.stages[-1].layers[-1]
-        enc = _get(resnet, "encoder")
-        if enc is not None:
-            stages = _get(enc, "stages")
-            if isinstance(stages, (nn.ModuleList, list)) and len(stages) > 0:
-                last_stage = stages[-1]
-                layers = _get(last_stage, "layers")
-                if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
-                    return layers[-1]
-                blocks = _get(last_stage, "blocks")
-                if isinstance(blocks, (nn.ModuleList, list)) and len(blocks) > 0:
-                    return blocks[-1]
-                return last_stage
+        last_conv_name, last_conv = None, None
+        for name, module in resnet.named_modules():
+            if isinstance(module, nn.Conv2d):
+                last_conv_name, last_conv = name, module
+        return last_conv
 
     # --- HF EfficientNet often wrapped under .efficientnet
     eff = _get(model, "efficientnet")
     if eff is not None:
-        enc = _get(eff, "encoder")
-        if enc is not None:
-            blks = _get(enc, "blocks")
-            if isinstance(blks, (nn.ModuleList, list)) and len(blks) > 0:
-                return blks[-1]
-        for name in ["features", "blocks"]:
-            seq = _get(eff, name)
-            if isinstance(seq, (nn.Sequential, nn.ModuleList, list)) and len(seq) > 0:
-                return seq[-1]
+        last_name, last_conv = None, None
+        for name, m in eff.named_modules():
+            if isinstance(m, nn.Conv2d):
+                last_name, last_conv = name, m
+        return last_conv
 
     # --- EfficientNet / MobileNet at top-level
     for name in ["features", "blocks"]:
@@ -216,9 +201,9 @@ class PytorchCAM(torch.nn.Module):
         else:
             targets_expanded = targets_for_gradcam
             repeated_tensor = pixel_values
-
+        print(repeated_tensor.shape, targets_expanded)  # (B', C, H, W), B' = B or B * len(targets)
         batch_results = self.method(input_tensor=repeated_tensor, targets=targets_expanded)
-
+        print(batch_results)  # shape: (B', H', W')
         # Normalize per image
         if self.normalize_cam:
             flat = batch_results.view(batch_results.size(0), -1)
