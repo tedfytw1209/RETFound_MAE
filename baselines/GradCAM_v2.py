@@ -206,9 +206,8 @@ class PytorchCAM(torch.nn.Module):
         print(batch_results)  # shape: (B', H', W')
         # Normalize per image
         if self.normalize_cam:
-            flat = batch_results.view(batch_results.size(0), -1)
-            cam_min = flat.min(dim=1)[0].view(-1, 1, 1)
-            cam_max = flat.max(dim=1)[0].view(-1, 1, 1)
+            cam_min = batch_results.view(B * len(targets_for_gradcam), -1).min(dim=1)[0].view(B * len(targets_for_gradcam), 1, 1)
+            cam_max = batch_results.view(B * len(targets_for_gradcam), -1).max(dim=1)[0].view(B * len(targets_for_gradcam), 1, 1)
             cam = (batch_results - cam_min) / (cam_max - cam_min + 1e-8)
         else:
             cam = batch_results
