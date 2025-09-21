@@ -16,10 +16,13 @@ from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 from transformers import (
     ViTImageProcessor, ViTForImageClassification,
     AutoImageProcessor, EfficientNetForImageClassification,
-    ResNetForImageClassification
+    ResNetForImageClassification, AutoModel
 )
 
 import models_vit as models
+import vig as vig_models
+import pyramid_vig as pvig_models
+from relaynet import ReLayNet, relynet_load_pretrained
 import util.lr_decay as lrd
 import util.misc as misc
 from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapper
@@ -30,9 +33,14 @@ from util.evaluation import InsertionMetric, DeletionMetric
 from baselines.Attention import Attention_Map
 from baselines.GradCAM import GradCAM
 from baselines.RISE import RISE, RISEBatch
+from baselines.GradCAM_v2 import PytorchCAM
 from huggingface_hub import hf_hub_download, login
 from engine_finetune import evaluate_half3D, train_one_epoch, evaluate
+from torchvision import datasets, transforms
 import wandb
+from pytorch_pretrained_vit import ViT
+
+from pytorch_grad_cam import GradCAM as GradCAMv2, ScoreCAM
 
 import warnings
 import faulthandler
@@ -107,6 +115,175 @@ def get_args_parser():
 
     return parser
 
+def get_label_mappings(args):
+    if 'ad_control' in args.task:
+        id2label = {0: "control", 1: "ad"}
+        label2id = {v: k for k, v in id2label.items()}
+    else:
+        id2label = {i: f"class_{i}" for i in range(args.nb_classes)}
+        label2id = {v: k for k, v in id2label.items()}
+    return id2label, label2id
+
+def get_timm_model(args):
+    import timm
+    processor = None
+    if 'efficientnet-b4' in args.model:
+        model = timm.create_model('efficientnet_b4', pretrained=True, num_classes=args.nb_classes)
+        processor  = transforms.Compose([
+            transforms.Resize((380,380)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225]),
+        ])
+    else:
+        print(f"Model {args.model} not supported in timm.")
+        exit(1)
+    return model, processor
+
+def get_model(args):
+    id2label, label2id = get_label_mappings(args)
+    if args.model.startswith('timm'):
+        return get_timm_model(args)
+    processor = None
+    patch_size = None
+    if 'RETFound_mae' in args.model:
+        model = models.__dict__['RETFound_mae'](
+        img_size=args.input_size,
+        num_classes=args.nb_classes,
+        drop_path_rate=args.drop_path,
+        global_pool=args.global_pool,
+        )
+        patch_size = 16
+    elif 'RETFound_dinov2' in args.model:
+        model = models.__dict__['RETFound_dinov2'](
+        img_size=args.input_size,
+        num_classes=args.nb_classes,
+        drop_path_rate=args.drop_path,
+        global_pool="token",
+        )
+        patch_size = 14
+    elif 'vit-base-patch16-224' in args.model:
+        # ViT-base-patch16-224 preprocessor
+        model_ = args.finetune if args.finetune else 'google/vit-base-patch16-224'
+        processor = TransformWrapper(ViTImageProcessor.from_pretrained(model_))
+        model = ViTForImageClassification.from_pretrained(
+            model_,
+            image_size=args.input_size, #Not in tianhao code, default 224
+            num_labels=args.nb_classes,
+            hidden_dropout_prob=args.drop_path, #Not in tianhao code, default 0.0
+            attention_probs_dropout_prob=args.drop_path, #Not in tianhao code, default 0.0
+            id2label=id2label,
+            label2id=label2id,
+            ignore_mismatched_sizes=True
+        )
+        patch_size = 16
+    elif 'pytorchvit' in args.model:
+        model_name = args.finetune if args.finetune else 'B_16_imagenet1k'
+        model = ViT(model_name, image_size=args.input_size, num_classes=args.nb_classes, pretrained=True)
+        patch_size = 16
+    elif 'efficientnet-b0' in args.model:
+        # EfficientNet-B0 preprocessor
+        model_ = args.finetune if args.finetune else 'google/efficientnet-b0'
+        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_))
+        model = EfficientNetForImageClassification.from_pretrained(
+            model_,
+            image_size=args.input_size,
+            num_labels=args.nb_classes,
+            dropout_rate=args.drop_path,
+            id2label=id2label,
+            label2id=label2id,
+            ignore_mismatched_sizes=True
+        )
+    elif 'efficientnet-b4' in args.model:
+        # EfficientNet-B0 preprocessor
+        model_ = args.finetune if args.finetune else 'google/efficientnet-b4'
+        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_))
+        model = EfficientNetForImageClassification.from_pretrained(
+            model_,
+            image_size=args.input_size,
+            num_labels=args.nb_classes,
+            dropout_rate=args.drop_path,
+            id2label=id2label,
+            label2id=label2id,
+            ignore_mismatched_sizes=True
+        )
+    elif 'resnet-50' in args.model:
+        model_name = args.finetune if args.finetune else 'microsoft/resnet-50'
+        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_name))
+        model = ResNetForImageClassification.from_pretrained(
+            model_name,
+            num_labels=args.nb_classes,
+            id2label=id2label,
+            label2id=label2id,
+            ignore_mismatched_sizes=True
+        )
+    elif 'relaynet' in args.model:
+        model = ReLayNet(num_classes=args.nb_classes)
+    elif 'dinov3' in args.model:
+        model_name = f"facebook/{args.finetune}" if args.finetune else "facebook/dinov3-vitl16-pretrain-lvd1689m"
+        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_name))
+        feature_extractor = AutoModel.from_pretrained(model_name)
+        model = models.DinoV3Classifier(feature_extractor, num_labels=args.nb_classes)
+        patch_size = 16
+    elif args.model.startswith('vig'):
+        model = vig_models.__dict__[args.model](
+            pretrained=True,
+            num_classes=args.nb_classes,
+        )
+    elif args.model.startswith('pvig'):
+        model = pvig_models.__dict__[args.model](
+            pretrained=True,
+            num_classes=args.nb_classes,
+        )
+    else:
+        model = models.__dict__[args.model](
+            num_classes=args.nb_classes,
+            drop_path_rate=args.drop_path,
+            args=args,
+        )
+    #RETFound special case: load checkpoint
+    if args.finetune and not args.eval:
+        if 'RETFound' in args.finetune: 
+            print(f"Downloading pre-trained weights from: {args.finetune}")
+            checkpoint_path = hf_hub_download(
+                repo_id=f'YukunZhou/{args.finetune}',
+                filename=f'{args.finetune}.pth',
+            )
+            checkpoint = torch.load(checkpoint_path, map_location='cpu')
+            print("Load pre-trained checkpoint from: %s" % args.finetune)
+            if args.model!='RETFound_mae':
+                checkpoint_model = checkpoint['teacher']
+            else:
+                checkpoint_model = checkpoint['model']
+            checkpoint_model = {k.replace("backbone.", ""): v for k, v in checkpoint_model.items()}
+            checkpoint_model = {k.replace("mlp.w12.", "mlp.fc1."): v for k, v in checkpoint_model.items()}
+            checkpoint_model = {k.replace("mlp.w3.", "mlp.fc2."): v for k, v in checkpoint_model.items()}
+            state_dict = model.state_dict()
+            for k in ['head.weight', 'head.bias']:
+                if k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape:
+                    print(f"Removing key {k} from pretrained checkpoint")
+                    del checkpoint_model[k]
+            # interpolate position embedding
+            interpolate_pos_embed(model, checkpoint_model)
+            # load pre-trained model
+            msg = model.load_state_dict(checkpoint_model, strict=False)
+            trunc_normal_(model.head.weight, std=2e-5)
+            processor = None
+        elif args.model.startswith('pvig') or args.model.startswith('vig'):
+            pretrain_root = "/orange/ruogu.fang/tienyuchang/visionGNN_pretrain/"
+            print('Loading:', args.finetune)
+            state_dict = torch.load(os.path.join(pretrain_root, args.finetune + '.pth'))
+            drop_keys = ["prediction.4.weight", "prediction.4.bias"]
+            for k in drop_keys:
+                if k in state_dict:
+                    del state_dict[k]
+            missing, unexpected = model.load_state_dict(state_dict, strict=False)
+            print(f"[load] missing: {len(missing)}, unexpected: {len(unexpected)}")
+        elif 'relaynet' in args.model:
+            model = relynet_load_pretrained(model, args.finetune, args.device)
+        else:
+            print("No checkpoints from: %s" % args.finetune)
+    return model, processor, patch_size
+
 def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch, mode, num_class, k, log_writer):
     """Evaluate the XAI method on the dataset."""
     metric_logger = misc.MetricLogger(delimiter="  ")
@@ -157,105 +334,7 @@ def main(args, criterion):
 
     cudnn.benchmark = True
 
-    processor = None
-    patch_size = None
-    if 'RETFound_mae' in args.model:
-        model = models.__dict__['RETFound_mae'](
-        img_size=args.input_size,
-        num_classes=args.nb_classes,
-        drop_path_rate=0.2,
-        global_pool=True,
-        )
-        patch_size = 16
-    elif 'RETFound_dinov2' in args.model:
-        model = models.__dict__['RETFound_dinov2'](
-        img_size=args.input_size,
-        num_classes=args.nb_classes,
-        drop_path_rate=0.2,
-        global_pool=True,
-        )
-        patch_size = 14
-    elif 'vit-base-patch16-224' in args.model:
-        # ViT-base-patch16-224 preprocessor
-        model_ = args.finetune if args.finetune else 'google/vit-base-patch16-224'
-        processor = TransformWrapper(ViTImageProcessor.from_pretrained(model_))
-        model = ViTForImageClassification.from_pretrained(
-            model_,
-            image_size=args.input_size,
-            num_labels=args.nb_classes,
-            id2label={0: "control", 1: "ad"},
-            label2id={"control": 0, "ad": 1},
-            ignore_mismatched_sizes=True,
-            attn_implementation="eager"
-        )
-        patch_size = 16
-    elif 'efficientnet-b0' in args.model:
-        # EfficientNet-B0 preprocessor
-        model_ = args.finetune if args.finetune else 'google/efficientnet-b0'
-        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_))
-        model = EfficientNetForImageClassification.from_pretrained(
-            model_,
-            image_size=args.input_size,
-            num_labels=args.nb_classes,
-            id2label={0: "control", 1: "ad"},
-            label2id={"control": 0, "ad": 1},
-            ignore_mismatched_sizes=True
-        )
-    elif 'efficientnet-b4' in args.model:
-        # EfficientNet-B0 preprocessor
-        model_ = args.finetune if args.finetune else 'google/efficientnet-b4'
-        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_))
-        model = EfficientNetForImageClassification.from_pretrained(
-            model_,
-            image_size=args.input_size,
-            num_labels=args.nb_classes,
-            id2label={0: "control", 1: "ad"},
-            label2id={"control": 0, "ad": 1},
-            ignore_mismatched_sizes=True
-        )
-    elif 'resnet-50' in args.model: #TODO: Need implement and check if this is correct
-        model_name = args.finetune if args.finetune else 'microsoft/resnet-50'
-        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_name))
-        model = ResNetForImageClassification.from_pretrained(
-            model_name,
-            num_labels=args.nb_classes,
-            id2label={i: str(i) for i in range(args.nb_classes)},
-            label2id={str(i): i for i in range(args.nb_classes)},
-            ignore_mismatched_sizes=True
-        )
-    else:
-        model = models.__dict__[args.model](
-            num_classes=args.nb_classes,
-            args=args,
-        )
-    
-    #RETFound special case: load pretrained checkpoint
-    if 'RETFound' in args.finetune: 
-        print(f"Downloading pre-trained weights from: {args.finetune}")
-        checkpoint_path = hf_hub_download(
-            repo_id=f'YukunZhou/{args.finetune}',
-            filename=f'{args.finetune}.pth',
-        )
-        checkpoint = torch.load(checkpoint_path, map_location='cpu')
-        print("Load pre-trained checkpoint from: %s" % args.finetune)
-        if args.model!='RETFound_mae':
-            checkpoint_model = checkpoint['teacher']
-        else:
-            checkpoint_model = checkpoint['model']
-        checkpoint_model = {k.replace("backbone.", ""): v for k, v in checkpoint_model.items()}
-        checkpoint_model = {k.replace("mlp.w12.", "mlp.fc1."): v for k, v in checkpoint_model.items()}
-        checkpoint_model = {k.replace("mlp.w3.", "mlp.fc2."): v for k, v in checkpoint_model.items()}
-        state_dict = model.state_dict()
-        for k in ['head.weight', 'head.bias']:
-            if k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape:
-                print(f"Removing key {k} from pretrained checkpoint")
-                del checkpoint_model[k]
-        # interpolate position embedding
-        interpolate_pos_embed(model, checkpoint_model)
-        # load pre-trained model
-        msg = model.load_state_dict(checkpoint_model, strict=False)
-        trunc_normal_(model.head.weight, std=2e-5)
-        processor = None
+    model, processor, patch_size = get_model(args)
 
     dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir, modality=args.modality,transform=processor)
     dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir, modality=args.modality,transform=processor)
@@ -331,6 +410,16 @@ def main(args, criterion):
         XAI_module = Attention_Map(model, args.model, input_size=args.input_size, N=11, use_rollout=args.use_rollout, print_layers=True)
     elif args.xai == 'gradcam':
         XAI_module = GradCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size)
+    elif args.xai == 'gradcamv2':
+        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=GradCAMv2)
+    elif args.xai == 'scorecam':
+        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=ScoreCAM)
+    elif args.xai == 'crp':
+        from baselines.CRP_LXT import CRP
+        XAI_module = CRP(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size)
+    elif args.xai == 'lxt':
+        from baselines.CRP_LXT import LXT
+        XAI_module = LXT(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, conv_gamma=0.25, lin_gamma=0.05)
     else:
         raise ValueError(f"Unknown XAI method: {args.xai}")
     XAI_module.to(device)

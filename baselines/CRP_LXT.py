@@ -25,7 +25,7 @@ class CRP(torch.nn.Module):
         self.composite = EpsilonPlusFlat([SequentialMergeBatchNorm()])
         self.attribution = CondAttribution(model, no_param_grad=True)
 
-    def forward(self, x, target_class=None):
+    def generate_heatmap(self, x, target_class=None):
         # compute heatmap wrt. output 46 (green lizard class)
         conditions = [{"y": target_class}]
         # zennit requires gradients
@@ -36,8 +36,16 @@ class CRP(torch.nn.Module):
         mask_map = {name: self.cc.mask for name in layer_names}
         attr = self.attribution(x, conditions, self.composite, mask_map=mask_map)
         heatmap = attr.heatmap
-        print(heatmap.shape)
-        return heatmap.detach().cpu().numpy()
+        return heatmap # (B, H, W)
+    def forward(self, image_tensor, target_class=None):
+        """Generate CRP heatmap"""
+        if target_class is None:
+            # Get predicted class
+            with torch.no_grad():
+                outputs = self.model(image_tensor)
+                target_class = outputs.argmax(dim=1).item()
+        heatmaps = self.generate_heatmap(image_tensor, target_class)
+        return heatmaps.detach().cpu().numpy()
 
 ## LXT
 
@@ -54,40 +62,41 @@ class LXT(torch.nn.Module):
         self.conv_gamma = conv_gamma #[0.1, 0.25, 100]
         self.lin_gamma = lin_gamma #[0, 0.01, 0.05, 0.1, 1]
         monkey_patch(self.model, verbose=True)
-        monkey_patch_zennit(verbose=True)
-        
-    def forward(self, x, target_class=None):
+        #monkey_patch_zennit(verbose=True)
+
+    def generate_heatmap(self, x, target_class=None):
         x.grad = None  # Reset gradients
-        
         # Define rules for the Conv2d and Linear layers using 'zennit'
         # LayerMapComposite maps specific layer types to specific LRP rule implementations
         zennit_comp = LayerMapComposite([
             (torch.nn.Conv2d, z_rules.Gamma(self.conv_gamma)),
             (torch.nn.Linear, z_rules.Gamma(self.lin_gamma)),
         ])
-        
         # Register the composite rules with the model
         zennit_comp.register(self.model)
-        
         # Forward pass with gradient tracking enabled
         y = self.model(x.requires_grad_())
-        
         # Backward pass for the highest probability class
         # This initiates the LRP computation through the network
         y[0, target_class].backward()
-        
         # Remove the registered composite to prevent interference in future iterations
         zennit_comp.remove()
-        
         # Calculate the relevance by computing Gradient * Input
         # This is the final step of LRP to get the pixel-wise explanation
         heatmap = (x * x.grad).sum(1)
-        
         # Normalize relevance between [-1, 1] for plotting
         heatmap = heatmap / abs(heatmap).max()
-        
         # Store the normalized heatmap
-        return heatmap[0].detach().cpu().numpy()
+        return heatmap # (B, H, W)
+    def forward(self, image_tensor, target_class=None):
+        """Generate LXT heatmap"""
+        if target_class is None:
+            # Get predicted class
+            with torch.no_grad():
+                outputs = self.model(image_tensor)
+                target_class = outputs.argmax(dim=1).item()
+        heatmaps = self.generate_heatmap(image_tensor, target_class)
+        return heatmaps.detach().cpu().numpy()
 
 class CRP_LXT(torch.nn.Module):
     def __init__(self, model, model_name, img_size, patch_size=14):
