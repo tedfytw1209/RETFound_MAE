@@ -108,7 +108,29 @@ class HuggingfaceToTensorModelWrapper(torch.nn.Module):
         self.model = model
 
     def forward(self, x):
-        return self.model(x).logits
+        # 1) 先试 HF 常见签名
+        try:
+            out = self.model(pixel_values=x)
+        except TypeError:
+            # 2) 非 HF / 不接受 pixel_values：按普通 forward
+            out = self.model(x)
+
+        # 3) 统一抽取 logits
+        if isinstance(out, torch.Tensor):
+            logits = out
+        elif hasattr(out, "logits"):
+            logits = out.logits
+        elif isinstance(out, dict) and "logits" in out:
+            logits = out["logits"]
+        elif isinstance(out, (list, tuple)) and len(out) > 0 and isinstance(out[0], torch.Tensor):
+            logits = out[0]
+        else:
+            raise TypeError(
+                f"Cannot extract logits from output of type {type(out)}. "
+                f"Expected Tensor / object with .logits / dict['logits'] / tuple[Tensor,...]."
+            )
+
+        return logits
 
 """ Translate the category name to the category index.
     Some models aren't trained on Imagenet but on even larger datasets,
