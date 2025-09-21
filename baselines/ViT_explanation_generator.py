@@ -29,7 +29,7 @@ def compute_rollout_attention(all_layer_matrices, start_layer=0):
         joint_attention = matrices_aug[i].bmm(joint_attention)
     return joint_attention
 
-class LRP:
+class LRP_Explainer:
     def __init__(self, model):
         self.model = model
         self.model.eval()
