@@ -109,13 +109,21 @@ class Attention_Map(torch.nn.Module):
                 attentions = self.feature_extractor(x) #(B, n_heads, num_tokens, num_tokens)
                 attentions = [attentions[key] for key in self.return_attns]
             else:
-                outputs = self.model(x, output_attentions=True, return_dict=True)
-                print(outputs)
-                if hasattr(outputs, "attentions"):
-                    attentions = outputs.attentions #(B, n_heads, num_tokens, num_tokens)
-                else:
-                    print("Model does not return attentions. Please check the model.")
-                    print(self.model)
+                # Make sure x is shaped [B,3,224,224] and already normalized by the processor
+                try:
+                    # Some HF models will propagate flags through the classifier
+                    outputs = model(pixel_values=x, output_attentions=True, return_dict=True)
+                    attentions = getattr(outputs, "attentions", None)
+                except TypeError:
+                    attentions = None
+
+                if attentions is None:
+                    # Call the base ViT encoder directly (works reliably)
+                    base_out = model.vit(pixel_values=x, output_attentions=True, return_dict=True)
+                    attentions = base_out.attentions
+
+                if attentions is None:
+                    raise RuntimeError("ViT did not return attentions; check that x is passed as pixel_values and flags are set.")
 
         attention_maps = generate_attention_map_batch(attentions, img_size=self.input_size, use_rollout=self.use_rollout)
         #attention_maps = torch.from_numpy(attention_maps).float().cuda()
