@@ -73,7 +73,12 @@ class CRP(torch.nn.Module):
         mask_map = {name: self.cc.mask for name in layer_names}
         attr = self.attribution(x, conditions, self.composite, mask_map=mask_map)
         heatmap = attr.heatmap
-        return heatmap # (B, H, W)
+        B = heatmap.shape[0]
+        # Normalize heatmap between [0, 1] for plotting
+        cam_min = heatmap.view(B, -1).min(dim=1)[0].view(B, 1, 1)
+        cam_max = heatmap.view(B, -1).max(dim=1)[0].view(B, 1, 1)
+        cam = (heatmap - cam_min) / (cam_max - cam_min + 1e-8)
+        return cam # (B, H, W)
     def forward(self, image_tensor, target_class=None):
         """Generate CRP heatmap"""
         if target_class is None:
@@ -129,9 +134,13 @@ class LXT(torch.nn.Module):
         # This is the final step of LRP to get the pixel-wise explanation
         heatmap = (x * x.grad).sum(1)
         # Normalize relevance between [-1, 1] for plotting
-        heatmap = heatmap / abs(heatmap).max()
-        # Store the normalized heatmap
-        return heatmap # (B, H, W)
+        #heatmap = heatmap / abs(heatmap).max()
+        B = heatmap.shape[0]
+        cam_min = heatmap.view(B, -1).min(dim=1)[0].view(B, 1, 1)
+        cam_max = heatmap.view(B, -1).max(dim=1)[0].view(B, 1, 1)
+        cam = (heatmap - cam_min) / (cam_max - cam_min + 1e-8)
+        return cam # (B, H, W)
+    
     def forward(self, image_tensor, target_class=None):
         """Generate LXT heatmap"""
         if target_class is None:
