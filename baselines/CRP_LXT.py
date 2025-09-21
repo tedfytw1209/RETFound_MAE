@@ -45,7 +45,7 @@ class CRP(torch.nn.Module):
 # in the backward pass. For ViTs, we utilize the LRP Gamma rule. It is implemented
 # inside the 'zennit' library. To make it compatible with LXT, we also monkey patch it. That's it.
 class LXT(torch.nn.Module):
-    def __init__(self, model, model_name, img_size, patch_size, conv_gamma, lin_gamma):
+    def __init__(self, model, model_name, img_size, patch_size, conv_gamma = 0.25, lin_gamma = 0.05):
         super(LXT, self).__init__()
         self.model = model
         self.model_name = model_name
@@ -57,9 +57,6 @@ class LXT(torch.nn.Module):
         monkey_patch_zennit(verbose=True)
         
     def forward(self, x, target_class=None):
-        # Experiment with different gamma values for Conv2d and Linear layers
-        # Gamma is a hyperparameter in LRP that controls how much positive vs. negative
-        # contributions are considered in the explanation
         x.grad = None  # Reset gradients
         
         # Define rules for the Conv2d and Linear layers using 'zennit'
