@@ -77,8 +77,23 @@ def _resolve_target_layer(model, model_name=None):
 
     # --- HF ResNet (wrapped under .resnet)
     resnet = _get(model, "resnet")
-    if resnet is not None and _get(resnet, "layer4") is not None and len(resnet.layer4) > 0:
-        return resnet.layer4[-1]
+    if resnet is not None:
+        # Some variants expose torchvision-like layers
+        if _get(resnet, "layer4") is not None and len(resnet.layer4) > 0:
+            return resnet.layer4[-1]
+        # Transformers' ResNet uses encoder.stages[-1].layers[-1]
+        enc = _get(resnet, "encoder")
+        if enc is not None:
+            stages = _get(enc, "stages")
+            if isinstance(stages, (nn.ModuleList, list)) and len(stages) > 0:
+                last_stage = stages[-1]
+                layers = _get(last_stage, "layers")
+                if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
+                    return layers[-1]
+                blocks = _get(last_stage, "blocks")
+                if isinstance(blocks, (nn.ModuleList, list)) and len(blocks) > 0:
+                    return blocks[-1]
+                return last_stage
 
     # --- HF EfficientNet often wrapped under .efficientnet
     eff = _get(model, "efficientnet")
