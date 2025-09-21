@@ -109,7 +109,9 @@ class Attention_Map(torch.nn.Module):
                 attentions = self.feature_extractor(x) #(B, n_heads, num_tokens, num_tokens)
                 attentions = [attentions[key] for key in self.return_attns]
             else:
-                attentions = self.model(x, output_attentions=True).attentions #(B, n_heads, num_tokens, num_tokens)
+                outputs = self.model(x, output_attentions=True, return_dict=True)
+                if hasattr(outputs, "attentions"):
+                    attentions = outputs.attentions #(B, n_heads, num_tokens, num_tokens)
 
         attention_maps = generate_attention_map_batch(attentions, img_size=self.input_size, use_rollout=self.use_rollout)
         #attention_maps = torch.from_numpy(attention_maps).float().cuda()
