@@ -13,6 +13,8 @@ from crp.attribution import CondAttribution
 from lxt.efficient import monkey_patch, monkey_patch_zennit
 from crp.helper import get_layer_names
 
+def _get(obj, name, default=None):
+    return getattr(obj, name, default)
 ## CRP
 class CRP(torch.nn.Module):
     def __init__(self, model, model_name, img_size, patch_size):
@@ -23,7 +25,13 @@ class CRP(torch.nn.Module):
         self.patch_size = patch_size
         self.cc = ChannelConcept()
         self.composite = EpsilonPlusFlat([SequentialMergeBatchNorm()])
-        self.attribution = CondAttribution(model, no_param_grad=True)
+        if _get(self.model, 'resnet', None) is not None:
+            hook = _get(self.model, 'resnet', None)
+        elif _get(self.model, 'vit', None) is not None:
+            hook = _get(self.model, 'vit', None)
+        else:
+            hook = self.model
+        self.attribution = CondAttribution(hook, no_param_grad=True)
 
     def generate_heatmap(self, x, target_class=None):
         # compute heatmap wrt. output 46 (green lizard class)
@@ -61,7 +69,14 @@ class LXT(torch.nn.Module):
         self.patch_size = patch_size
         self.conv_gamma = conv_gamma #[0.1, 0.25, 100]
         self.lin_gamma = lin_gamma #[0, 0.01, 0.05, 0.1, 1]
-        monkey_patch(self.model, verbose=True)
+        if _get(self.model, 'resnet', None) is not None:
+            hook = _get(self.model, 'resnet', None)
+        elif _get(self.model, 'vit', None) is not None:
+            hook = _get(self.model, 'vit', None)
+        else:
+            hook = self.model
+        # Apply monkey patch to the model to enable LRP with Gamma rule
+        monkey_patch(hook, verbose=True)
         #monkey_patch_zennit(verbose=True)
 
     def generate_heatmap(self, x, target_class=None):
