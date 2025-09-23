@@ -17,6 +17,7 @@ conda activate retfound_new
 # Go to home directory
 #cd $HOME
 STUDY=$1
+LAYER_IDX=$2 # 0, 1, 2, 3
 MODEL="RETFound_mae"
 FINETUNED_MODEL="RETFound_mae_natureCFP"
 LR="5e-4"
@@ -37,5 +38,5 @@ echo $SUBSTUDY
 echo $Num_CLASS
 
 # Modify the path to your singularity container 
-# sbatch finetune_retfound_adcon_irb2024_v5_tmp.sh ad_control_detect_data
-torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune.py --savemodel --global_pool --batch_size 16 --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --layer_decay 0.65 --weight_decay 0.05 --drop_path 0.2 --nb_classes $Num_CLASS --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv --task $STUDY-${data_type}-all-$MODEL-${Modality}-${Eval_score}eval-$ADDCMD-$ADDCMD2/ --eval_score $Eval_score --modality $Modality --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k 0 $ADDCMD $ADDCMD2
+# sbatch finetune_retfound_adcon_irb2024_v5_tmp.sh ad_control_detect_data 0
+torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune.py --savemodel --global_pool --batch_size 16 --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --layer_decay 0.65 --weight_decay 0.05 --drop_path 0.2 --nb_classes $Num_CLASS --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv --task $STUDY-${data_type}-all-$MODEL-${Modality}_${LAYER_IDX}-${Eval_score}eval-$ADDCMD-$ADDCMD2/ --eval_score $Eval_score --modality $Modality --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k 0 --select_layer_idx $LAYER_IDX $ADDCMD $ADDCMD2
