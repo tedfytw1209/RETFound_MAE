@@ -209,6 +209,7 @@ class CSV_Dataset(Dataset):
                 else:
                     # Expand to N channels (repeat)
                     image = np.repeat(image, self.channel, axis=0).transpose(1,2,0)  # (C,H,W)->(H,W,C)
+                    image = Image.fromarray(image, mode='RGB')  # RGB
             # (H,W,C)
             image = self.transfroms(image)
             image_len = 1

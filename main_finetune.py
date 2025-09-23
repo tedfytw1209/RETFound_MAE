@@ -169,6 +169,7 @@ def get_args_parser():
     parser.add_argument('--num_k', default=0, type=float)
     parser.add_argument('--img_dir', default='/orange/bianjiang/tienyu/OCT_AD/all_images/', type=str)
     parser.add_argument('--select_layer_idx', default=-1, type=int, help='number of layers to select for training')
+    parser.add_argument('--th_heatmap', action='store_true', default=False, help='Transform thickness map to heatmap')
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -470,13 +471,13 @@ def main(args, criterion):
     #dataset selection
     if args.testval:
         print('Using test set for validation')
-        dataset_train = build_dataset(is_train=['train','val'], args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx])
-        dataset_val = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx])
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx])
+        dataset_train = build_dataset(is_train=['train','val'], args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap)
+        dataset_val = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap)
+        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap)
     else:
-        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx])
-        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx])
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx])
+        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap)
+        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap)
+        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap)
 
     # Apply subset sampling if subset_ratio > 0
     if args.subset_ratio > 0:
