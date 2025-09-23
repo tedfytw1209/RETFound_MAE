@@ -165,7 +165,15 @@ class CSV_Dataset(Dataset):
         if select_layers is None:
             self.select_idx = None
         else:
-            self.select_idx = [Thickness_List.index(n) for n in select_layers if n in Thickness_List]
+            select_idx = []
+            for n in select_layers:
+                if isinstance(n, int) and n>=0 and n<len(Thickness_List):
+                    select_idx.append(n)
+                elif isinstance(n, str) and n in Thickness_List:
+                    select_idx.append(Thickness_List.index(n))
+            if len(select_idx) == 0:
+                select_idx = None
+            self.select_idx = select_idx
             print('Selected layers: ', select_layers)
             print('Selected idx: ', self.select_idx)
         self.th_heatmap = th_heatmap

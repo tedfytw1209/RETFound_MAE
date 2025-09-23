@@ -142,7 +142,7 @@ def get_args_parser():
     parser.add_argument('--nb_classes', default=8, type=int,
                         help='number of the classification types')
     parser.add_argument('--modality', default='OCT', type=str,
-                        help='used modality of the UF dataset, e.g., OCT, CFP')
+                        help='used modality of the UF dataset, e.g., OCT, CFP, thickness, etc.')
     parser.add_argument('--output_dir', default='./output_dir',
                         help='path where to save, empty for no saving')
     parser.add_argument('--log_dir', default='./output_logs',
@@ -168,6 +168,7 @@ def get_args_parser():
                         help='Fixing the backbone parameters')
     parser.add_argument('--num_k', default=0, type=float)
     parser.add_argument('--img_dir', default='/orange/bianjiang/tienyu/OCT_AD/all_images/', type=str)
+    parser.add_argument('--select_layer_idx', default=-1, type=int, help='number of layers to select for training')
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -469,13 +470,13 @@ def main(args, criterion):
     #dataset selection
     if args.testval:
         print('Using test set for validation')
-        dataset_train = build_dataset(is_train=['train','val'], args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
-        dataset_val = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
+        dataset_train = build_dataset(is_train=['train','val'], args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx])
+        dataset_val = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx])
+        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx])
     else:
-        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
-        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor)
+        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx])
+        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx])
+        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx])
 
     # Apply subset sampling if subset_ratio > 0
     if args.subset_ratio > 0:
