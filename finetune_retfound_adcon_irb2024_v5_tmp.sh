@@ -27,7 +27,7 @@ Eval_score="default"
 Modality="Thickness" # CFP, OCT, OCT_CFP
 SUBSETNUM=0 # 0, 500, 1000
 ADDCMD="--bal_sampler"
-ADDCMD2=""
+ADDCMD2="--th_heatmap"
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 
 data_type="IRB2024v5_ADCON_DL_data"
