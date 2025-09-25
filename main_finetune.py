@@ -455,7 +455,13 @@ def get_model(args):
 def main(args, criterion):
 
     misc.init_distributed_mode(args)
-
+    
+    wandb.init(
+        project="RETFound_MAE",
+        name=args.task,
+        config=args,
+        dir=os.path.join(args.log_dir,args.task),
+    )
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
 
@@ -676,8 +682,6 @@ def main(args, criterion):
         train_weight = None
         alpha = None
     
-
-
     if True:  # args.distributed:
         num_tasks = misc.get_world_size()
         global_rank = misc.get_rank()
@@ -728,12 +732,7 @@ def main(args, criterion):
                 shuffle=True)  # shuffle=True to reduce monitor bias
         else:
             sampler_test = torch.utils.data.SequentialSampler(dataset_test)
-    wandb.init(
-        project="RETFound_MAE",
-        name=args.task,
-        config=args,
-        dir=os.path.join(args.log_dir,args.task),
-    )
+    
     if global_rank == 0 and args.log_dir is not None and not args.eval:
         os.makedirs(args.log_dir, exist_ok=True)
         log_writer = SummaryWriter(log_dir=os.path.join(args.log_dir,args.task))

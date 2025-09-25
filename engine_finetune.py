@@ -168,6 +168,8 @@ def train_one_epoch(
     #Metric
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
+    print('All labels:', all_labels)
+    print('All probs:', all_probs)
     conf = confusion_matrix(all_labels, all_preds)
     accuracy = accuracy_score(all_labels, all_preds)
     roc_auc = roc_auc_score(true_onehot, all_probs, multi_class='ovr', average='macro')
