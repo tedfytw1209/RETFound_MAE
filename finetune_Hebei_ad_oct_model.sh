@@ -37,7 +37,7 @@ OPTIMIZER="adabelief"        # AdaBelief optimizer as specified in paper
 TRANSFORM="3"                # AD-OCT specific data augmentation
 
 # Data paths
-IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
+IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
 data_type="IRB2024v5_Wisely_ADCON_DL_data"
 
 # Scheduler parameters
