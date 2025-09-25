@@ -65,10 +65,18 @@ def get_args_parser():
                         help='Input mode for dual_input_cnn model (default: all)')
     parser.add_argument('--quantitative_features', default=10, type=int,
                         help='Number of quantitative features for dual_input_cnn model (default: 10)')
+    
+    # AD-OCT Model parameters
+    parser.add_argument('--feature_channels', default=256, type=int,
+                        help='Number of feature channels for AD-OCT model (default: 256)')
+    parser.add_argument('--num_groups', default=3, type=int,
+                        help='Number of polarization feature groups for AD-OCT model (default: 3)')
+    parser.add_argument('--include_localization', action='store_true', default=False,
+                        help='Enable localization head for AD-OCT model')
 
     # Optimizer parameters
     parser.add_argument('--optimizer', default='sgd', type=str, metavar='OPTIMIZER',
-                        help='Optimizer (default: "sgd")')
+                        help='Optimizer (default: "sgd", options: sgd, adam, adamw, adabelief)')
     parser.add_argument('--clip_grad', type=float, default=None, metavar='NORM',
                         help='Clip gradient norm (default: None, no clipping)')
     parser.add_argument('--weight_decay', type=float, default=0.0005,
@@ -96,7 +104,7 @@ def get_args_parser():
 
     # Augmentation parameters
     parser.add_argument('--transform', default=1, type=int,
-                        help='Transform type: 1 for relative work 1, 2 for relative work 2')
+                        help='Transform type: 1 for basic, 2 for enhanced, 3 for AD-OCT specific (retinal fundus)')
     parser.add_argument('--color_jitter', type=float, default=None, metavar='PCT',
                         help='Color jitter factor (enabled only when not using Auto/RandAug)')
     parser.add_argument('--aa', type=str, default='rand-m9-mstd0.5-inc1', metavar='NAME',
@@ -629,6 +637,16 @@ def get_model(args):
             pretrained=True,
             input_mode=args.input_mode
         )
+    elif 'ad_oct_model' in args.model:
+        # AD-OCT Model for Alzheimer's Disease detection using OCT images
+        # Implements IREAM, CFR, C2F modules with combined classification and localization
+        model = models.__dict__['ADOCTModel'](
+            num_classes=args.nb_classes,
+            input_channels=3,
+            feature_channels=getattr(args, 'feature_channels', 256),
+            num_groups=getattr(args, 'num_groups', 3),
+            include_localization=getattr(args, 'include_localization', False)
+        )
     else:
         model = models.__dict__[args.model](
             num_classes=args.nb_classes,
@@ -738,6 +756,60 @@ def build_transform2(is_train, args):
     t.append(transforms.Normalize(mean, std))
     return transforms.Compose(t)
 
+def build_transform3(is_train, args):
+    """
+    AD-OCT specific data augmentation for retinal fundus images as described in the research paper:
+    1. Random flipping in both horizontal and vertical directions
+    2. Random rotation between -85 and 85 degrees
+    3. Random cropping at random size
+    4. Normalization by mean and standard deviation
+    """
+    mean = IMAGENET_DEFAULT_MEAN
+    std = IMAGENET_DEFAULT_STD
+    
+    if not isinstance(is_train, list):
+        is_train = [is_train]
+    
+    # Training transform with AD-OCT specific augmentations
+    if 'train' in is_train:
+        t = []
+        # Convert to tensor first
+        t.append(transforms.ToTensor())
+        
+        # Resize to slightly larger than target size for random cropping
+        resize_size = int(args.input_size * 1.2)  # 20% larger for cropping
+        t.append(transforms.Resize((resize_size, resize_size), interpolation=transforms.InterpolationMode.BICUBIC))
+        
+        # Random horizontal and vertical flips
+        t.append(transforms.RandomHorizontalFlip(p=0.5))
+        t.append(transforms.RandomVerticalFlip(p=0.5))
+        
+        # Random rotation between -85 and 85 degrees as specified in paper
+        t.append(transforms.RandomRotation(degrees=85, interpolation=transforms.InterpolationMode.BILINEAR))
+        
+        # Random cropping at random size (then resize to target)
+        t.append(transforms.RandomResizedCrop(
+            args.input_size, 
+            scale=(0.8, 1.0),  # Crop 80-100% of the image
+            ratio=(0.9, 1.1),  # Maintain roughly square aspect ratio
+            interpolation=transforms.InterpolationMode.BICUBIC
+        ))
+        
+        # Additional augmentations for robustness
+        t.append(transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.05))
+        
+        # Normalization by mean and standard deviation
+        t.append(transforms.Normalize(mean, std))
+        
+        return transforms.Compose(t)
+    
+    # Evaluation transform (no augmentation)
+    t = []
+    t.append(transforms.ToTensor())
+    t.append(transforms.Resize((args.input_size, args.input_size), interpolation=transforms.InterpolationMode.BICUBIC))
+    t.append(transforms.Normalize(mean, std))
+    return transforms.Compose(t)
+
 def main(args, criterion):
 
     misc.init_distributed_mode(args)
@@ -761,6 +833,9 @@ def main(args, criterion):
     elif args.transform == 2:
         transform_train = build_transform2(is_train=['train','val'], args=args)
         transform_eval = build_transform2(is_train='test', args=args)
+    elif args.transform == 3:
+        transform_train = build_transform3(is_train=['train','val'], args=args)
+        transform_eval = build_transform3(is_train='test', args=args)
     else:
         raise ValueError(f'Invalid transform type: {args.transform}')
     
@@ -1004,9 +1079,20 @@ def main(args, criterion):
         if args.optimizer == 'adamw':
             print("Using AdamW optimizer")
             optimizer = torch.optim.AdamW(model_without_ddp.parameters(),lr=args.lr,weight_decay=args.weight_decay)
+        elif args.optimizer == 'adam':
+            print("Using Adam optimizer")
+            optimizer = torch.optim.Adam(model_without_ddp.parameters(), lr=args.lr, weight_decay=args.weight_decay)
         elif args.optimizer == 'sgd':
             print("Using SGD optimizer")
             optimizer = torch.optim.SGD(model_without_ddp.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+        elif args.optimizer == 'adabelief':
+            print("Using AdaBelief optimizer")
+            try:
+                from adabelief_pytorch import AdaBelief
+                optimizer = AdaBelief(model_without_ddp.parameters(), lr=args.lr, weight_decay=args.weight_decay, eps=1e-16, betas=(0.9, 0.999), weight_decouple=True, rectify=False)
+            except ImportError:
+                print("AdaBelief not installed, falling back to Adam optimizer")
+                optimizer = torch.optim.Adam(model_without_ddp.parameters(), lr=args.lr, weight_decay=args.weight_decay)
         else:
             raise ValueError(f"Unknown optimizer: {args.optimizer}")
     else:
@@ -1085,6 +1171,16 @@ def main(args, criterion):
                 log_writer=log_writer,
                 args=args
             )
+        elif 'ad_oct_model' in args.model:
+            # AD-OCT model uses standard training with potential localization loss
+            train_stats = train_one_epoch(
+                model, criterion, data_loader_train,
+                optimizer, device, epoch, loss_scaler,
+                exp_lr_scheduler,
+                args.clip_grad, mixup_fn,
+                log_writer=log_writer,
+                args=args
+            )
         else:
             train_stats = train_one_epoch(
                 model, criterion, data_loader_train,
@@ -1097,6 +1193,10 @@ def main(args, criterion):
 
         if 'dual_input_cnn'  in args.model:
             val_stats, val_score = evaluate_dualv2(data_loader_val, model, device, args, epoch, mode='val',
+                                        num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+        elif 'ad_oct_model' in args.model:
+            # AD-OCT model uses standard evaluation
+            val_stats, val_score = evaluate(data_loader_val, model, device, args, epoch, mode='val',
                                         num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
         else:
             val_stats, val_score = evaluate(data_loader_val, model, device, args, epoch, mode='val',
@@ -1159,6 +1259,8 @@ def main(args, criterion):
     print("Test with the best model, epoch = %d:" % state_dict_best['epoch'])
     if 'dual_input_cnn'  in args.model:
         test_stats,test_score = evaluate_dualv2(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+    elif 'ad_oct_model' in args.model:
+        test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
     else:
         test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
     wandb_dict = {}

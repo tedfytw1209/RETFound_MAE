@@ -411,4 +411,19 @@ def TransNetOCT(**kwargs):
     model = TransNetOCT(**kwargs)
     return model
 
+# Import AD-OCT models
+try:
+    from models_ad_oct import ADOCTModel as ADOCTModelClass, create_ad_oct_model, create_ad_oct_loss
+    
+    def ADOCTModel(**kwargs):
+        """AD-OCT Model wrapper for compatibility with existing framework."""
+        return create_ad_oct_model(**kwargs)
+        
+except ImportError:
+    print("Warning: models_ad_oct module not found. ADOCTModel will not be available.")
+    
+    def ADOCTModel(**kwargs):
+        """Placeholder for AD-OCT Model when module is not available."""
+        raise ImportError("models_ad_oct module is required for ADOCTModel")
+
 
