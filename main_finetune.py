@@ -610,8 +610,6 @@ def main(args, criterion):
                     
                     print(f'{split_name} Class {class_idx}: ratio={class_ratios[class_idx]:.3f}, target={class_target_samples}, selected={len(selected_class_samples)}')
                 
-                # Create subset dataset using torch.utils.data.Subset
-                from torch.utils.data import Subset
                 subset_dataset = Subset(dataset, selected_indices)
                 
                 # Add targets attribute to subset for compatibility
