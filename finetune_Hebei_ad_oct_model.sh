@@ -59,17 +59,6 @@ echo "Optimizer: $OPTIMIZER"
 echo "Transform: $TRANSFORM"
 echo "Classes: $Num_CLASS"
 
-# Research paper specifications:
-# - Sigmoid function as loss function using BCE loss
-# - AdaBelief optimizer
-# - Batch size: 18
-# - Learning rate: 7e-5  
-# - Weight decay: 1e-2
-# - Data augmentation: horizontal/vertical flips, rotation (-85° to 85°), random cropping
-# - Normalization by mean and standard deviation
-# - Two Nvidia RTX 3090 GPUs
-# - PyTorch 1.10.0
-
 # Construct localization flag
 LOCALIZATION_FLAG=""
 if [ "$INCLUDE_LOCALIZATION" = "true" ]; then
