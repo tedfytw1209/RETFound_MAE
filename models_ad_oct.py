@@ -570,7 +570,7 @@ class ADOCTModel(nn.Module):
                 nn.init.normal_(m.weight, 0, 0.01)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
-    
+
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
         Forward pass of AD-OCT model.
@@ -604,8 +604,9 @@ class ADOCTModel(nn.Module):
         localization_boxes = None
         if self.include_localization:
             localization_boxes = self.localizer(pooled_features)
-        
-        return classification_logits, localization_boxes
+            return classification_logits, localization_boxes
+        else:
+            return classification_logits
 
 
 def create_ad_oct_model(num_classes: int = 2, include_localization: bool = False, **kwargs) -> ADOCTModel:

@@ -53,8 +53,8 @@ if [ "$INCLUDE_LOCALIZATION" = "true" ]; then
 fi
 
 # Usage examples:
-# sbatch finetune_ad_oct_model.sh ad_control_detect_data ad_oct_model 256 3 false 7e-5 1e-2 2 0
-# sbatch finetune_ad_oct_model.sh ad_control_detect_data ad_oct_model 512 3 true 5e-5 1e-2 2 0
+# sbatch finetune_Hebei_ad_oct_model.sh ad_control_detect_data ad_oct_model 256 3 false 7e-5 1e-2 2 0
+# sbatch finetune_Hebei_ad_oct_model.sh ad_control_detect_data ad_oct_model 512 3 true 5e-5 1e-2 2 0
 
 torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
     --savemodel \
