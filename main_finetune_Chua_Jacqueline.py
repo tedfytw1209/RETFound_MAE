@@ -758,8 +758,8 @@ def build_transform2(is_train, args):
 
 def build_transform3(is_train, args):
     """
-    AD-OCT specific data augmentation for retinal fundus images as described in the research paper:
-    1. Random flipping in both horizontal and vertical directions
+    Data augmentation for retinal fundus images to ensure robustness against various noises:
+    1. Accidental flipping in both horizontal and vertical directions
     2. Random rotation between -85 and 85 degrees
     3. Random cropping at random size
     4. Normalization by mean and standard deviation
@@ -770,7 +770,7 @@ def build_transform3(is_train, args):
     if not isinstance(is_train, list):
         is_train = [is_train]
     
-    # Training transform with AD-OCT specific augmentations
+    # Training transform with data augmentation for robustness against various noises
     if 'train' in is_train:
         t = []
         # Convert to tensor first
@@ -780,25 +780,22 @@ def build_transform3(is_train, args):
         resize_size = int(args.input_size * 1.2)  # 20% larger for cropping
         t.append(transforms.Resize((resize_size, resize_size), interpolation=transforms.InterpolationMode.BICUBIC))
         
-        # Random horizontal and vertical flips
+        # Initially, accidental flipping in both horizontal and vertical directions
         t.append(transforms.RandomHorizontalFlip(p=0.5))
         t.append(transforms.RandomVerticalFlip(p=0.5))
         
-        # Random rotation between -85 and 85 degrees as specified in paper
+        # Secondly, random rotation between -85 and 85 degrees
         t.append(transforms.RandomRotation(degrees=85, interpolation=transforms.InterpolationMode.BILINEAR))
         
-        # Random cropping at random size (then resize to target)
+        # At last, crop the image at random size
         t.append(transforms.RandomResizedCrop(
             args.input_size, 
-            scale=(0.8, 1.0),  # Crop 80-100% of the image
+            scale=(0.8, 1.0),  # Crop at random size
             ratio=(0.9, 1.1),  # Maintain roughly square aspect ratio
             interpolation=transforms.InterpolationMode.BICUBIC
         ))
         
-        # Additional augmentations for robustness
-        t.append(transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.05))
-        
-        # Normalization by mean and standard deviation
+        # Then the image is normalized by mean and standard deviation
         t.append(transforms.Normalize(mean, std))
         
         return transforms.Compose(t)
@@ -827,6 +824,7 @@ def main(args, criterion):
     cudnn.benchmark = True
 
     model, processor = get_model(args)
+    print(model)
     if args.transform == 1:
         transform_train = build_transform(is_train=['train','val'], args=args)
         transform_eval = build_transform(is_train='test', args=args)
