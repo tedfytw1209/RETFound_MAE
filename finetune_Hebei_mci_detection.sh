@@ -39,7 +39,7 @@ TRANSFORM="3"                 # Data augmentation with random cropping and rever
 
 # Data paths for dual-modal training
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
-data_type="IRB2024v5_MCI_DL_data"
+data_type="IRB2024v5_ADCON_DL_data"
 
 # Scheduler parameters - not specified in paper, using reasonable defaults
 Scheduler_step=50
@@ -56,16 +56,6 @@ OCT_LOSS_WEIGHT=$OCT_WEIGHT
 MULTIMODAL_LOSS_WEIGHT=$MULTIMODAL_WEIGHT
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
-
-# Usage examples:
-# Basic MCI detection with default parameters:
-# sbatch finetune_ducan_mci_detection.sh mci_detection_data ducan 0.7 0.7 1.0 3e-4 1e-2 3 0
-#
-# Custom loss weights:
-# sbatch finetune_ducan_mci_detection.sh mci_detection_data ducan 0.5 0.5 1.0 3e-4 1e-2 3 0
-#
-# Different learning rate:
-# sbatch finetune_ducan_mci_detection.sh mci_detection_data ducan 0.7 0.7 1.0 1e-4 1e-2 3 0
 
 torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
     --savemodel \
