@@ -25,6 +25,7 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 import matplotlib.pyplot as plt
 
 import models_vit as models
+import models_ducan
 import util.lr_decay as lrd
 import util.misc as misc
 from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapper
@@ -73,6 +74,16 @@ def get_args_parser():
                         help='Number of polarization feature groups for AD-OCT model (default: 3)')
     parser.add_argument('--include_localization', action='store_true', default=False,
                         help='Enable localization head for AD-OCT model')
+    
+    # DuCAN Model parameters
+    parser.add_argument('--fundus_loss_weight', default=0.7, type=float,
+                        help='Weight for fundus auxiliary classifier loss (α in paper, default: 0.7)')
+    parser.add_argument('--oct_loss_weight', default=0.7, type=float,
+                        help='Weight for OCT auxiliary classifier loss (β in paper, default: 0.7)')
+    parser.add_argument('--multimodal_loss_weight', default=1.0, type=float,
+                        help='Weight for multimodal fusion classifier loss (default: 1.0)')
+    parser.add_argument('--use_ducan_preprocessing', action='store_true', default=False,
+                        help='Enable DuCAN-specific preprocessing (ROI extraction, CLAHE, Otsu masking, hybrid filtering)')
 
     # Optimizer parameters
     parser.add_argument('--optimizer', default='sgd', type=str, metavar='OPTIMIZER',
@@ -647,6 +658,14 @@ def get_model(args):
             num_groups=getattr(args, 'num_groups', 3),
             include_localization=getattr(args, 'include_localization', False)
         )
+    elif 'ducan' in args.model:
+        # DuCAN (Dual Cross-Attention Network) for MCI detection
+        # End-to-end framework using OCT images and fundus photographs
+        # Implements MFE modules and CMF units with three classifiers
+        model = models_ducan.DuCANModel(
+            num_classes=args.nb_classes,
+            input_channels=3
+        )
     else:
         model = models.__dict__[args.model](
             num_classes=args.nb_classes,
@@ -1169,6 +1188,17 @@ def main(args, criterion):
                 log_writer=log_writer,
                 args=args
             )
+        elif 'ducan' in args.model:
+            # DuCAN model uses specialized training with three classifiers
+            from engine_finetune import train_one_epoch_ducan
+            train_stats = train_one_epoch_ducan(
+                model, criterion, data_loader_train,
+                optimizer, device, epoch, loss_scaler,
+                exp_lr_scheduler,
+                args.clip_grad, mixup_fn,
+                log_writer=log_writer,
+                args=args
+            )
         elif 'ad_oct_model' in args.model:
             # AD-OCT model uses standard training with potential localization loss
             train_stats = train_one_epoch(
@@ -1192,9 +1222,9 @@ def main(args, criterion):
         if 'dual_input_cnn'  in args.model:
             val_stats, val_score = evaluate_dualv2(data_loader_val, model, device, args, epoch, mode='val',
                                         num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
-        elif 'ad_oct_model' in args.model:
-            # AD-OCT model uses standard evaluation
-            val_stats, val_score = evaluate(data_loader_val, model, device, args, epoch, mode='val',
+        elif 'ducan' in args.model:
+            from engine_finetune import evaluate_ducan
+            val_stats, val_score = evaluate_ducan(data_loader_val, model, device, args, epoch, mode='val',
                                         num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
         else:
             val_stats, val_score = evaluate(data_loader_val, model, device, args, epoch, mode='val',
@@ -1257,6 +1287,9 @@ def main(args, criterion):
     print("Test with the best model, epoch = %d:" % state_dict_best['epoch'])
     if 'dual_input_cnn'  in args.model:
         test_stats,test_score = evaluate_dualv2(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+    elif 'ducan' in args.model:
+        from engine_finetune import evaluate_ducan
+        test_stats,test_score = evaluate_ducan(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
     elif 'ad_oct_model' in args.model:
         test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
     else:

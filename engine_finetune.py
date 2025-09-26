@@ -466,6 +466,329 @@ def train_one_epoch_dual(
     print("confusion_matrix:\n", conf)
     return train_stats
 
+
+# Train for DuCAN model with three-classifier loss
+def train_one_epoch_ducan(
+    model: torch.nn.Module,
+    criterion: torch.nn.Module,
+    data_loader: Iterable,
+    optimizer: torch.optim.Optimizer,
+    device: torch.device,
+    epoch: int,
+    loss_scaler,
+    scheduler=None,
+    max_norm: float = 0,
+    mixup_fn: Optional[Mixup] = None,
+    log_writer=None,
+    args=None
+):
+    """
+    Train one epoch for DuCAN model with dual inputs and three classifiers.
+    
+    Args:
+        model: DuCAN model
+        criterion: Loss function
+        data_loader: Dual-modal data loader
+        optimizer: Optimizer
+        device: Device
+        epoch: Current epoch
+        loss_scaler: Loss scaler for mixed precision
+        scheduler: Learning rate scheduler
+        max_norm: Gradient clipping norm
+        mixup_fn: Mixup function
+        log_writer: Tensorboard writer
+        args: Arguments
+    """
+    model.train(True)
+    metric_logger = misc.MetricLogger(delimiter="  ")
+    metric_logger.add_meter('lr', misc.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    metric_logger.add_meter('fundus_loss', misc.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    metric_logger.add_meter('oct_loss', misc.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    metric_logger.add_meter('multimodal_loss', misc.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    print_freq, accum_iter = 20, args.accum_iter
+    optimizer.zero_grad()
+    
+    # Track predictions for all three classifiers
+    all_labels, all_preds_fundus, all_preds_oct, all_preds_multi = [], [], [], []
+    all_probs_fundus, all_probs_oct, all_probs_multi = [], [], []
+    true_onehot, pred_onehot_fundus, pred_onehot_oct, pred_onehot_multi = [], [], [], []
+    
+    if log_writer:
+        print(f'log_dir: {log_writer.log_dir}')
+    
+    # Loss weights for auxiliary and main classifiers (inspired by GoogLeNet)
+    # Auxiliary classifiers help improve training but main focus is on multimodal
+    fundus_aux_weight = getattr(args, 'fundus_loss_weight', 0.2)  # Auxiliary classifier
+    oct_aux_weight = getattr(args, 'oct_loss_weight', 0.2)        # Auxiliary classifier  
+    multimodal_weight = getattr(args, 'multimodal_loss_weight', 0.6)  # Main classifier
+    
+    for data_iter_step, data_bs in enumerate(metric_logger.log_every(data_loader, print_freq, f'Epoch: [{epoch}]')):
+        if scheduler is None and data_iter_step % accum_iter == 0:
+            lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
+        
+        # DuCAN expects fundus first, then OCT (as per dataset setup)
+        samples_fundus = data_bs[0]
+        samples_oct = data_bs[1]
+        targets = data_bs[2]
+        
+        samples_fundus = samples_fundus.to(device, non_blocking=True)
+        samples_oct = samples_oct.to(device, non_blocking=True)
+        targets = targets.to(device, non_blocking=True)
+        
+        target_onehot = F.one_hot(targets.to(torch.int64), num_classes=args.nb_classes)
+        
+        if mixup_fn:
+            # Note: mixup for dual inputs needs special handling
+            samples_fundus, samples_oct, targets = mixup_fn(samples_fundus, samples_oct, targets)
+        
+        with torch.cuda.amp.autocast():
+            # DuCAN forward pass returns dict with three predictions
+            outputs = model(samples_fundus, samples_oct)
+            
+            # Extract predictions from each classifier
+            fundus_pred = outputs['fundus']
+            oct_pred = outputs['oct']
+            multimodal_pred = outputs['multimodal']
+            
+            # Compute losses for each classifier
+            fundus_loss = criterion(fundus_pred, targets)
+            oct_loss = criterion(oct_pred, targets)
+            multimodal_loss = criterion(multimodal_pred, targets)
+            
+            # Combined weighted loss with auxiliary classifiers
+            total_loss = (fundus_aux_weight * fundus_loss + 
+                         oct_aux_weight * oct_loss + 
+                         multimodal_weight * multimodal_loss)
+            
+            # Add regularization loss if specified
+            if hasattr(args, 'l1_reg') and hasattr(args, 'l2_reg'):
+                if args.l1_reg > 0 or args.l2_reg > 0:
+                    reg_loss = compute_regularization_loss(model, args.l1_reg, args.l2_reg)
+                    total_loss = total_loss + reg_loss
+        
+        loss_value = total_loss.item()
+        fundus_loss_value = fundus_loss.item()
+        oct_loss_value = oct_loss.item()
+        multimodal_loss_value = multimodal_loss.item()
+        
+        total_loss /= accum_iter
+        
+        # Compute probabilities and predictions for each classifier
+        probs_fundus = torch.softmax(fundus_pred, dim=1)
+        probs_oct = torch.softmax(oct_pred, dim=1)
+        probs_multi = torch.softmax(multimodal_pred, dim=1)
+        
+        _, preds_fundus = torch.max(probs_fundus, 1)
+        _, preds_oct = torch.max(probs_oct, 1)
+        _, preds_multi = torch.max(probs_multi, 1)
+        
+        # One-hot encode predictions
+        output_onehot_fundus = F.one_hot(preds_fundus.to(torch.int64), num_classes=args.nb_classes)
+        output_onehot_oct = F.one_hot(preds_oct.to(torch.int64), num_classes=args.nb_classes)
+        output_onehot_multi = F.one_hot(preds_multi.to(torch.int64), num_classes=args.nb_classes)
+        
+        # Store results for metrics calculation
+        true_onehot.extend(target_onehot.cpu().numpy())
+        pred_onehot_fundus.extend(output_onehot_fundus.detach().cpu().numpy())
+        pred_onehot_oct.extend(output_onehot_oct.detach().cpu().numpy())
+        pred_onehot_multi.extend(output_onehot_multi.detach().cpu().numpy())
+        
+        all_labels.extend(targets.cpu().numpy())
+        all_preds_fundus.extend(preds_fundus.cpu().numpy())
+        all_preds_oct.extend(preds_oct.cpu().numpy())
+        all_preds_multi.extend(preds_multi.cpu().numpy())
+        
+        all_probs_fundus.extend(probs_fundus.detach().cpu().numpy())
+        all_probs_oct.extend(probs_oct.detach().cpu().numpy())
+        all_probs_multi.extend(probs_multi.detach().cpu().numpy())
+        
+        # Backward pass
+        loss_scaler(total_loss, optimizer, clip_grad=max_norm, parameters=model.parameters(), 
+                   create_graph=False, update_grad=(data_iter_step + 1) % accum_iter == 0)
+        
+        if (data_iter_step + 1) % accum_iter == 0:
+            optimizer.zero_grad()
+        
+        torch.cuda.synchronize()
+        
+        # Update metrics
+        metric_logger.update(loss=loss_value)
+        metric_logger.update(fundus_loss=fundus_loss_value)
+        metric_logger.update(oct_loss=oct_loss_value)
+        metric_logger.update(multimodal_loss=multimodal_loss_value)
+        
+        min_lr = 10.
+        max_lr = 0.
+        for group in optimizer.param_groups:
+            min_lr = min(min_lr, group["lr"])
+            max_lr = max(max_lr, group["lr"])
+        
+        metric_logger.update(lr=max_lr)
+        loss_value_reduce = misc.all_reduce_mean(loss_value)
+        
+        if log_writer is not None and (data_iter_step + 1) % accum_iter == 0:
+            epoch_1000x = int((data_iter_step / len(data_loader) + epoch) * 1000)
+            log_writer.add_scalar('loss', loss_value_reduce, epoch_1000x)
+            log_writer.add_scalar('fundus_loss', fundus_loss_value, epoch_1000x)
+            log_writer.add_scalar('oct_loss', oct_loss_value, epoch_1000x)
+            log_writer.add_scalar('multimodal_loss', multimodal_loss_value, epoch_1000x)
+            log_writer.add_scalar('lr', max_lr, epoch_1000x)
+    
+    # Compute final metrics for each classifier
+    accuracy_fundus = accuracy_score(all_labels, all_preds_fundus)
+    accuracy_oct = accuracy_score(all_labels, all_preds_oct)
+    accuracy_multi = accuracy_score(all_labels, all_preds_multi)
+    
+    f1_fundus = f1_score(true_onehot, pred_onehot_fundus, zero_division=0, average='macro')
+    f1_oct = f1_score(true_onehot, pred_onehot_oct, zero_division=0, average='macro')
+    f1_multi = f1_score(true_onehot, pred_onehot_multi, zero_division=0, average='macro')
+    
+    # Gather the stats from all processes
+    metric_logger.synchronize_between_processes()
+    print("Averaged stats:", metric_logger)
+    
+    train_stats = {
+        k: meter.global_avg for k, meter in metric_logger.meters.items()
+    }
+    train_stats.update({
+        'accuracy_fundus': accuracy_fundus,
+        'accuracy_oct': accuracy_oct,
+        'accuracy_multimodal': accuracy_multi,
+        'f1_fundus': f1_fundus,
+        'f1_oct': f1_oct,
+        'f1_multimodal': f1_multi
+    })
+    
+    # Print confusion matrices for all classifiers
+    conf_fundus = confusion_matrix(all_labels, all_preds_fundus)
+    conf_oct = confusion_matrix(all_labels, all_preds_oct)
+    conf_multi = confusion_matrix(all_labels, all_preds_multi)
+    
+    print("Fundus classifier confusion matrix:\n", conf_fundus)
+    print("OCT classifier confusion matrix:\n", conf_oct)
+    print("Multimodal classifier confusion matrix:\n", conf_multi)
+    
+    return train_stats
+
+
+# Evaluate for DuCAN model with three classifiers
+@torch.no_grad()
+def evaluate_ducan(data_loader, model, device, args, epoch, mode, num_class, k, log_writer, eval_score=''):
+    """Evaluate DuCAN model with dual inputs and three classifiers."""
+    criterion = nn.CrossEntropyLoss()
+    metric_logger = misc.MetricLogger(delimiter="  ")
+    os.makedirs(os.path.join(args.output_dir, args.task), exist_ok=True)
+    
+    model.eval()
+    
+    # Track results for all three classifiers
+    true_onehot, pred_onehot_fundus, pred_onehot_oct, pred_onehot_multi = [], [], [], []
+    true_labels, pred_labels_fundus, pred_labels_oct, pred_labels_multi = [], [], [], []
+    pred_softmax_fundus, pred_softmax_oct, pred_softmax_multi = [], [], []
+    
+    for batch in metric_logger.log_every(data_loader, 10, f'{mode}:'):
+        fundus_images = batch[0].to(device, non_blocking=True)
+        oct_images = batch[1].to(device, non_blocking=True)
+        target = batch[2].to(device, non_blocking=True)
+        
+        target_onehot = F.one_hot(target.to(torch.int64), num_classes=num_class)
+        
+        with torch.cuda.amp.autocast():
+            outputs = model(fundus_images, oct_images)
+            
+            fundus_pred = outputs['fundus']
+            oct_pred = outputs['oct']
+            multimodal_pred = outputs['multimodal']
+            
+            # Compute losses
+            fundus_loss = criterion(fundus_pred, target)
+            oct_loss = criterion(oct_pred, target)
+            multimodal_loss = criterion(multimodal_pred, target)
+            
+            # Combined loss for logging
+            total_loss = (fundus_loss + oct_loss + multimodal_loss) / 3.0
+        
+        # Process outputs for each classifier
+        fundus_output = nn.Softmax(dim=1)(fundus_pred)
+        oct_output = nn.Softmax(dim=1)(oct_pred)
+        multi_output = nn.Softmax(dim=1)(multimodal_pred)
+        
+        fundus_label = fundus_output.argmax(dim=1)
+        oct_label = oct_output.argmax(dim=1)
+        multi_label = multi_output.argmax(dim=1)
+        
+        fundus_onehot = F.one_hot(fundus_label.to(torch.int64), num_classes=num_class)
+        oct_onehot = F.one_hot(oct_label.to(torch.int64), num_classes=num_class)
+        multi_onehot = F.one_hot(multi_label.to(torch.int64), num_classes=num_class)
+        
+        metric_logger.update(loss=total_loss.item())
+        metric_logger.update(fundus_loss=fundus_loss.item())
+        metric_logger.update(oct_loss=oct_loss.item())
+        metric_logger.update(multimodal_loss=multimodal_loss.item())
+        
+        # Store results
+        true_onehot.extend(target_onehot.cpu().numpy())
+        pred_onehot_fundus.extend(fundus_onehot.detach().cpu().numpy())
+        pred_onehot_oct.extend(oct_onehot.detach().cpu().numpy())
+        pred_onehot_multi.extend(multi_onehot.detach().cpu().numpy())
+        
+        true_labels.extend(target.cpu().numpy())
+        pred_labels_fundus.extend(fundus_label.detach().cpu().numpy())
+        pred_labels_oct.extend(oct_label.detach().cpu().numpy())
+        pred_labels_multi.extend(multi_label.detach().cpu().numpy())
+        
+        pred_softmax_fundus.extend(fundus_output.detach().cpu().numpy())
+        pred_softmax_oct.extend(oct_output.detach().cpu().numpy())
+        pred_softmax_multi.extend(multi_output.detach().cpu().numpy())
+    
+    # Compute metrics for each classifier
+    accuracy_fundus = accuracy_score(true_labels, pred_labels_fundus)
+    accuracy_oct = accuracy_score(true_labels, pred_labels_oct)
+    accuracy_multi = accuracy_score(true_labels, pred_labels_multi)
+    
+    f1_fundus = f1_score(true_onehot, pred_onehot_fundus, zero_division=0, average='macro')
+    f1_oct = f1_score(true_onehot, pred_onehot_oct, zero_division=0, average='macro')
+    f1_multi = f1_score(true_onehot, pred_onehot_multi, zero_division=0, average='macro')
+    
+    roc_auc_fundus = roc_auc_score(true_onehot, pred_softmax_fundus, multi_class='ovr', average='macro')
+    roc_auc_oct = roc_auc_score(true_onehot, pred_softmax_oct, multi_class='ovr', average='macro')
+    roc_auc_multi = roc_auc_score(true_onehot, pred_softmax_multi, multi_class='ovr', average='macro')
+    
+    # Gather the stats from all processes
+    metric_logger.synchronize_between_processes()
+    print("Averaged stats:", metric_logger)
+    
+    test_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    test_stats.update({
+        'accuracy_fundus': accuracy_fundus,
+        'accuracy_oct': accuracy_oct,
+        'accuracy_multimodal': accuracy_multi,
+        'f1_fundus': f1_fundus,
+        'f1_oct': f1_oct,
+        'f1_multimodal': f1_multi,
+        'roc_auc_fundus': roc_auc_fundus,
+        'roc_auc_oct': roc_auc_oct,
+        'roc_auc_multimodal': roc_auc_multi
+    })
+    
+    # Print detailed results
+    print(f"=== DuCAN {mode.upper()} Results ===")
+    print(f"Fundus Classifier - Accuracy: {accuracy_fundus:.4f}, F1: {f1_fundus:.4f}, ROC-AUC: {roc_auc_fundus:.4f}")
+    print(f"OCT Classifier - Accuracy: {accuracy_oct:.4f}, F1: {f1_oct:.4f}, ROC-AUC: {roc_auc_oct:.4f}")
+    print(f"Multimodal Classifier - Accuracy: {accuracy_multi:.4f}, F1: {f1_multi:.4f}, ROC-AUC: {roc_auc_multi:.4f}")
+    
+    # Print confusion matrices
+    conf_fundus = confusion_matrix(true_labels, pred_labels_fundus)
+    conf_oct = confusion_matrix(true_labels, pred_labels_oct)
+    conf_multi = confusion_matrix(true_labels, pred_labels_multi)
+    
+    print("Fundus confusion matrix:\n", conf_fundus)
+    print("OCT confusion matrix:\n", conf_oct)
+    print("Multimodal confusion matrix:\n", conf_multi)
+    
+    return test_stats
+
+
 #evaluate for dual model
 @torch.no_grad()
 def evaluate_dual(data_loader_oct, data_loader_cfp, model, device, args, epoch, mode, num_class, k, log_writer, eval_score=''):
