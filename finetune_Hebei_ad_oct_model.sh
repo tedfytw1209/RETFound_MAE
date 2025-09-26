@@ -38,26 +38,13 @@ TRANSFORM="3"                # AD-OCT specific data augmentation
 
 # Data paths
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
-data_type="IRB2024v5_Wisely_ADCON_DL_data"
+data_type="IRB2024v5_ADCON_DL_data"
 
 # Scheduler parameters
 Scheduler_step=20
 Scheduler_gamma=0.5
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
-
-echo "Training AD-OCT Model"
-echo "Study: $STUDY"
-echo "Model: $MODEL"
-echo "Feature Channels: $FEATURE_CHANNELS"
-echo "Number of Groups: $NUM_GROUPS"
-echo "Include Localization: $INCLUDE_LOCALIZATION"
-echo "Batch Size: $BS"
-echo "Learning Rate: $LR"
-echo "Weight Decay: $WD"
-echo "Optimizer: $OPTIMIZER"
-echo "Transform: $TRANSFORM"
-echo "Classes: $Num_CLASS"
 
 # Construct localization flag
 LOCALIZATION_FLAG=""
