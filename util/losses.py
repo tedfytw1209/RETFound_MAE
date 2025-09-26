@@ -78,8 +78,8 @@ class FocalLoss(nn.Module):
 
         # If inputs are two logits [B,2], select positive-class logit
         if inputs.dim() == 2 and inputs.size(-1) == 2:
-            inputs = inputs[:, 1]
             probs = F.softmax(inputs, dim=1)[:, 1]
+            inputs = inputs[:, 1]
         else:
             probs = torch.sigmoid(inputs)
 
