@@ -68,12 +68,33 @@ class FocalLoss(nn.Module):
                 f"Unsupported task_type '{self.task_type}'. Use 'binary', 'multi-class', or 'multi-label'.")
 
     def binary_focal_loss(self, inputs, targets):
-        """ Focal loss for binary classification. """
-        probs = torch.sigmoid(inputs)
+        """
+        Focal loss for binary classification with logits.
+        Handles inputs of shape [B], [B,1], or [B,2] and targets [B], [B,1], or one-hot [B,2].
+        - If inputs are [B,2], we take the positive-class logit (column 1).
+        - If targets are one-hot [B,2], we collapse to the positive label ([:,1]).
+        """
+        # ---- Normalize shapes ----
+        # If targets are one-hot [B,2], collapse to positive column
+        if targets.dim() == 2 and targets.size(-1) == 2:
+            targets = targets[:, 1]
+
+        # If inputs are two logits [B,2], select positive-class logit
+        if inputs.dim() == 2 and inputs.size(-1) == 2:
+            inputs = inputs[:, 1]
+
+        # Squeeze trailing singleton to get [B]
+        if inputs.dim() > 1 and inputs.size(-1) == 1:
+            inputs = inputs.squeeze(-1)
+        if targets.dim() > 1 and targets.size(-1) == 1:
+            targets = targets.squeeze(-1)
+
+        # Ensure dtypes
         targets = targets.float()
 
-        # Compute binary cross entropy
-        bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
+        # ---- Compute terms ----
+        # BCE with logits per-sample
+        bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction='none')  # [B]
 
         # Compute focal weight
         p_t = probs * targets + (1 - probs) * (1 - targets)
@@ -87,6 +108,7 @@ class FocalLoss(nn.Module):
         # Apply focal loss weighting
         loss = focal_weight * bce_loss
 
+        # Reduction
         if self.reduction == 'mean':
             return loss.mean()
         elif self.reduction == 'sum':
