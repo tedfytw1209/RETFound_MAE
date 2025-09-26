@@ -84,6 +84,8 @@ class FocalLoss(nn.Module):
             probs = torch.sigmoid(inputs)
 
         # Squeeze trailing singleton to get [B]
+        if inputs.dim() > 1 and inputs.size(-1) == 1:
+            inputs = inputs.squeeze(-1)
         if targets.dim() > 1 and targets.size(-1) == 1:
             targets = targets.squeeze(-1)
 
