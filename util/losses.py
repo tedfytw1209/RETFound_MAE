@@ -75,17 +75,15 @@ class FocalLoss(nn.Module):
         - If targets are one-hot [B,2], we collapse to the positive label ([:,1]).
         """
         # ---- Normalize shapes ----
-        # If targets are one-hot [B,2], collapse to positive column
-        if targets.dim() == 2 and targets.size(-1) == 2:
-            targets = targets[:, 1]
 
         # If inputs are two logits [B,2], select positive-class logit
         if inputs.dim() == 2 and inputs.size(-1) == 2:
             inputs = inputs[:, 1]
+            probs = F.softmax(inputs, dim=1)[:, 1]
+        else:
+            probs = torch.sigmoid(inputs)
 
         # Squeeze trailing singleton to get [B]
-        if inputs.dim() > 1 and inputs.size(-1) == 1:
-            inputs = inputs.squeeze(-1)
         if targets.dim() > 1 and targets.size(-1) == 1:
             targets = targets.squeeze(-1)
 
