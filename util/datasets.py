@@ -224,7 +224,6 @@ class CSV_Dataset(Dataset):
             
             # Apply DuCAN preprocessing if enabled
             if self.use_ducan_preprocessing and hasattr(self, 'ducan_preprocessor'):
-                import numpy as np
                 # Convert PIL Image to numpy array for preprocessing
                 if hasattr(image, 'mode'):  # PIL Image
                     image_np = np.array(image)
@@ -243,7 +242,6 @@ class CSV_Dataset(Dataset):
                     preprocessed_np = image_np
                 
                 # Convert back to PIL Image for transforms
-                from PIL import Image
                 image = Image.fromarray(preprocessed_np)
             
             # (H,W,C)
