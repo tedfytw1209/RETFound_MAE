@@ -30,11 +30,11 @@ LR=${6:-"7e-5"}              # Learning rate: 7e-5 as specified in paper
 WD=${7:-"1e-2"}              # Weight decay: 1e-2 as specified in paper
 EPOCHS="100"                  # Number of training epochs
 Num_CLASS=${8:-"2"}          # Number of classes (AD vs Control)
-SUBSET_RATIO=${9:-"0"}       # Subset ratio for dataset sampling
 Eval_score="roc_auc"         # Evaluation metric
 Modality="OCT"               # Modality type
 OPTIMIZER="adabelief"        # AdaBelief optimizer as specified in paper
 TRANSFORM="3"                # AD-OCT specific data augmentation
+SUBSET_RATIO=1
 
 # Data paths
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
@@ -53,8 +53,7 @@ if [ "$INCLUDE_LOCALIZATION" = "true" ]; then
 fi
 
 # Usage examples:
-# sbatch finetune_Hebei_ad_oct_model.sh ad_control_detect_data ad_oct_model 256 3 false 7e-5 1e-2 2 0
-# sbatch finetune_Hebei_ad_oct_model.sh ad_control_detect_data ad_oct_model 512 3 true 5e-5 1e-2 2 0
+# sbatch finetune_Mahendran_ad_oct_model.sh ad_control_detect_data
 
 torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
     --savemodel \

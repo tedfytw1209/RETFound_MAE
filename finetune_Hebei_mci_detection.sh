@@ -57,6 +57,7 @@ MULTIMODAL_LOSS_WEIGHT=$MULTIMODAL_WEIGHT
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
+#sbatch finetune_Hebei_mci_detection.sh ad_mci_control_detect_data
 torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
     --savemodel \
     --global_pool \
@@ -90,8 +91,6 @@ torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacque
     --patience $PATIENCE \
     --visualize_samples \
     --use_ducan_preprocessing \
-    --print_freq 20 \
-    --save_ckpt_freq 50 \
     --warmup_epochs 10 \
     --min_lr 1e-6 \
     --clip_grad 1.0

@@ -38,8 +38,8 @@ class PositionAttentionModule(nn.Module):
         self.in_channels = in_channels
         
         # Three convolutions to generate query, key, and value matrices
-        self.query_conv = nn.Conv2d(in_channels, in_channels // 8, kernel_size=1)
-        self.key_conv = nn.Conv2d(in_channels, in_channels // 8, kernel_size=1)
+        self.query_conv = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        self.key_conv = nn.Conv2d(in_channels, in_channels, kernel_size=1)
         self.value_conv = nn.Conv2d(in_channels, in_channels, kernel_size=1)
         
         # Softmax for attention weights
@@ -61,8 +61,8 @@ class PositionAttentionModule(nn.Module):
         batch_size, channels, height, width = x.size()
         
         # Generate query, key, value matrices
-        query = self.query_conv(x).view(batch_size, -1, height * width).permute(0, 2, 1)  # [B, HW, C//8]
-        key = self.key_conv(x).view(batch_size, -1, height * width)  # [B, C//8, HW]
+        query = self.query_conv(x).view(batch_size, -1, height * width).permute(0, 2, 1)  # [B, HW, C]
+        key = self.key_conv(x).view(batch_size, -1, height * width)  # [B, C, HW]
         value = self.value_conv(x).view(batch_size, -1, height * width)  # [B, C, HW]
         
         # Compute attention weights
@@ -99,8 +99,8 @@ class ChannelAttentionModule(nn.Module):
         self.in_channels = in_channels
         
         # Channel attention components
-        self.query_conv = nn.Conv2d(in_channels, in_channels // 8, kernel_size=1)
-        self.key_conv = nn.Conv2d(in_channels, in_channels // 8, kernel_size=1)
+        self.query_conv = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        self.key_conv = nn.Conv2d(in_channels, in_channels, kernel_size=1)
         self.value_conv = nn.Conv2d(in_channels, in_channels, kernel_size=1)
         
         # Softmax for attention weights
@@ -122,16 +122,16 @@ class ChannelAttentionModule(nn.Module):
         batch_size, channels, height, width = x.size()
         
         # Generate query, key, value matrices
-        query = self.query_conv(x).view(batch_size, -1, height * width)  # [B, C//8, HW]
-        key = self.key_conv(x).view(batch_size, -1, height * width).permute(0, 2, 1)  # [B, HW, C//8]
+        query = self.query_conv(x).view(batch_size, -1, height * width)  # [B, C, HW]
+        key = self.key_conv(x).view(batch_size, -1, height * width).permute(0, 2, 1)  # [B, HW, C]
         value = self.value_conv(x).view(batch_size, -1, height * width)  # [B, C, HW]
         
         # Compute channel attention weights
-        attention = torch.bmm(query, key)  # [B, C//8, C//8]
+        attention = torch.bmm(query, key)  # [B, C, C]
         attention = self.softmax(attention)
         
         # Apply attention to value
-        out = torch.bmm(attention, value)  # [B, C//8, HW]
+        out = torch.bmm(attention, value)  # [B, C, HW]
         out = out.view(batch_size, channels, height, width)  # [B, C, H, W]
         
         # Residual connection with learnable parameter
@@ -192,15 +192,18 @@ class CrossModalFusionUnit(nn.Module):
         # Self-attention for fundus modality
         pam_fundus = self.pam_fundus(fundus_features)
         cam_fundus = self.cam_fundus(fundus_features)
-        sa_fundus = torch.cat([pam_fundus, cam_fundus], dim=1)  # [B, 2C, H, W]
+        #sa_fundus = torch.cat([pam_fundus, cam_fundus], dim=1)  # [B, 2C, H, W]
+        sa_fundus = pam_fundus + cam_fundus  # [B, C, H, W]
         
         # Self-attention for OCT modality  
         pam_oct = self.pam_oct(oct_features)
         cam_oct = self.cam_oct(oct_features)
-        sa_oct = torch.cat([pam_oct, cam_oct], dim=1)  # [B, 2C, H, W]
+        #sa_oct = torch.cat([pam_oct, cam_oct], dim=1)  # [B, 2C, H, W]
+        sa_oct = pam_oct + cam_oct  # [B, C, H, W]
         
         # Combine self-attention features from both modalities
-        sa_combined = sa_fundus + sa_oct  # [B, 2C, H, W]
+        #sa_combined = sa_fundus + sa_oct  # [B, 2C, H, W]
+        sa_combined = torch.cat([sa_fundus, sa_oct], dim=1)  # [B, 2C, H, W]
         
         # Cross-attention mechanism
         # Global average pooling to get cross-modality descriptor
@@ -494,8 +497,8 @@ class DuCAN(nn.Module):
             'fundus': fundus_aux_pred,
             'oct': oct_aux_pred,
             'multimodal': multimodal_pred,
-            'cross_modal_features': multi_level_fused,
-            'fusion_weights': fusion_weights_norm  # For analysis
+            'cross_modal_features': multi_level_fused.detach(),  # For analysis
+            'fusion_weights': fusion_weights_norm.detach()  # For analysis
         }
     
     def forward_single_modality(self, images, modality='fundus'):

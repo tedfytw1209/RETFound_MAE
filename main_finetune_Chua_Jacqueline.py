@@ -59,10 +59,12 @@ def get_args_parser():
     parser.add_argument('--input_size', default=224, type=int,
                         help='images input size')
     parser.add_argument('--drop_path', type=float, default=0.2, metavar='PCT',
-                        help='Drop path rate (default: 0.1)')
-    parser.add_argument('--input_mode', default='all', type=str, 
-                        choices=['all', 'images_only', 'gc_ipl_only', 'octa_only', 
-                                'quantitative_only', 'gc_ipl_quantitative', 'octa_quantitative'],
+                        help='Drop path rate (default: 0.2)')
+    parser.add_argument('--dropout', type=float, default=0.2,
+                        help='Dropout rate (default: 0.2)')
+    parser.add_argument('--input_mode', default='all', type=str,
+                        choices=['all', 'images_only', 'gc_ipl_only', 'octa_only',
+                                 'quantitative_only', 'gc_ipl_quantitative', 'octa_quantitative'],
                         help='Input mode for dual_input_cnn model (default: all)')
     parser.add_argument('--quantitative_features', default=10, type=int,
                         help='Number of quantitative features for dual_input_cnn model (default: 10)')
@@ -829,6 +831,13 @@ def build_transform3(is_train, args):
 def main(args, criterion):
 
     misc.init_distributed_mode(args)
+    
+    wandb.init(
+        project="OCTAD_Relatives",
+        name=args.task,
+        config=args,
+        dir=os.path.join(args.log_dir,args.task),
+    )
 
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
@@ -996,12 +1005,6 @@ def main(args, criterion):
                 shuffle=True)  # shuffle=True to reduce monitor bias
         else:
             sampler_test = torch.utils.data.SequentialSampler(dataset_test)
-    wandb.init(
-        project="OCTAD_Relatives",
-        name=args.task,
-        config=args,
-        dir=os.path.join(args.log_dir,args.task),
-    )
     
     # Log regularization settings to wandb
     if args.l1_reg > 0 or args.l2_reg > 0:
@@ -1087,7 +1090,7 @@ def main(args, criterion):
     print("effective batch size: %d" % eff_batch_size)
 
     if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=True)
         model_without_ddp = model.module
 
     # HF transformers model (ViT / EfficientNet) AdamW ---
