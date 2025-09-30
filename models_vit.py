@@ -119,7 +119,7 @@ def RETFound_dinov2(**kwargs):
     )
     return model
 
-class DualInputCNN(nn.Module):
+class DualCNN(nn.Module):
     """
     Flexible CNN model for MCI classification based on the paper description.
     
@@ -269,7 +269,7 @@ class DualInputCNN(nn.Module):
         return output
 
 def DualInputCNN(**kwargs):
-    model = DualInputCNN(**kwargs)
+    model = DualCNN(**kwargs)
     return model
 
 class SimpleCNN(nn.Module):
