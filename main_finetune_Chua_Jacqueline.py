@@ -59,10 +59,12 @@ def get_args_parser():
     parser.add_argument('--input_size', default=224, type=int,
                         help='images input size')
     parser.add_argument('--drop_path', type=float, default=0.2, metavar='PCT',
-                        help='Drop path rate (default: 0.1)')
-    parser.add_argument('--input_mode', default='all', type=str, 
-                        choices=['all', 'images_only', 'gc_ipl_only', 'octa_only', 
-                                'quantitative_only', 'gc_ipl_quantitative', 'octa_quantitative'],
+                        help='Drop path rate (default: 0.2)')
+    parser.add_argument('--dropout', type=float, default=0.2,
+                        help='Dropout rate (default: 0.2)')
+    parser.add_argument('--input_mode', default='all', type=str,
+                        choices=['all', 'images_only', 'gc_ipl_only', 'octa_only',
+                                 'quantitative_only', 'gc_ipl_quantitative', 'octa_quantitative'],
                         help='Input mode for dual_input_cnn model (default: all)')
     parser.add_argument('--quantitative_features', default=10, type=int,
                         help='Number of quantitative features for dual_input_cnn model (default: 10)')
