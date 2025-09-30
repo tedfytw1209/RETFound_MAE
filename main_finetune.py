@@ -616,6 +616,7 @@ def main(args, criterion):
                     
                     print(f'{split_name} Class {class_idx}: ratio={class_ratios[class_idx]:.3f}, target={class_target_samples}, selected={len(selected_class_samples)}')
                 
+                print('Selected indices:', selected_indices)
                 subset_dataset = Subset(dataset, selected_indices)
                 
                 # Add targets attribute to subset for compatibility
