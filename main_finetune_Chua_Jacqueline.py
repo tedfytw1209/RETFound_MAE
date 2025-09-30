@@ -829,6 +829,13 @@ def build_transform3(is_train, args):
 def main(args, criterion):
 
     misc.init_distributed_mode(args)
+    
+    wandb.init(
+        project="OCTAD_Relatives",
+        name=args.task,
+        config=args,
+        dir=os.path.join(args.log_dir,args.task),
+    )
 
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
@@ -996,12 +1003,6 @@ def main(args, criterion):
                 shuffle=True)  # shuffle=True to reduce monitor bias
         else:
             sampler_test = torch.utils.data.SequentialSampler(dataset_test)
-    wandb.init(
-        project="OCTAD_Relatives",
-        name=args.task,
-        config=args,
-        dir=os.path.join(args.log_dir,args.task),
-    )
     
     # Log regularization settings to wandb
     if args.l1_reg > 0 or args.l2_reg > 0:
