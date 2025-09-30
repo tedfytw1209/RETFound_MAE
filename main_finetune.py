@@ -602,7 +602,7 @@ def main(args, criterion):
                     rng.shuffle(class_samples_copy)
                     
                     # Calculate how many samples to select for this class
-                    class_target_samples = int(target_size * class_ratios[class_idx])
+                    class_target_samples = int((target_size-n_classes) * class_ratios[class_idx]) + 1
                     
                     # Ensure we don't exceed available samples
                     available_samples = len(class_samples_copy)
