@@ -497,8 +497,8 @@ class DuCAN(nn.Module):
             'fundus': fundus_aux_pred,
             'oct': oct_aux_pred,
             'multimodal': multimodal_pred,
-            'cross_modal_features': multi_level_fused,
-            'fusion_weights': fusion_weights_norm  # For analysis
+            'cross_modal_features': multi_level_fused.detach(),  # For analysis
+            'fusion_weights': fusion_weights_norm.detach()  # For analysis
         }
     
     def forward_single_modality(self, images, modality='fundus'):
