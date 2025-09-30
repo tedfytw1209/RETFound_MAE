@@ -192,15 +192,18 @@ class CrossModalFusionUnit(nn.Module):
         # Self-attention for fundus modality
         pam_fundus = self.pam_fundus(fundus_features)
         cam_fundus = self.cam_fundus(fundus_features)
-        sa_fundus = torch.cat([pam_fundus, cam_fundus], dim=1)  # [B, 2C, H, W]
+        #sa_fundus = torch.cat([pam_fundus, cam_fundus], dim=1)  # [B, 2C, H, W]
+        sa_fundus = pam_fundus + cam_fundus  # [B, C, H, W]
         
         # Self-attention for OCT modality  
         pam_oct = self.pam_oct(oct_features)
         cam_oct = self.cam_oct(oct_features)
-        sa_oct = torch.cat([pam_oct, cam_oct], dim=1)  # [B, 2C, H, W]
+        #sa_oct = torch.cat([pam_oct, cam_oct], dim=1)  # [B, 2C, H, W]
+        sa_oct = pam_oct + cam_oct  # [B, C, H, W]
         
         # Combine self-attention features from both modalities
-        sa_combined = sa_fundus + sa_oct  # [B, 2C, H, W]
+        #sa_combined = sa_fundus + sa_oct  # [B, 2C, H, W]
+        sa_combined = torch.cat([sa_fundus, sa_oct], dim=1)  # [B, 2C, H, W]
         
         # Cross-attention mechanism
         # Global average pooling to get cross-modality descriptor
