@@ -22,5 +22,5 @@ do
     # # sbatch infernce_retfound_UFirb2024v5_dualvit.sh AMD_all_split output_dir/AMD_all_split-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500/checkpoint-best.pth output_dir/AMD_all_split-IRB2024_v5-all-RETFound_mae_natureCFP-CFP-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth
     echo "sbatch $SCRIPT $DATASET output_dir/$DATASET-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500/checkpoint-best.pth output_dir/$DATASET-IRB2024_v5-all-RETFound_mae_natureCFP-CFP-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth"
 
-    sbatch $SCRIPT $DATASET output_dir/$DATASET-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth output_dir/$DATASET-IRB2024_v5-all-RETFound_mae_natureCFP-CFP-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth
+    #sbatch $SCRIPT $DATASET output_dir/$DATASET-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth output_dir/$DATASET-IRB2024_v5-all-RETFound_mae_natureCFP-CFP-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth
 done
