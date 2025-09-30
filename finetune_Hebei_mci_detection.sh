@@ -91,8 +91,6 @@ torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacque
     --patience $PATIENCE \
     --visualize_samples \
     --use_ducan_preprocessing \
-    --print_freq 20 \
-    --save_ckpt_freq 50 \
     --warmup_epochs 10 \
     --min_lr 1e-6 \
     --clip_grad 1.0
