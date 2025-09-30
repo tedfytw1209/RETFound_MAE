@@ -146,7 +146,7 @@ class DualCNN(nn.Module):
     """
     def __init__(self, num_classes=1, quantitative_features=10, dropout_rate=0.5, 
                  pretrained=True, input_mode='all'):
-        super(DualInputCNN, self).__init__()
+        super(DualCNN, self).__init__()
         
         self.num_classes = num_classes
         self.quantitative_features = quantitative_features
