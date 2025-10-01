@@ -25,7 +25,7 @@ LR=${5:-"1e-4"} # Adam optimizer learning rate (paper uses adaptive moment estim
 wd=${6:-"0.01"} # Weight decay 0.01 as specified in paper
 Epochs="100"
 Num_CLASS=${7:-"2"}
-SUBSET_RATIO=${8:-"0"}
+SUBSET_RATIO=${8:-"1.3"}
 Eval_score="roc_auc" # AUC as primary performance metric
 Modality="Thickness"
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
@@ -50,7 +50,7 @@ echo $Num_CLASS
 # - Youden index optimization for thresholding
 
 # Usage examples:
-# sbatch finetune_relative3_adcon_irb2024_v5.sh ad_control_detect_data dual_input_cnn images_only 0.01 1e-4 0.01 2 0 10
+# sbatch finetune_relative3_adcon_irb2024_v5.sh mci_control_detect_data dual_input_cnn images_only 0.01 1e-4 0.01 2 1.3 10
 torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
     --savemodel \
     --global_pool \
