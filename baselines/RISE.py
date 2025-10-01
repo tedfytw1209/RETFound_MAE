@@ -6,10 +6,39 @@ from tqdm import tqdm
 import os
 from contextlib import nullcontext
 
+""" Model wrapper to return a tensor"""
+class HuggingfaceToTensorModelWrapper(torch.nn.Module):
+    def __init__(self, model):
+        super(HuggingfaceToTensorModelWrapper, self).__init__()
+        self.model = model
+
+    def forward(self, x):
+        try:
+            out = self.model(pixel_values=x)
+        except TypeError:
+            out = self.model(x)
+
+        # 3) 统一抽取 logits
+        if isinstance(out, torch.Tensor):
+            logits = out
+        elif hasattr(out, "logits"):
+            logits = out.logits
+        elif isinstance(out, dict) and "logits" in out:
+            logits = out["logits"]
+        elif isinstance(out, (list, tuple)) and len(out) > 0 and isinstance(out[0], torch.Tensor):
+            logits = out[0]
+        else:
+            raise TypeError(
+                f"Cannot extract logits from output of type {type(out)}. "
+                f"Expected Tensor / object with .logits / dict['logits'] / tuple[Tensor,...]."
+            )
+
+        return logits
+
 class RISE(nn.Module):
     def __init__(self, model, input_size, gpu_batch=100, maskspath='masks.npy', N=1000):
         super(RISE, self).__init__()
-        self.model = model.eval()
+        self.model = HuggingfaceToTensorModelWrapper(model.eval())
         self.input_size = input_size # (H, W)
         self.gpu_batch = gpu_batch
         if not os.path.isfile(maskspath):
