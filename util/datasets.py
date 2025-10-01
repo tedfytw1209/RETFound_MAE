@@ -272,8 +272,7 @@ class DualCSV_Dataset(Dataset):
         assert label_oct == label_cfp, "The label of OCT and CFP must be the same"
         return sample_oct, sample_cfp, label_oct
 
-def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, modality='OCT', patient_ids=None, pid_key='patient_id', 
-                  select_layers=None,th_resize=True,th_heatmap=False):
+def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, modality='OCT', patient_ids=None, pid_key='patient_id', select_layers=None,th_resize=True,th_heatmap=False):
     if transform is None:
         transform = build_transform(is_train, args)
     
