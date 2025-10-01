@@ -281,6 +281,7 @@ class CSV_Dataset(Dataset):
                 
                 samples.append((final_image_name, self.class_to_idx[str(label)], mask_name))
             self.half3D = False
+        print(samples)
         self.samples = samples
         self.targets = [s[1] for s in samples]
         self.k = k
