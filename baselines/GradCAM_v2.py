@@ -41,7 +41,7 @@ def _resolve_target_layer(model, model_name=None):
         enc = _get(vit, "encoder")
         layers = _get(enc, "layer")
         if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
-            return layers[-1]
+            return layers[-2].output
 
     # --- HF 某些包裝在 base_model
     base = _get(model, "base_model")
@@ -51,7 +51,7 @@ def _resolve_target_layer(model, model_name=None):
             enc = _get(vit, "encoder")
             layers = _get(enc, "layer")
             if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
-                return layers[-1]
+                return layers[-2].output
 
     # --- timm Swin
     if _get(model, "layers") is not None:
