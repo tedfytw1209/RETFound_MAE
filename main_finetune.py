@@ -589,7 +589,7 @@ def main(args, criterion):
                 print(f'{split_name} target subset size: {target_size}')
                 
                 # Separate samples by class and permute
-                rng = np.random.RandomState(args.seed)
+                rng = np.random.RandomState(42)
                 selected_indices = []
                 
                 for class_idx in unique_classes:
