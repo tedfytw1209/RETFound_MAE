@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from skimage.transform import resize
 from tqdm import tqdm
 import os
