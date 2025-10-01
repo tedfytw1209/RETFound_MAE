@@ -76,10 +76,10 @@ class CSV_Dataset(Dataset):
             is_train_l = is_train
         is_train = is_train_l[0]
         if patient_ids is not None:
-            self.annotations = data[data[pid_key].isin(patient_ids)]
+            self.annotations = data[data[pid_key].isin(patient_ids)].reset_index(drop=True)
             self.annotations['split'] = is_train
         elif 'split' in data.columns:
-            self.annotations = data[data['split'].isin(is_train_l)]
+            self.annotations = data[data['split'].isin(is_train_l)].reset_index(drop=True)
         else:
             self.annotations = data
         print('Split: ', is_train_l,' Data len: ', self.annotations.shape[0])
