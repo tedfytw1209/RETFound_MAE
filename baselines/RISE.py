@@ -118,42 +118,67 @@ class RISEBatch(RISE):
         """
         assert x.is_cuda
         device = x.device
-        # Apply array of filters to the image
-        N = self.N
         B, C, H, W = x.size()
-        
-        dummy_out = self.model(x[:1])     # (1, CL)
+
+        # 先跑一次模型拿到類別數
+        dummy_out = self.model(x[:1])      # (1, CL)
         CL = dummy_out.size(1)
-        
-        #AMP
+
+        # AMP
         use_amp = bool(getattr(self, "use_amp", False))
         amp_ctx = (
             torch.autocast(device_type="cuda", dtype=torch.float16)
             if (device.type == "cuda" and use_amp)
             else nullcontext()
         )
-        
+
+        # sal_all 先攤平成 (B, CL, H*W) 比較好做矩陣累加
         sal_all = torch.zeros(B, CL, H * W, device=device, dtype=x.dtype)
-        
+
         with amp_ctx:
             for b in range(B):
-                xb = x[b:b+1]                             # (1, C, H, W)
+                xb = x[b:b+1]  # (1, C, H, W)
                 sal_acc = torch.zeros(CL, H * W, device=device, dtype=x.dtype)
-                for i in range(0, N, self.gpu_batch):
-                    j = min(i + self.gpu_batch, N)
-                    m = self.masks[i:j].to(device, non_blocking=True)   # (m, 1, H, W)
-                    xb_rep = xb.expand(m.size(0), -1, -1, -1)           # (m, C, H, W)
-                    masked = xb_rep * m                                 # (m, C, H, W)
-                    p = self.model(masked)                              # (m, CL)
-                    # p = p.softmax(dim=1)
-                    m_flat = m.view(m.size(0), -1)                      # (m, H*W)
-                    sal_acc += p.transpose(0, 1) @ m_flat               # (CL, H*W)
+
+                for i in range(0, self.N, self.gpu_batch):
+                    j = min(i + self.gpu_batch, self.N)
+
+                    # 取出遮罩 (m, 1, Hm, Wm) -> 搬到 device
+                    m = self.masks[i:j].to(device, non_blocking=True)  # (m, 1, Hm, Wm)
+
+                    # 1) 空間尺寸對齊到輸入 (H, W)
+                    if (m.shape[-2] != H) or (m.shape[-1] != W):
+                        # 連續權重建議 bilinear；若要嚴格 0/1，改 mode="nearest"
+                        m = F.interpolate(m, size=(H, W), mode="bilinear", align_corners=False)
+
+                    # 2) dtype 對齊（AMP 下是 fp16）
+                    if m.dtype != xb.dtype:
+                        m = m.to(dtype=xb.dtype)
+
+                    # 3) 套遮罩
+                    xb_rep = xb.expand(m.size(0), -1, -1, -1)   # (m, C, H, W)
+                    masked = xb_rep * m                         # (m, C, H, W)
+
+                    # 4) 前向
+                    p = self.model(masked)                      # (m, CL)
+                    # 若要做機率歸一化：p = p.softmax(dim=1)
+
+                    # 5) 把每個 class 的權重對應到遮罩上累加
+                    #    原式：sal_acc += p^T @ m_flat  (CL, H*W)
+                    m_flat = m.view(m.size(0), -1)              # (m, H*W)
+                    sal_acc = sal_acc + p.transpose(0, 1) @ m_flat
+
+                    # 釋放暫存張量（避免峰值顯存抖動）
                     del m, xb_rep, masked, p, m_flat
-                    torch.cuda.empty_cache()
 
                 sal_all[b] = sal_acc
-        
-        sal_all = sal_all.view(B, CL, H, W) / N / self.p1
+
+        # RISE 正規化：除以遮罩數與每個像素為 1 的邊際機率 p1
+        # 注意：若你把 mask 做了插值（尤其 bilinear 變成連續值），
+        #       最好把 self.p1 改為「實際遮罩平均值」以對齊：
+        #       eff_p1 = sal_all[b].mean(dim=1).mean() / ???（或在 __init__ 預先用 resize 後的 masks 算 mean）
+        sal_all = sal_all.view(B, CL, H, W) / self.N / self.p1
+
         return sal_all.detach().cpu().numpy()
 
 # To process in batches
