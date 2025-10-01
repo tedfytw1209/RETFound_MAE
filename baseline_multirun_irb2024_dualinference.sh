@@ -4,7 +4,6 @@ SCRIPT=$1
 MODEL="DualViT"
 FINETUNED_MODEL="DualViT_natureOCT"
 LR="5e-4"
-Num_CLASS="2"
 weight_decay="0.05"
 Eval_score="default"
 Modality="OCT" # CFP, OCT, OCT_CFP
