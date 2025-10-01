@@ -37,6 +37,19 @@ def process_dcm(dicom_root,sample_name,k=0):
     #final_image.show()
     return final_images, depth
 
+def masking_image(image, mask_slice):
+    binary_mask = np.zeros_like(image, dtype=np.uint8)
+    for i in range(mask_slice.shape[0]-1):
+        upper = mask_slice[i].astype(int)
+        lower = mask_slice[i+1].astype(int)
+        for x in range(image.shape[1]):
+            binary_mask[upper[x]:lower[x], x] = 1
+
+    # 套用 mask (把 mask=0 的地方設為 0)
+    masked_img = image.copy()
+    masked_img[binary_mask == 0] = 0
+    return masked_img
+
 def select_n_slices(k,depth):
     if k<1:
         return int(k*depth/2)
@@ -51,9 +64,11 @@ Thickness_List = ['ILM (ILM)_RNFL-GCL (RNFL-GCL)', 'RNFL-GCL (RNFL-GCL)_GCL-IPL 
                   'OPL-Henles fiber layer (OPL-HFL)_Boundary of myoid and ellipsoid of inner segments (BMEIS)', 
                   'Boundary of myoid and ellipsoid of inner segments (BMEIS)_IS/OS junction (IS/OSJ)', 'IS/OS junction (IS/OSJ)_Inner boundary of OPR (IB_OPR)', 'Inner boundary of OPR (IB_OPR)_Inner boundary of RPE (IB_RPE)', 'Inner boundary of RPE (IB_RPE)_Outer boundary of RPE (OB_RPE)'
                   ]
+Thickness_DIR = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
+Thickness_CSV = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/thickness_map.csv"
 
 class CSV_Dataset(Dataset):
-    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=None, pid_key = 'patient_id', select_layers=None,th_resize=True,th_heatmap=False, use_ducan_preprocessing=False):
+    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=None, pid_key = 'patient_id', select_layers=None,th_resize=True,th_heatmap=False, use_ducan_preprocessing=False, add_mask=False):
         #common args
         self.transfroms = transfroms
         self.root_dir = img_dir
@@ -85,6 +100,16 @@ class CSV_Dataset(Dataset):
         print('Split: ', is_train_l,' Data len: ', self.annotations.shape[0])
         self.classes = [str(c) for c in self.annotations['label'].unique()]
         self.num_class = len(self.classes)
+        #add mask, filter out samples without mask
+        self.add_mask = add_mask
+        if self.add_mask:
+            print('Add mask and filter out samples without mask')
+            print('Before mask filter: ', self.annotations.shape[0])
+            masked_df = pd.read_csv(Thickness_CSV)
+            masked_df = masked_df.rename(columns={'OCT':'folder'})
+            self.annotations = self.annotations.merge(masked_df,on='folder')
+            print('After mask filter: ', self.annotations.shape[0])
+
         #assert index order control, mci, ad
         if not class_to_idx:
             self.class_to_idx = {}
@@ -104,10 +129,14 @@ class CSV_Dataset(Dataset):
             th_col = 'Thickness Resize Name'
         else:
             th_col = 'Thickness Name'
+        
+        mask_names = None
         if modality == 'OCT' and 'OCT' in self.annotations.columns:
             image_names = self.annotations['OCT']
             print('OCT images: ', len(image_names))
             print('OCT image example: ', image_names.head())
+            if self.add_mask:
+                mask_names = self.annotations['folder'] + '/' + self.annotations['Surface Name']
         elif modality == 'CFP' or modality == 'Fundus' and 'folder' in self.annotations.columns and 'fundus_imgname' in self.annotations.columns:
             image_names = self.annotations['folder'] + '/' + self.annotations['fundus_imgname']
             print('CFP images: ', len(image_names))
@@ -121,6 +150,8 @@ class CSV_Dataset(Dataset):
             image_names = self.annotations['image']
             print('Images: ', len(image_names))
         labels = self.annotations['label']
+        if mask_names is None:
+            mask_names = ['']*len(image_names)
         #case for 2.5D
         if k>0:
             dcm_depths = self.annotations['depth']
@@ -149,7 +180,7 @@ class CSV_Dataset(Dataset):
                 self.half3D = True
         else:
             samples = []
-            for image_name, label in zip(image_names, labels):
+            for image_name, label, mask_name in zip(image_names, labels, mask_names):
                 # Handle different file extensions
                 if image_name.endswith('.jpg') or image_name.endswith('.jpeg'):
                     final_image_name = image_name
@@ -161,7 +192,7 @@ class CSV_Dataset(Dataset):
                     # Default to .jpg if no extension specified
                     final_image_name = image_name + '.jpg'
                 
-                samples.append((final_image_name, self.class_to_idx[str(label)]))
+                samples.append((final_image_name, self.class_to_idx[str(label)], mask_name))
             self.half3D = False
         self.samples = samples
         self.targets = [s[1] for s in samples]
@@ -240,10 +271,16 @@ class CSV_Dataset(Dataset):
                 else:
                     # Default preprocessing
                     preprocessed_np = image_np
-                
                 # Convert back to PIL Image for transforms
                 image = Image.fromarray(preprocessed_np)
             
+            # mask processing
+            if self.add_mask:
+                mask_path = os.path.join(Thickness_DIR,sample[2])
+                mask = np.load(mask_path) # (Layer Interface, slice_num, W)
+                slice_index = int(os.path.basename(img_name).split("_")[-1].split(".")[0])
+                mask_slice = mask[:, slice_index, :]
+                image = masking_image(image, mask_slice)
             # (H,W,C)
             image = self.transfroms(image)
             image_len = 1
@@ -279,7 +316,7 @@ def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_A
     if 'dual_input_cnn'  in args.model: #Dual model special dataset
         img_dir_oct = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
         img_dir_cfp = "/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
-        dataset_oct = CSV_Dataset(args.data_path, img_dir_oct, is_train, transform, k, modality="Thickness", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap)
+        dataset_oct = CSV_Dataset(args.data_path, img_dir_oct, is_train, transform, k, modality="Thickness", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, add_mask=args.add_mask)
         dataset_cfp = CSV_Dataset(args.data_path, img_dir_cfp, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap)
         dataset = DualCSV_Dataset(dataset_oct, dataset_cfp)
     elif 'ducan' in args.model: #DuCAN dual-modal dataset
@@ -288,7 +325,7 @@ def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_A
         dataset_fundus = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True)
         dataset = DualCSV_Dataset(dataset_fundus, dataset_oct)  # Note: fundus first, OCT second for DuCAN
     elif args.data_path.endswith('.csv'):
-        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality=modality, patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap)
+        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality=modality, patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, add_mask=args.add_mask)
     else:
         root = os.path.join(args.data_path, is_train)
         dataset = datasets.ImageFolder(root, transform=transform)

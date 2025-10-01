@@ -194,6 +194,8 @@ def get_args_parser():
                         help='Subset number for sampling dataset. If > 0, sample subset_num from train datasets with seed 42')
     parser.add_argument('--visualize_samples', action='store_true', default=False,
                         help='Visualize sample images from the dataset')
+    parser.add_argument('--add_mask', action='store_true', default=False,
+                        help='Add mask to the image based on thickness map')
 
     return parser
 
