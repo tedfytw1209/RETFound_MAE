@@ -746,7 +746,7 @@ def main(args, criterion):
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             pin_memory=args.pin_mem,
-            drop_last=True,
+            drop_last=False,
         )
 
         print(f'len of train_set: {len(data_loader_train) * args.batch_size}')
