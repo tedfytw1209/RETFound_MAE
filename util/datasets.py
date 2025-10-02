@@ -422,11 +422,11 @@ def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_A
 def build_transform(is_train, args):
     mean = IMAGENET_DEFAULT_MEAN
     std = IMAGENET_DEFAULT_STD
-    #!!TODO: debug in 'train' not the first
+
     if not isinstance(is_train, list):
         is_train = [is_train]
     # train transform
-    if 'train' in is_train:
+    if 'train' in is_train and not args.train_no_aug:
         # this should always dispatch to transforms_imagenet_train
         transform = create_transform(
             input_size=args.input_size,

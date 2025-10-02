@@ -92,6 +92,8 @@ def get_args_parser():
                         help='Gamma parameter for Focal Loss')
 
     # Augmentation parameters
+    parser.add_argument('--train_no_aug', action='store_true', default=False,
+                        help='No training augmentation (random crop/flip, color jitter, auto augment, random erase)')
     parser.add_argument('--color_jitter', type=float, default=None, metavar='PCT',
                         help='Color jitter factor (enabled only when not using Auto/RandAug)')
     parser.add_argument('--aa', type=str, default='rand-m9-mstd0.5-inc1', metavar='NAME',

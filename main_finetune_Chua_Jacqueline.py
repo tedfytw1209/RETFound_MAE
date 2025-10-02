@@ -116,6 +116,8 @@ def get_args_parser():
                         help='Gamma parameter for Focal Loss')
 
     # Augmentation parameters
+    parser.add_argument('--train_no_aug', action='store_true', default=False,
+                        help='No training augmentation (random crop/flip, color jitter, auto augment, random erase)')
     parser.add_argument('--transform', default=1, type=int,
                         help='Transform type: 1 for basic, 2 for enhanced, 3 for AD-OCT specific (retinal fundus)')
     parser.add_argument('--color_jitter', type=float, default=None, metavar='PCT',
@@ -855,13 +857,13 @@ def main(args, criterion):
 
     model, processor = get_model(args)
     print(model)
-    if args.transform == 1:
+    if args.transform == 1 and not args.train_no_aug:
         transform_train = build_transform(is_train=['train','val'], args=args)
         transform_eval = build_transform(is_train='test', args=args)
-    elif args.transform == 2:
+    elif args.transform == 2 and not args.train_no_aug:
         transform_train = build_transform2(is_train=['train','val'], args=args)
         transform_eval = build_transform2(is_train='test', args=args)
-    elif args.transform == 3:
+    elif args.transform == 3 and not args.train_no_aug:
         transform_train = build_transform3(is_train=['train','val'], args=args)
         transform_eval = build_transform3(is_train='test', args=args)
     else:
