@@ -191,8 +191,9 @@ class CSV_Dataset(Dataset):
         self.add_mask = add_mask
         if self.add_mask:
             masked_df = pd.read_csv(Thickness_CSV)
-            masked_df = masked_df.rename(columns={'OCT':'folder'})
-            self.annotations = self.annotations.merge(masked_df,on='folder').reset_index(drop=True)
+            masked_df = masked_df.rename(columns={'OCT':'folder'}).dropna(subset=['Surface Name'])
+            self.annotations = self.annotations.merge(masked_df,on='folder',how='inner').reset_index(drop=True)
+            print('After adding mask, data len: ', self.annotations.shape[0])
 
         #assert index order control, mci, ad
         if not class_to_idx:
@@ -361,7 +362,6 @@ class CSV_Dataset(Dataset):
             
             # mask processing
             if self.add_mask:
-                print('Masking image: ', img_name, ' with mask: ', sample[2])
                 mask_path = os.path.join(Thickness_DIR,sample[2])
                 mask = np.load(mask_path) # (Layer Interface, slice_num, W)
                 slice_index = int(os.path.basename(img_name).split("_")[-1].split(".")[0])
