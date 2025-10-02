@@ -14,7 +14,7 @@ ADDCMD2="--train_no_aug"
 
 NUM_K=0
 
-#bash baseline_multirun_XAI_model_train.sh DME_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
+#bash baseline_multirun_XAI_model_train.sh DME_binary_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
 MODELS=(timm_efficientnet-b4 resnet-50 vit-base-patch16-224 RETFound_mae)  # List of models
 FINETUNED_MODELS=(timm_efficientnet-b4 microsoft/resnet-50 google/vit-base-patch16-224-in21k RETFound_mae_natureOCT)  # Number of classes for each dataset
 for i in "${!MODELS[@]}"
