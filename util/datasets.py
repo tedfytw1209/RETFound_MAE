@@ -194,7 +194,7 @@ class CSV_Dataset(Dataset):
             print('Before mask filter: ', self.annotations.shape[0])
             masked_df = pd.read_csv(Thickness_CSV)
             masked_df = masked_df.rename(columns={'OCT':'folder'})
-            self.annotations = self.annotations.merge(masked_df,on='folder')
+            self.annotations = self.annotations.merge(masked_df,on='folder').reset_index(drop=True)
             print('After mask filter: ', self.annotations.shape[0])
 
         #assert index order control, mci, ad

@@ -623,6 +623,9 @@ def main(args, criterion):
                 
                 # Add targets attribute to subset for compatibility
                 subset_dataset.targets = [dataset.targets[i] for i in selected_indices]
+                dataset.annotations.to_csv(f'{split_name}_debug_after_split.csv', index=False)
+                subset_dataset.annotations = dataset.annotations.iloc[selected_indices].reset_index(drop=True)
+                subset_dataset.annotations.to_csv(f'{split_name}_debug_after_subset.csv', index=False)
                 subset_dataset.classes = dataset.classes
                 subset_dataset.class_to_idx = dataset.class_to_idx
                 
