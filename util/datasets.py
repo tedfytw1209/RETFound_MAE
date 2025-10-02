@@ -382,6 +382,7 @@ class DualCSV_Dataset(Dataset):
         self.data_cfp = data_cfp
         #TODO:Merge to csv to match to modality
         self.annotations = self.data_oct.annotations
+        self.classes = self.data_oct.classes
         self.num_class = self.data_oct.num_class
         self.class_to_idx = self.data_oct.class_to_idx
         self.channel = 3

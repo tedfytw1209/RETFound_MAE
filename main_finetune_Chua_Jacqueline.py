@@ -226,6 +226,8 @@ def get_args_parser():
                         help='Enable early stopping')
     parser.add_argument('--patience', type=int, default=10,
                         help='Early stopping patience (default: 10)')
+    parser.add_argument('--add_mask', action='store_true', default=False,
+                        help='Add mask to the image based on thickness map')
 
     return parser
 
