@@ -766,6 +766,7 @@ def evaluate_ducan(data_loader, model, device, args, epoch, mode, num_class, k, 
         'roc_auc_oct': roc_auc_oct,
         'roc_auc_multimodal': roc_auc_multi
     })
+    score = (f1_multi + roc_auc_multi) / 2  # Focus on multimodal performance
     
     # Print detailed results
     print(f"=== DuCAN {mode.upper()} Results ===")
@@ -781,8 +782,8 @@ def evaluate_ducan(data_loader, model, device, args, epoch, mode, num_class, k, 
     print("Fundus confusion matrix:\n", conf_fundus)
     print("OCT confusion matrix:\n", conf_oct)
     print("Multimodal confusion matrix:\n", conf_multi)
-    
-    return test_stats
+
+    return test_stats, score
 
 
 #evaluate for dual model
