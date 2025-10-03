@@ -214,16 +214,26 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_wr
         pred_labels.extend(output_label.detach().cpu().numpy())
         pred_softmax.extend(output_.detach().cpu().numpy())
     
-    accuracy = accuracy_score(true_labels, pred_labels)
-    hamming = hamming_loss(true_onehot, pred_onehot)
-    jaccard = jaccard_score(true_onehot, pred_onehot, average='macro')
-    average_precision = average_precision_score(true_onehot, pred_softmax, average='macro')
-    kappa = cohen_kappa_score(true_labels, pred_labels)
-    f1 = f1_score(true_onehot, pred_onehot, zero_division=0, average='macro')
-    roc_auc = roc_auc_score(true_onehot, pred_softmax, multi_class='ovr', average='macro')
-    precision = precision_score(true_onehot, pred_onehot, zero_division=0, average='macro')
-    recall = recall_score(true_onehot, pred_onehot, zero_division=0, average='macro')
-    mcc = matthews_corrcoef(true_labels, pred_labels)
+    try:
+        accuracy = accuracy_score(true_labels, pred_labels)
+        hamming = hamming_loss(true_onehot, pred_onehot)
+        jaccard = jaccard_score(true_onehot, pred_onehot, average='macro')
+        average_precision = average_precision_score(true_onehot, pred_softmax, average='macro')
+        kappa = cohen_kappa_score(true_labels, pred_labels)
+        f1 = f1_score(true_onehot, pred_onehot, zero_division=0, average='macro')
+        roc_auc = roc_auc_score(true_onehot, pred_softmax, multi_class='ovr', average='macro')
+        precision = precision_score(true_onehot, pred_onehot, zero_division=0, average='macro')
+        recall = recall_score(true_onehot, pred_onehot, zero_division=0, average='macro')
+        mcc = matthews_corrcoef(true_labels, pred_labels)
+    except Exception as e:
+        print("Error in metric calculation:", e)
+        print("true_labels:", np.array(true_labels))
+        print('true_onehot:', np.array(true_onehot))
+        print("pred_softmax:", np.array(pred_softmax))
+        print("pred_labels:", np.array(pred_labels))
+        print('pred_onehot:', np.array(pred_onehot))
+        return {k: meter.global_avg for k, meter in metric_logger.meters.items()}, 0.0
+        
     
     conf = confusion_matrix(true_labels, pred_labels)
     if eval_score == 'mcc':
