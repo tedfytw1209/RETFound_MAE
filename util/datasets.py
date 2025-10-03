@@ -50,90 +50,82 @@ def masking_image(image, mask_slice):
     masked_img[binary_mask == 0] = 0
     return masked_img
 
-def _build_binary_mask(mask_slice: np.ndarray, image_size):
-    """
-    將 (L, Wm) 的 layer 曲線轉為影像大小 (H, W) 的二值遮罩 (0/255)
-    - 自動將 mask 寬度插值到影像寬度
-    - NaN 內插
-    - 夾範圍到 [0, H-1]
-    """
-    W, H = image_size  # PIL size is (W, H)
+
+def _fill_nan_linear_1d(row: np.ndarray) -> np.ndarray:
+    row = row.astype(np.float32, copy=True)
+    nans = np.isnan(row)
+    if not nans.any():
+        return row
+    valid = ~nans
+    if not valid.any():
+        row[:] = 0.0
+        return row
+    x = np.arange(row.shape[0], dtype=np.float32)
+    row[nans] = np.interp(x[nans], x[valid], row[valid])
+    return row
+
+def _resample_width(mask_slice: np.ndarray, W: int) -> np.ndarray:
     L, Wm = mask_slice.shape
+    if Wm == W:
+        out = np.empty_like(mask_slice, dtype=np.float32)
+        for i in range(L):
+            out[i] = _fill_nan_linear_1d(mask_slice[i])
+        return out
 
-    # 寬度對齊（若不同，將 mask 曲線插值到影像寬度 W）
-    if Wm != W:
-        x_src = np.linspace(0, 1, Wm, dtype=np.float32)
-        x_dst = np.linspace(0, 1, W,  dtype=np.float32)
-        scaled = np.empty((L, W), dtype=np.float32)
-        for li in range(L):
-            row = mask_slice[li].astype(np.float32)
-            # 處理 NaN 再插值
-            nans = np.isnan(row)
-            if nans.any():
-                not_nan = ~nans
-                if not_nan.any():
-                    row[nans] = np.interp(np.flatnonzero(nans),
-                                          np.flatnonzero(not_nan),
-                                          row[not_nan])
-                else:
-                    row[:] = 0.0
-            scaled[li] = np.interp(x_dst, x_src, row)
-        mask_slice = scaled
-        Wm = W
-    else:
-        # 寬度一致也處理 NaN
-        for li in range(L):
-            row = mask_slice[li]
-            nans = np.isnan(row)
-            if nans.any():
-                not_nan = ~nans
-                if not_nan.any():
-                    mask_slice[li, nans] = np.interp(np.flatnonzero(nans),
-                                                     np.flatnonzero(not_nan),
-                                                     row[not_nan])
-                else:
-                    mask_slice[li] = 0.0
+    x_src = np.linspace(0.0, 1.0, Wm, dtype=np.float32)
+    x_dst = np.linspace(0.0, 1.0, W,  dtype=np.float32)
+    out = np.empty((L, W), dtype=np.float32)
+    for i in range(L):
+        row = _fill_nan_linear_1d(mask_slice[i])
+        out[i] = np.interp(x_dst, x_src, row.astype(np.float32))
+    return out
 
-    # 轉 int 並夾範圍
-    mask_slice = np.rint(mask_slice).astype(np.int32)
-    mask_slice = np.clip(mask_slice, 0, max(H-1, 0))
+def _build_binary_mask(mask_slice: np.ndarray, image_size):
+    try:
+        W, H = image_size
+        if mask_slice is None:
+            return None
+        mask_slice = np.asarray(mask_slice)
+        if mask_slice.ndim != 2:
+            return None
+        L, Wm = mask_slice.shape
+        if L == 0 or H <= 0 or W <= 0:
+            return None
 
-    # 建立 binary mask (0/255)
-    binary_mask = np.zeros((H, W), dtype=np.uint8)
-    for i in range(L - 1):
-        upper = mask_slice[i]
-        lower = mask_slice[i + 1]
-        # 確保 upper <= lower
-        ul = np.minimum(upper, lower)
-        ll = np.maximum(upper, lower)
-        for x in range(W):
-            if ul[x] < ll[x]:
-                binary_mask[ul[x]:ll[x], x] = 255
-            else:
-                # 如果重合，視為單像素
-                binary_mask[ul[x], x] = 255
+        mask_slice = _resample_width(mask_slice, W)  # (L, W)
+        y = np.rint(mask_slice).astype(np.int32, copy=False)
+        y = np.clip(y, 0, H - 1)
 
-    return Image.fromarray(binary_mask, mode="L")
+        binary_mask = np.zeros((H, W), dtype=np.uint8)
+        if L == 1:
+            rr = y[0]
+            binary_mask[rr, np.arange(W)] = 255
+            return Image.fromarray(binary_mask, mode="L")
+
+        rows = np.arange(H, dtype=np.int32)[:, None]   # (H,1)
+        for i in range(L - 1):
+            upper = y[i]
+            lower = y[i + 1]
+            ul = np.minimum(upper, lower)[None, :]
+            ll = np.maximum(upper, lower)[None, :]
+            band = (rows >= ul) & (rows < ll)
+            eq = (rows == ul) & (ul == ll)
+            binary_mask[band | eq] = 255
+
+        return Image.fromarray(binary_mask, mode="L")
+    except Exception as e:
+        print(f"[WARN] _build_binary_mask failed: {e}")
+        return None
 
 def masking_image_pil(image, mask_slice, fill_color=(0, 0, 0)):
-    """
-    image: PIL.Image (RGB 或 L 皆可；會轉為 RGB 以便 composite)
-    mask_slice: np.ndarray (L, Wm) 多層 layer 的 y 曲線
-    return: (masked_img, mask_img) 皆為 PIL.Image
-    """
     if not isinstance(image, Image.Image):
-        image = Image.fromarray(image)
-
-    # 你要 RGB 的結果就轉 RGB
+        image = Image.fromarray(np.asarray(image))
     image_rgb = image.convert("RGB")
 
-    # 依影像大小建立 L 模式的 binary mask
     mask_img = _build_binary_mask(mask_slice, image_rgb.size)
-
-    # 建立填充背景（遮罩外要變成的顏色）
+    if mask_img is None:
+        return image_rgb, None
     bg = Image.new("RGB", image_rgb.size, fill_color)
-
-    # composite: mask=255 → 取 image_rgb；mask=0 → 取 bg
     masked_img = Image.composite(image_rgb, bg, mask_img)
     return masked_img, mask_img
 
