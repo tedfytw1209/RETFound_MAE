@@ -7,6 +7,8 @@ import os
 import time
 from pathlib import Path
 
+from pandas import test
+
 import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
@@ -23,6 +25,7 @@ from transformers import (
 )
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 import matplotlib.pyplot as plt
+from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 
 import models_vit as models
 import models_ducan
@@ -230,6 +233,16 @@ def get_args_parser():
                         help='Early stopping patience (default: 10)')
     parser.add_argument('--add_mask', action='store_true', default=False,
                         help='Add mask to the image based on thickness map')
+    
+    # Cross-validation parameters
+    parser.add_argument('--cv_folds', type=int, default=0,
+                        help='Number of cross-validation folds (0 for no CV, typically 5)')
+    parser.add_argument('--cv_fold', type=int, default=0,
+                        help='Current fold number (0-based, e.g., 0-4 for 5-fold CV)')
+    parser.add_argument('--cv_patient_col', type=str, default='person_id',
+                        help='Column name for patient ID in CSV file for CV splitting')
+    parser.add_argument('--cv_seed', type=int, default=42,
+                        help='Random seed for CV patient splitting (default: 42)')
 
     return parser
 
@@ -333,6 +346,158 @@ def visualize_dataset_samples(dataset, args, num_samples=8, save_path=None):
         plt.show()
     
     plt.close()
+
+def create_cv_patient_splits(data_path, cv_folds, cv_seed, patient_id_col='patient_id'):
+    """
+    Create cross-validation splits based on patient IDs to ensure no data leakage.
+    
+    Args:
+        data_path: Path to CSV file
+        cv_folds: Number of CV folds
+        cv_seed: Random seed for reproducible splits
+        patient_id_col: Column name for patient ID
+        
+    Returns:
+        List of patient ID lists for each fold
+    """
+    import pandas as pd
+    
+    print(f"Creating {cv_folds}-fold cross-validation splits by patient ID...")
+    
+    # Read CSV to get patient IDs
+    df = pd.read_csv(data_path)
+    
+    if patient_id_col not in df.columns:
+        raise ValueError(f"Patient ID column '{patient_id_col}' not found in CSV. Available columns: {df.columns.tolist()}")
+    
+    # Get unique patient IDs
+    unique_patients = df[patient_id_col].unique()
+    print(f"Found {len(unique_patients)} unique patients")
+    
+    # Create stratified splits if possible (based on labels)
+    if 'label' in df.columns:
+        # Get patient-level labels (majority vote or first occurrence)
+        patient_labels = df.groupby(patient_id_col)['label'].first().values
+        unique_labels = np.unique(patient_labels)
+        print(f"Patient-level label distribution: {dict(zip(*np.unique(patient_labels, return_counts=True)))}")
+        
+        # Use stratified K-fold if we have enough samples per class
+        min_class_count = np.min(np.bincount(patient_labels))
+        if min_class_count >= cv_folds:
+            kfold = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=cv_seed)
+            splits = list(kfold.split(unique_patients, patient_labels))
+            print(f"Using stratified {cv_folds}-fold CV (balanced by patient-level labels)")
+        else:
+            print(f"Warning: Minimum class count ({min_class_count}) < folds ({cv_folds}). Using regular K-fold.")
+            kfold = KFold(n_splits=cv_folds, shuffle=True, random_state=cv_seed)
+            splits = list(kfold.split(unique_patients))
+    else:
+        # Regular K-fold without stratification
+        kfold = KFold(n_splits=cv_folds, shuffle=True, random_state=cv_seed)
+        splits = list(kfold.split(unique_patients))
+        print(f"Using regular {cv_folds}-fold CV (no label stratification)")
+    
+    # Convert indices to patient ID lists
+    cv_patient_splits = []
+    for fold_idx, (train_idx, test_idx) in enumerate(splits):
+        train_idx, val_idx = train_test_split(train_idx, test_size=0.125, random_state=cv_seed)
+        train_patients = unique_patients[train_idx].tolist()
+        val_patients = unique_patients[val_idx].tolist()
+        test_patients = unique_patients[test_idx].tolist()
+        cv_patient_splits.append({
+            'train': train_patients,
+            'val': val_patients,
+            'test': test_patients,
+            'fold': fold_idx
+        })
+        print(f"Fold {fold_idx}: {len(train_patients)} train patients, {len(val_patients)} val patients, {len(test_patients)} test patients")
+    
+    return cv_patient_splits
+
+def get_cv_datasets(args, transform_train, transform_eval, Select_Layer):
+    """
+    Create datasets for cross-validation based on patient ID splits.
+    
+    Args:
+        args: Arguments containing CV parameters
+        transform_train: Training transforms
+        transform_eval: Evaluation transforms
+        Select_Layer: Layer selection for thickness data
+        
+    Returns:
+        Tuple of (dataset_train, dataset_val, dataset_test)
+    """
+    if args.cv_folds <= 1:
+        raise ValueError("CV folds must be > 1 for cross-validation")
+    
+    if args.cv_fold >= args.cv_folds:
+        raise ValueError(f"CV fold ({args.cv_fold}) must be < CV folds ({args.cv_folds})")
+    
+    # Create patient splits
+    cv_splits = create_cv_patient_splits(
+        args.data_path, 
+        args.cv_folds, 
+        args.cv_seed, 
+        args.cv_patient_col
+    )
+    
+    current_split = cv_splits[args.cv_fold]
+    train_patients = current_split['train']
+    val_patients = current_split['val']
+    test_patients = current_split['test']
+    
+    print(f"\n=== Cross-Validation Fold {args.cv_fold + 1}/{args.cv_folds} ===")
+    print(f"Training patients: {len(train_patients)}")
+    print(f"Validation patients: {len(val_patients)}")
+    print(f"Test patients: {len(test_patients)}")
+    
+    # Create datasets with patient ID filtering
+    dataset_train = build_dataset(
+        is_train='train', 
+        args=args, 
+        k=args.num_k,
+        img_dir=args.img_dir,
+        modality=args.modality,
+        transform=transform_train, 
+        select_layers=Select_Layer, 
+        th_resize=True, 
+        th_heatmap=True,
+        patient_ids=train_patients,
+        pid_key=args.cv_patient_col
+    )
+    
+    dataset_val = build_dataset(
+        is_train='val', 
+        args=args, 
+        k=args.num_k,
+        img_dir=args.img_dir,
+        modality=args.modality,
+        transform=transform_eval, 
+        select_layers=Select_Layer, 
+        th_resize=True, 
+        th_heatmap=True,
+        patient_ids=val_patients,
+        pid_key=args.cv_patient_col
+    )
+    
+    # For test set, use all available test data
+    dataset_test = build_dataset(
+        is_train='test', 
+        args=args, 
+        k=args.num_k,
+        img_dir=args.img_dir,
+        modality=args.modality,
+        transform=transform_eval, 
+        select_layers=Select_Layer, 
+        th_resize=True, 
+        th_heatmap=True,
+        patient_ids=test_patients,
+        pid_key=args.cv_patient_col
+    )
+
+    print(f"Final dataset sizes - Train: {len(dataset_train)}, Val: {len(dataset_val)}, Test: {len(dataset_test)}")
+    
+    return dataset_train, dataset_val, dataset_test
 
 class CustomResNet18Paper(torch.nn.Module):
     """
@@ -871,15 +1036,28 @@ def main(args, criterion):
     
     #dataset selection
     Select_Layer = ['RNFL-GCL (RNFL-GCL)_GCL-IPL (GCL-IPL)', 'GCL-IPL (GCL-IPL)_IPL-INL (IPL-INL)']
-    if args.testval:
-        print('Using test set for validation')
-        dataset_train = build_dataset(is_train=['train','val'], args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_train, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
-        dataset_val = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+    
+    # Check if cross-validation is enabled
+    if args.cv_folds > 1:
+        print(f"Using {args.cv_folds}-fold cross-validation (fold {args.cv_fold + 1}/{args.cv_folds})")
+        dataset_train, dataset_val, dataset_test = get_cv_datasets(args, transform_train, transform_eval, Select_Layer)
+        
+        # Update task name to include CV fold information
+        original_task = args.task
+        args.task = f"{original_task}_cv{args.cv_folds}fold{args.cv_fold}"
+        print(f"Updated task name for CV: {args.task}")
+        
     else:
-        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_train, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
-        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+        # Standard train/val/test split
+        if args.testval:
+            print('Using test set for validation')
+            dataset_train = build_dataset(is_train=['train','val'], args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_train, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+            dataset_val = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+            dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+        else:
+            dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_train, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+            dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+            dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
 
     # Apply subset sampling if subset_ratio > 0
     if args.subset_ratio > 0:
