@@ -58,7 +58,7 @@ MULTIMODAL_LOSS_WEIGHT=$MULTIMODAL_WEIGHT
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
-#sbatch finetune_Hebei_mci_detection.sh ad_mci_control_detect_data
+#sbatch finetune_Hebei_admci_detection.sh ad_mci_control_detect_data ducan 0.7 0.7 1.0 3e-4 1e-2 3 --use_img_per_patient
 torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
     --savemodel \
     --global_pool \
