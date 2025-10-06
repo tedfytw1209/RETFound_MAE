@@ -234,6 +234,9 @@ def get_args_parser():
     parser.add_argument('--add_mask', action='store_true', default=False,
                         help='Add mask to the image based on thickness map')
     
+    # Image per Patient settings
+    parser.add_argument('--use_img_per_patient', action='store_true', default=False,
+                        help='Whether to use image per patient sampling')
     # Cross-validation parameters
     parser.add_argument('--cv_folds', type=int, default=0,
                         help='Number of cross-validation folds (0 for no CV, typically 5)')
