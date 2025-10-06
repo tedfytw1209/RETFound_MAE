@@ -31,6 +31,7 @@ LR=${6:-"3e-4"}               # Initial learning rate: 0.0003 as specified in pa
 WD=${7:-"1e-2"}               # Weight decay: 0.01 as specified in paper (initial decay factor)
 EPOCHS="400"                   # Number of training epochs: 400 as specified in paper
 Num_CLASS=${8:-"3"}           # Number of classes (AD, MCI, CN)
+ADDCMD=${9:-""} # Additional command line arguments
 SUBSET_RATIO=1.3        # Subset ratio for dataset sampling
 Eval_score="accuracy"         # Evaluation metric
 Modality="dual"               # Dual modality (fundus + OCT)
@@ -93,5 +94,6 @@ torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacque
     --use_ducan_preprocessing \
     --warmup_epochs 10 \
     --min_lr 1e-6 \
-    --clip_grad 1.0
+    --clip_grad 1.0 \
+    $ADDCMD
 

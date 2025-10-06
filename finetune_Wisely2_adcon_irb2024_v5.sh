@@ -33,6 +33,7 @@ IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 Scheduler_step=10
 Scheduler_gamma=0.5
 Quantitative_Features=${9:-"10"} # Number of quantitative features
+ADDCMD=${10:-""} # Additional command line arguments
 
 data_type="IRB2024v5_Wisely_ADCON_DL_data"
 
@@ -51,7 +52,7 @@ echo $Num_CLASS
 # - Youden index optimization for thresholding
 
 # Usage examples:
-# sbatch finetune_Wisely2_adcon_irb2024_v5.sh mci_control_detect_data dual_input_cnn images_only 0.01 1e-4 0.01 2 1.3 10
+# sbatch finetune_Wisely2_adcon_irb2024_v5.sh mci_control_detect_data dual_input_cnn images_only 0.01 1e-4 0.01 2 1.3 10 --use_img_per_patient
 torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
     --savemodel \
     --global_pool \
@@ -81,4 +82,5 @@ torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacque
     --subset_ratio $SUBSET_RATIO \
     --l1_reg $Regularization \
     --l2_reg $Regularization \
-    --transform 2
+    --transform 2 \
+    $ADDCMD

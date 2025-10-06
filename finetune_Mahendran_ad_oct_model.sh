@@ -30,6 +30,7 @@ LR=${6:-"7e-5"}              # Learning rate: 7e-5 as specified in paper
 WD=${7:-"1e-2"}              # Weight decay: 1e-2 as specified in paper
 EPOCHS="100"                  # Number of training epochs
 Num_CLASS=${8:-"2"}          # Number of classes (AD vs Control)
+ADDCMD=${9:-""} # Additional command line arguments
 Eval_score="roc_auc"         # Evaluation metric
 Modality="OCT"               # Modality type
 OPTIMIZER="adabelief"        # AdaBelief optimizer as specified in paper
@@ -53,7 +54,7 @@ if [ "$INCLUDE_LOCALIZATION" = "true" ]; then
 fi
 
 # Usage examples:
-# sbatch finetune_Mahendran_ad_oct_model.sh ad_control_detect_data
+# sbatch finetune_Mahendran_ad_oct_model.sh ad_control_detect_data ad_oct_model 256 3 false 7e-5 1e-2 2 --use_img_per_patient
 
 torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
     --savemodel \
@@ -88,4 +89,5 @@ torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacque
     --focal_gamma 2.0 \
     --early_stopping \
     --patience 15 \
-    --visualize_samples
+    --visualize_samples \
+    $ADDCMD
