@@ -361,9 +361,9 @@ def create_cv_patient_splits(data_path, cv_folds, cv_seed, patient_id_col='patie
         List of patient ID lists for each fold
     """
     import pandas as pd
-    
-    print(f"Creating {cv_folds}-fold cross-validation splits by patient ID...")
-    
+
+    print(f"Creating {cv_folds}-fold cross-validation splits by {patient_id_col}:")
+    print(f"Data path: {data_path}")
     # Read CSV to get patient IDs
     df = pd.read_csv(data_path)
     
