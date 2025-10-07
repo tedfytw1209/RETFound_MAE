@@ -34,6 +34,7 @@ Scheduler_step=10
 Scheduler_gamma=0.5
 Quantitative_Features=${9:-"10"} # Number of quantitative features
 ADDCMD=${10:-""} # Additional command line arguments
+Relative="Wisely2"
 
 data_type="IRB2024v5_Wisely_ADCON_DL_data"
 
@@ -66,7 +67,7 @@ torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacque
     --weight_decay $wd \
     --nb_classes $Num_CLASS \
     --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv \
-    --task $STUDY-${data_type}-${MODEL}-${INPUT_MODE}-${Modality}-${Eval_score}eval-subset${SUBSET_RATIO} \
+    --task $STUDY-${data_type}-${Relative}-$MODEL-${INPUT_MODE}-${Modality}-${Eval_score}eval-subset${SUBSET_RATIO} \
     --eval_score $Eval_score \
     --modality $Modality \
     --img_dir $IMG_Path \

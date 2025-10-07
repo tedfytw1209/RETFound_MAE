@@ -24,6 +24,7 @@ MODEL=${2:-"ducan"}
 FUNDUS_WEIGHT=${3:-"0.7"}      # α weight for fundus loss (paper specifies 0.7)
 OCT_WEIGHT=${4:-"0.7"}         # β weight for OCT loss (paper specifies 0.7)
 MULTIMODAL_WEIGHT=${5:-"1.0"}  # Weight for fusion loss (normalized to 1.0)
+Relative="Hebei"
 
 # Training hyperparameters based on research paper specifications
 BS=8                           # Batch size: 8 as specified in paper
@@ -70,7 +71,7 @@ torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacque
     --weight_decay $WD \
     --nb_classes $Num_CLASS \
     --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv \
-    --task $STUDY-${data_type}-${MODEL}-fundus${FUNDUS_WEIGHT}-oct${OCT_WEIGHT}-multi${MULTIMODAL_WEIGHT}-${Eval_score}eval-subset${SUBSET_RATIO} \
+    --task $STUDY-${data_type}-${Relative}-$MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}wd${WD}-${Eval_score}eval-subset${SUBSET_RATIO} \
     --eval_score $Eval_score \
     --modality $Modality \
     --img_dir $IMG_Path \

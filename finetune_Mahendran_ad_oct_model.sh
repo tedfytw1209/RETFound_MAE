@@ -36,6 +36,7 @@ Modality="OCT"               # Modality type
 OPTIMIZER="adabelief"        # AdaBelief optimizer as specified in paper
 TRANSFORM="3"                # AD-OCT specific data augmentation
 SUBSET_RATIO=1
+Relative="Mahendran"
 
 # Data paths
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
@@ -70,7 +71,7 @@ torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacque
     --weight_decay $WD \
     --nb_classes $Num_CLASS \
     --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv \
-    --task $STUDY-${data_type}-${MODEL}-feat${FEATURE_CHANNELS}-grp${NUM_GROUPS}-${Modality}-${Eval_score}eval-subset${SUBSET_RATIO} \
+    --task $STUDY-${data_type}-${Relative}-$MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}wd${WD}-${Eval_score}eval-subset${SUBSET_RATIO} \
     --eval_score $Eval_score \
     --modality $Modality \
     --img_dir $IMG_Path \
