@@ -9,7 +9,7 @@ input_root  = Path("/orange/ruogu.fang/tienyuchang/OCTID")
 output_root = Path("/orange/ruogu.fang/tienyuchang/OCTID_tri")
 output_root.mkdir(parents=True, exist_ok=True)
 
-IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
+IMG_EXTS = {".jpeg"}
 COPY_TIMES = 3
 MAX_WORKERS = min(32, (os.cpu_count() or 8) * 2)  # I/O-bound：多一點 thread
 
