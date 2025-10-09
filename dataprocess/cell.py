@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 
-CellData_path = 'CellData/OCT'
+CellData_path = '/orange/ruogu.fang/tienyuchang/CellData/OCT'
 
 CNV_train = os.listdir(os.path.join(CellData_path, 'train/CNV'))
 CNV_train.sort()
