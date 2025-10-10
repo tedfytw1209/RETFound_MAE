@@ -1,4 +1,19 @@
-#! /bin/bash
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=4gb
+#SBATCH --partition=hpg-turin
+#SBATCH --gpus=1
+#SBATCH --time=48:00:00
+#SBATCH --output=%x.%j.out
+#SBATCH --account=ruogu.fang
+#SBATCH --qos=ruogu.fang
+
+date;hostname;pwd
+
+module load conda
+conda activate retfound_new
 
 SCRIPT=$1
 MODEL="DualViT"
@@ -22,8 +37,8 @@ do
     NUM_CLASS="${CLASSES[$i]}"
     #/orange/ruogu.fang/tienyuchang/RETfound_results/AMD_all_split-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth
     # sbatch infernce_retfound_UFirb2024v5_dualvit.sh AMD_all_split output_dir/AMD_all_split-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500/checkpoint-best.pth output_dir/AMD_all_split-IRB2024_v5-all-RETFound_mae_natureCFP-CFP-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth
-    echo "sbatch $SCRIPT $DATASET $MODEL_DIR/$DATASET-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500/checkpoint-best.pth $MODEL_DIR/$DATASET-IRB2024_v5-all-RETFound_mae_natureCFP-CFP-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM"
+    echo "sbatch $SCRIPT $DATASET $MODEL_DIR/$DATASET-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth $MODEL_DIR/$DATASET-IRB2024_v5-all-RETFound_mae_natureCFP-CFP-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM"
 
-    sbatch $SCRIPT $DATASET $MODEL_DIR/$DATASET-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth $MODEL_DIR/$DATASET-IRB2024_v5-all-RETFound_mae_natureCFP-CFP-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM
+    bash $SCRIPT $DATASET $MODEL_DIR/$DATASET-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth $MODEL_DIR/$DATASET-IRB2024_v5-all-RETFound_mae_natureCFP-CFP-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM
 
 done
