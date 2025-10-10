@@ -8,6 +8,7 @@ weight_decay="0.05"
 Eval_score="default"
 Modality="OCT" # CFP, OCT, OCT_CFP
 SUBSETNUM="500" # 0, 500, 1000
+MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
 
 NUM_K=0
 
@@ -19,9 +20,10 @@ do
     # Create a job name based on the variables
     DATASET="${DATASETS[$i]}"
     NUM_CLASS="${CLASSES[$i]}"
+    #/orange/ruogu.fang/tienyuchang/RETfound_results/AMD_all_split-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth
     # sbatch infernce_retfound_UFirb2024v5_dualvit.sh AMD_all_split output_dir/AMD_all_split-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500/checkpoint-best.pth output_dir/AMD_all_split-IRB2024_v5-all-RETFound_mae_natureCFP-CFP-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth
-    echo "sbatch $SCRIPT $DATASET output_dir/$DATASET-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500/checkpoint-best.pth output_dir/$DATASET-IRB2024_v5-all-RETFound_mae_natureCFP-CFP-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM"
+    echo "sbatch $SCRIPT $DATASET $MODEL_DIR/$DATASET-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500/checkpoint-best.pth $MODEL_DIR/$DATASET-IRB2024_v5-all-RETFound_mae_natureCFP-CFP-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM"
 
-    #sbatch $SCRIPT $DATASET output_dir/$DATASET-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth output_dir/$DATASET-IRB2024_v5-all-RETFound_mae_natureCFP-CFP-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM
-    
+    sbatch $SCRIPT $DATASET $MODEL_DIR/$DATASET-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth $MODEL_DIR/$DATASET-IRB2024_v5-all-RETFound_mae_natureCFP-CFP-bs16ep50lr5e-4optadamw-roc_auceval-trsub500--/checkpoint-best.pth $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM
+
 done
