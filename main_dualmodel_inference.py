@@ -173,6 +173,8 @@ def get_args_parser():
                         help='Fixing the backbone parameters')
     parser.add_argument('--num_k', default=0, type=float)
     parser.add_argument('--img_dir', default='/orange/bianjiang/tienyu/OCT_AD/all_images/', type=str)
+    parser.add_argument('--select_layer_idx', default=-1, type=int, help='number of layers to select for training')
+    parser.add_argument('--th_heatmap', action='store_true', default=False, help='Transform thickness map to heatmap')
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -181,6 +183,10 @@ def get_args_parser():
     parser.add_argument('--dist_on_itp', action='store_true')
     parser.add_argument('--dist_url', default='env://',
                         help='url used to set up distributed training')
+    
+    # Image per Patient settings
+    parser.add_argument('--use_img_per_patient', action='store_true', default=False,
+                        help='Whether to use image per patient sampling')
 
     # fine-tuning parameters
     parser.add_argument('--savemodel', action='store_true', default=True,
@@ -192,6 +198,10 @@ def get_args_parser():
                         help='Subset ratio for sampling dataset. If > 0, sample subset_ratio * minor_class_numbers from train/val/test datasets with seed 42')
     parser.add_argument('--new_subset_num', default=0, type=int,
                         help='New subset number for sampling dataset. If > 0, sample new_subset_num samples from train/val/test datasets with seed 42')
+    parser.add_argument('--visualize_samples', action='store_true', default=False,
+                        help='Visualize sample images from the dataset')
+    parser.add_argument('--add_mask', action='store_true', default=False,
+                        help='Add mask to the image based on thickness map')
 
     return parser
 
