@@ -190,6 +190,8 @@ def get_args_parser():
     parser.add_argument('--datasets_seed', default=2026, type=int)
     parser.add_argument('--subset_ratio', default=0, type=float,
                         help='Subset ratio for sampling dataset. If > 0, sample subset_ratio * minor_class_numbers from train/val/test datasets with seed 42')
+    parser.add_argument('--new_subset_num', default=0, type=int,
+                        help='New subset number for sampling dataset. If > 0, sample new_subset_num samples from train/val/test datasets with seed 42')
 
     return parser
 
