@@ -394,6 +394,11 @@ class DualCSV_Dataset(Dataset):
 def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, modality='OCT', patient_ids=None, pid_key='patient_id', select_layers=None,th_resize=True,th_heatmap=False):
     if transform is None:
         transform = build_transform(is_train, args)
+    #subgroup patient ids or not
+    if hasattr(args, 'subgroup_path') and args.subgroup_path != '' and os.path.exists(args.subgroup_path):
+        print('Using subgroup patient ids from: ', args.subgroup_path)
+        subgroup_df = pd.read_csv(args.subgroup_path)
+        patient_ids = subgroup_df['patient_id'].values.tolist()
     
     if 'dual_input_cnn'  in args.model: #Dual model special dataset
         img_dir_oct = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
