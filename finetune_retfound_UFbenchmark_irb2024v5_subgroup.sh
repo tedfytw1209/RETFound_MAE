@@ -31,7 +31,6 @@ ADDCMD2=${11:-""}
 NUM_K=0
 data_type="IRB2024_v5"
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
-SUBGROUP_PATH="/orange/ruogu.fang/tienyuchang/OCT_EDA/Subgroup_Ana/subgroup_oct/age_group/ge75.csv" # path to the subgroup csv file
 SUBGROUP_NAME='age_group/ge75'
 Epochs=50
 OPTIMIZER="adamw" # "adamw" or "sgd"
@@ -44,4 +43,4 @@ echo $Num_CLASS
 
 # Modify the path to your singularity container 
 # sbatch finetune_retfound_UFbenchmark_irb2024v5_subgroup.sh Glaucoma_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 6 0.05 default OCT
-torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune.py --savemodel --global_pool --batch_size $BATCH_SIZE --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --optimizer $OPTIMIZER --layer_decay 0.65 --weight_decay $weight_decay --drop_path 0.2 --nb_classes $Num_CLASS --data_path /orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/${data_type}/split/tune5-eval5/${STUDY}.csv --task $STUDY-${SUBGROUP_NAME}-${data_type}-all-$FINETUNED_MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}opt${OPTIMIZER}-${Eval_score}eval-trsub${SUBSETNUM}-$ADDCMD-$ADDCMD2/ --img_dir $IMG_Path --log_dir /orange/ruogu.fang/tienyuchang/RETfound_results --output_dir /orange/ruogu.fang/tienyuchang/RETfound_results --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k $NUM_K --eval_score $Eval_score --modality $Modality --visualize_samples --new_subset_num $SUBSETNUM --subgroup_path "/orange/ruogu.fang/tienyuchang/OCT_EDA/Subgroup_Ana/subgroup_oct/$SUBGROUP_NAME.csv" $ADDCMD $ADDCMD2
+torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune.py --savemodel --global_pool --batch_size $BATCH_SIZE --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --optimizer $OPTIMIZER --layer_decay 0.65 --weight_decay $weight_decay --drop_path 0.2 --nb_classes $Num_CLASS --data_path /orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/${data_type}/split/tune5-eval5/${STUDY}.csv --task $STUDY-${SUBGROUP_NAME}-${data_type}-all-$FINETUNED_MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}opt${OPTIMIZER}-${Eval_score}eval-trsub${SUBSETNUM}-$ADDCMD-$ADDCMD2/ --img_dir $IMG_Path --log_dir /orange/ruogu.fang/tienyuchang/RETfound_results --output_dir /orange/ruogu.fang/tienyuchang/RETfound_results --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k $NUM_K --eval_score $Eval_score --modality $Modality --visualize_samples --new_subset_num $SUBSETNUM --subgroup_path "/blue/ruogu.fang/tienyuchang/OCT_EDA/Subgroup_Ana/subgroup_oct/$SUBGROUP_NAME.csv" $ADDCMD $ADDCMD2
