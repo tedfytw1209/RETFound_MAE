@@ -147,7 +147,7 @@ Thickness_DIR = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 Thickness_CSV = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/thickness_map.csv"
 
 class CSV_Dataset(Dataset):
-    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=None, pid_key = 'patient_id', select_layers=None,th_resize=True,th_heatmap=False, use_ducan_preprocessing=False, add_mask=False, use_img_per_patient=False, CV=False):
+    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=[], pid_key = 'patient_id', select_layers=None,th_resize=True,th_heatmap=False, use_ducan_preprocessing=False, add_mask=False, use_img_per_patient=False, CV=False):
         #common args
         self.transfroms = transfroms
         self.root_dir = img_dir
@@ -169,7 +169,7 @@ class CSV_Dataset(Dataset):
         else:
             is_train_l = is_train
         is_train = is_train_l[0]
-        if CV and patient_ids is not None: #for cross-validation with patient ids
+        if CV and patient_ids: #for cross-validation with patient ids
             self.annotations = data[data[pid_key].isin(patient_ids)].reset_index(drop=True)
             self.annotations['split'] = is_train
         elif 'split' in data.columns:
@@ -177,7 +177,7 @@ class CSV_Dataset(Dataset):
         else:
             self.annotations = data
         #for subgroup analysis
-        if patient_ids is not None:
+        if patient_ids:
             self.annotations = self.annotations[self.annotations[pid_key].isin(patient_ids)].reset_index(drop=True)
             print('After filtering with patient ids, data len: ', self.annotations.shape[0])
         print('Split: ', is_train_l,' Data len: ', self.annotations.shape[0])
