@@ -466,7 +466,7 @@ def get_cv_datasets(args, transform_train, transform_eval, Select_Layer):
         th_resize=True, 
         th_heatmap=True,
         patient_ids=train_patients,
-        pid_key=args.cv_patient_col
+        pid_key=args.cv_patient_col, CV=True
     )
     
     dataset_val = build_dataset(
@@ -480,7 +480,7 @@ def get_cv_datasets(args, transform_train, transform_eval, Select_Layer):
         th_resize=True, 
         th_heatmap=True,
         patient_ids=val_patients,
-        pid_key=args.cv_patient_col
+        pid_key=args.cv_patient_col, CV=True
     )
     
     # For test set, use all available test data
@@ -495,7 +495,7 @@ def get_cv_datasets(args, transform_train, transform_eval, Select_Layer):
         th_resize=True, 
         th_heatmap=True,
         patient_ids=test_patients,
-        pid_key=args.cv_patient_col
+        pid_key=args.cv_patient_col, CV=True
     )
 
     print(f"Final dataset sizes - Train: {len(dataset_train)}, Val: {len(dataset_val)}, Test: {len(dataset_test)}")

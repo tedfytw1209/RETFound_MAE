@@ -147,7 +147,7 @@ Thickness_DIR = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 Thickness_CSV = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/thickness_map.csv"
 
 class CSV_Dataset(Dataset):
-    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=None, pid_key = 'patient_id', select_layers=None,th_resize=True,th_heatmap=False, use_ducan_preprocessing=False, add_mask=False, use_img_per_patient=False):
+    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=None, pid_key = 'patient_id', select_layers=None,th_resize=True,th_heatmap=False, use_ducan_preprocessing=False, add_mask=False, use_img_per_patient=False, CV=False):
         #common args
         self.transfroms = transfroms
         self.root_dir = img_dir
@@ -169,13 +169,17 @@ class CSV_Dataset(Dataset):
         else:
             is_train_l = is_train
         is_train = is_train_l[0]
-        if patient_ids is not None:
+        if CV and patient_ids is not None: #for cross-validation with patient ids
             self.annotations = data[data[pid_key].isin(patient_ids)].reset_index(drop=True)
             self.annotations['split'] = is_train
         elif 'split' in data.columns:
             self.annotations = data[data['split'].isin(is_train_l)].reset_index(drop=True)
         else:
             self.annotations = data
+        #for subgroup analysis
+        if patient_ids is not None:
+            self.annotations = self.annotations[self.annotations[pid_key].isin(patient_ids)].reset_index(drop=True)
+            print('After filtering with patient ids, data len: ', self.annotations.shape[0])
         print('Split: ', is_train_l,' Data len: ', self.annotations.shape[0])
         if use_img_per_patient and pid_key in self.annotations.columns:
             self.annotations = self.annotations.drop_duplicates(subset=[pid_key,'eye']).reset_index(drop=True)
@@ -391,7 +395,7 @@ class DualCSV_Dataset(Dataset):
         assert label_oct == label_cfp, "The label of OCT and CFP must be the same"
         return sample_oct, sample_cfp, label_oct
 
-def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, modality='OCT', patient_ids=None, pid_key='patient_id', select_layers=None,th_resize=True,th_heatmap=False):
+def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, modality='OCT', patient_ids=None, pid_key='patient_id', select_layers=None,th_resize=True,th_heatmap=False, CV=False):
     if transform is None:
         transform = build_transform(is_train, args)
     #subgroup patient ids or not
@@ -403,16 +407,16 @@ def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_A
     if 'dual_input_cnn'  in args.model: #Dual model special dataset
         img_dir_oct = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
         img_dir_cfp = "/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
-        dataset_oct = CSV_Dataset(args.data_path, img_dir_oct, is_train, transform, k, modality="Thickness", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_img_per_patient=args.use_img_per_patient)
-        dataset_cfp = CSV_Dataset(args.data_path, img_dir_cfp, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_img_per_patient=args.use_img_per_patient)
+        dataset_oct = CSV_Dataset(args.data_path, img_dir_oct, is_train, transform, k, modality="Thickness", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_img_per_patient=args.use_img_per_patient, CV=CV)
+        dataset_cfp = CSV_Dataset(args.data_path, img_dir_cfp, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_img_per_patient=args.use_img_per_patient, CV=CV)
         dataset = DualCSV_Dataset(dataset_oct, dataset_cfp)
     elif 'ducan' in args.model: #DuCAN dual-modal dataset
         # DuCAN requires both fundus and OCT images with specialized preprocessing
-        dataset_oct = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality="OCT", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True,add_mask=args.add_mask, use_img_per_patient=args.use_img_per_patient)
-        dataset_fundus = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True, use_img_per_patient=args.use_img_per_patient)
+        dataset_oct = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality="OCT", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True,add_mask=args.add_mask, use_img_per_patient=args.use_img_per_patient, CV=CV)
+        dataset_fundus = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True, use_img_per_patient=args.use_img_per_patient, CV=CV)
         dataset = DualCSV_Dataset(dataset_fundus, dataset_oct)  # Note: fundus first, OCT second for DuCAN
     elif args.data_path.endswith('.csv'):
-        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality=modality, patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, add_mask=args.add_mask, use_img_per_patient=args.use_img_per_patient)
+        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality=modality, patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, add_mask=args.add_mask, use_img_per_patient=args.use_img_per_patient, CV=CV)
     else:
         root = os.path.join(args.data_path, is_train)
         dataset = datasets.ImageFolder(root, transform=transform)
