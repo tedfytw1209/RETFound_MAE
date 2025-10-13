@@ -55,7 +55,7 @@ echo $Num_CLASS
 # - Youden index optimization for thresholding
 
 # Usage examples:
-# sbatch finetune_Wisely2_adcon_irb2024_v5.sh mci_control_detect_data dual_input_cnn images_only 0.01 1e-4 0.01 2 1.3 10 --use_img_per_patient
+# sbatch finetune_Wisely2_adcon_irb2024_v5_cv.sh mci_control_detect_data dual_input_cnn images_only 0.01 1e-4 0.01 2 1.3 10 --use_img_per_patient
 for fold in ${FOLDS[@]}; do
     torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
         --savemodel \
