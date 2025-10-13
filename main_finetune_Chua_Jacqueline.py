@@ -246,6 +246,44 @@ def get_args_parser():
                         help='Column name for patient ID in CSV file for CV splitting')
     parser.add_argument('--cv_seed', type=int, default=42,
                         help='Random seed for CV patient splitting (default: 42)')
+    
+    # Uncertainty quantification parameters
+    parser.add_argument('--enable_uncertainty', action='store_true', default=False,
+                        help='Enable uncertainty quantification analysis during evaluation')
+    parser.add_argument('--uncertainty_methods', nargs='+', 
+                        default=['reject_option', 'conformal_prediction', 'calibration'],
+                        choices=['reject_option', 'conformal_prediction', 'calibration', 'all'],
+                        help='Uncertainty quantification methods to use')
+    parser.add_argument('--roc_strategy', type=str, default='accuracy_coverage',
+                        choices=['accuracy_coverage', 'target_coverage', 'max_accuracy'],
+                        help='Strategy for reject option classification threshold selection')
+    parser.add_argument('--conformal_alpha', type=float, default=0.1,
+                        help='Miscoverage level for conformal prediction (1-alpha is target coverage)')
+    parser.add_argument('--calibration_bins', type=int, default=10,
+                        help='Number of bins for calibration assessment')
+    parser.add_argument('--cal_split_ratio', type=float, default=0.5,
+                        help='Ratio of test set to use for calibration (rest for final evaluation)')
+    
+    # Fairness analysis parameters
+    parser.add_argument('--enable_fairness', action='store_true', default=False,
+                        help='Enable fairness analysis during evaluation')
+    parser.add_argument('--fairness_attributes', nargs='+', 
+                        default=['gender', 'age_group'],
+                        help='Sensitive attributes for fairness analysis')
+    parser.add_argument('--group_labels_file', type=str, default=None,
+                        help='Path to CSV file with sensitive group labels')
+    parser.add_argument('--fairness_metrics', nargs='+',
+                        default=['demographic_parity', 'equalized_odds', 'calibration_fairness'],
+                        choices=['demographic_parity', 'equalized_odds', 'calibration_fairness', 'intersectional', 'all'],
+                        help='Fairness metrics to compute')
+    
+    # Reporting and visualization parameters
+    parser.add_argument('--save_uncertainty_plots', action='store_true', default=True,
+                        help='Save uncertainty analysis plots')
+    parser.add_argument('--save_fairness_plots', action='store_true', default=True,
+                        help='Save fairness analysis plots')
+    parser.add_argument('--export_detailed_results', action='store_true', default=True,
+                        help='Export detailed results to CSV/JSON files')
 
     return parser
 
@@ -1346,8 +1384,19 @@ def main(args, criterion):
     if args.eval:
         if 'epoch' in checkpoint:
             print("Test with the best model at epoch = %d" % checkpoint['epoch'])
-        test_stats, auc_roc = evaluate(data_loader_test, model, device, args, epoch=0, mode='test',
-                                       num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+        
+        # Use enhanced evaluation with uncertainty and fairness if enabled
+        if (hasattr(args, 'enable_uncertainty') and args.enable_uncertainty) or \
+           (hasattr(args, 'enable_fairness') and args.enable_fairness):
+            from util.enhanced_evaluation import evaluate_with_uncertainty_fairness
+            test_stats, auc_roc = evaluate_with_uncertainty_fairness(
+                data_loader_test, model, device, args, epoch=0, mode='test',
+                num_class=args.nb_classes, k=args.num_k, log_writer=log_writer, eval_score=args.eval_score
+            )
+        else:
+            test_stats, auc_roc = evaluate(data_loader_test, model, device, args, epoch=0, mode='test',
+                                           num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+        
         wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
         wandb.log(wandb_dict)
         wandb.finish()
@@ -1474,14 +1523,34 @@ def main(args, criterion):
     model_without_ddp.load_state_dict(state_dict_best['model'])
     print("Test with the best model, epoch = %d:" % state_dict_best['epoch'])
     if 'dual_input_cnn'  in args.model:
-        test_stats,test_score = evaluate_dualv2(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+        if (hasattr(args, 'enable_uncertainty') and args.enable_uncertainty) or \
+           (hasattr(args, 'enable_fairness') and args.enable_fairness):
+            from util.enhanced_evaluation import evaluate_dualv2_with_uncertainty_fairness
+            test_stats,test_score = evaluate_dualv2_with_uncertainty_fairness(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+        else:
+            test_stats,test_score = evaluate_dualv2(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
     elif 'ducan' in args.model:
-        from engine_finetune import evaluate_ducan
-        test_stats,test_score = evaluate_ducan(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+        if (hasattr(args, 'enable_uncertainty') and args.enable_uncertainty) or \
+           (hasattr(args, 'enable_fairness') and args.enable_fairness):
+            from util.enhanced_evaluation import evaluate_ducan_with_uncertainty_fairness
+            test_stats,test_score = evaluate_ducan_with_uncertainty_fairness(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+        else:
+            from engine_finetune import evaluate_ducan
+            test_stats,test_score = evaluate_ducan(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
     elif 'ad_oct_model' in args.model:
-        test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+        if (hasattr(args, 'enable_uncertainty') and args.enable_uncertainty) or \
+           (hasattr(args, 'enable_fairness') and args.enable_fairness):
+            from util.enhanced_evaluation import evaluate_with_uncertainty_fairness
+            test_stats,test_score = evaluate_with_uncertainty_fairness(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+        else:
+            test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
     else:
-        test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+        if (hasattr(args, 'enable_uncertainty') and args.enable_uncertainty) or \
+           (hasattr(args, 'enable_fairness') and args.enable_fairness):
+            from util.enhanced_evaluation import evaluate_with_uncertainty_fairness
+            test_stats,test_score = evaluate_with_uncertainty_fairness(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+        else:
+            test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
     wandb_dict = {}
     wandb_dict.update({f'test_{k}': v for k, v in test_stats.items()})
     wandb.log(wandb_dict)
