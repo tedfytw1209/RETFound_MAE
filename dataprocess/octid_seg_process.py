@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 # 參數
 input_root  = Path("/orange/ruogu.fang/tienyuchang/OCTID")
-output_root = Path("/orange/ruogu.fang/tienyuchang/OCTID_tri")
+output_root = Path("/orange/ruogu.fang/tienyuchang/OCTID_raw")
 output_root.mkdir(parents=True, exist_ok=True)
 
 IMG_EXTS = {".jpeg"}
@@ -18,7 +18,6 @@ image_paths = [p for p in input_root.rglob("*") if p.is_file() and p.suffix.lowe
 print(f"共找到 {len(image_paths)} 張影像。")
 
 def copy_triplicate(src: Path):
-    """為單張 src 建資料夾並複製三份；回傳 (src, ok, err_msg)"""
     try:
         rel_path = src.relative_to(input_root)
         out_dir = output_root / rel_path.parent / src.stem
