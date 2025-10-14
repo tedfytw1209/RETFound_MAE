@@ -1,12 +1,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.metrics import confusion_matrix, accuracy_score
+from sklearn.metrics import confusion_matrix, accuracy_score, roc_auc_score
+from sklearn.preprocessing import label_binarize
 from sklearn.calibration import calibration_curve
 from typing import Dict, Optional
 
 # fairness metric
-def fariness_score(protected_ground_truth, privileged_ground_truth, protected_pred, privileged_pred):
+def fariness_score(protected_ground_truth, privileged_ground_truth, protected_pred, privileged_pred, protected_probs=None, privileged_probs=None,protected_gt_onehot=None,privileged_gt_onehot=None):
     print('fairness:', np.unique(protected_ground_truth), np.unique(protected_pred),np.unique(privileged_ground_truth), np.unique(privileged_pred))
     ## confusion matrix
     if len(set(protected_ground_truth)) == 1 or len(set(protected_pred)) == 1:
@@ -88,13 +89,32 @@ def fariness_score(protected_ground_truth, privileged_ground_truth, protected_pr
         else 0
     )
 
+    # No.8 AUROC (Area Under ROC Curve) - requires probability scores
+    protected_AUROC = 0
+    privileged_AUROC = 0
+    
+    protected_AUROC = roc_auc_score(
+            protected_gt_onehot, 
+            protected_probs, 
+            multi_class='ovr', 
+            average='macro'
+        )
+    
+    privileged_AUROC = roc_auc_score(
+            privileged_gt_onehot, 
+            privileged_probs, 
+            multi_class='ovr', 
+            average='macro'
+        )
+
     return (round(protected_PPV, 4), round(privileged_PPV, 4), 
             round(protected_FPR, 4), round(privileged_FPR, 4), 
             round(protected_TPR, 4), round(privileged_TPR, 4), 
             round(protected_NPV, 4), round(privileged_NPV, 4), 
             round(protected_te, 4), round(privileged_te, 4), 
             round(protected_FNR, 4), round(privileged_FNR, 4),
-            round(protected_ACC, 4), round(privileged_ACC, 4))
+            round(protected_ACC, 4), round(privileged_ACC, 4),
+            round(protected_AUROC, 4), round(privileged_AUROC, 4))
 
 
 class FairnessAnalyzerWithCI:
@@ -111,7 +131,9 @@ class FairnessAnalyzerWithCI:
                                        protected_gt: np.ndarray,
                                        privileged_gt: np.ndarray, 
                                        protected_pred: np.ndarray,
-                                       privileged_pred: np.ndarray) -> Dict:
+                                       privileged_pred: np.ndarray,
+                                       protected_probs: np.ndarray = None,
+                                       privileged_probs: np.ndarray = None) -> Dict:
         """
         Compute fairness metrics with confidence intervals using bootstrap sampling.
         
@@ -125,11 +147,11 @@ class FairnessAnalyzerWithCI:
             Dictionary with fairness metrics and confidence intervals
         """
         
-        def compute_single_fairness_metrics(prot_gt, priv_gt, prot_pred, priv_pred):
+        def compute_single_fairness_metrics(prot_gt, priv_gt, prot_pred, priv_pred, prot_probs=None, priv_probs=None):
             """Compute fairness metrics for a single bootstrap sample."""
             
             # Use existing fairness function
-            metrics = fariness_score(prot_gt, priv_gt, prot_pred, priv_pred)
+            metrics = fariness_score(prot_gt, priv_gt, prot_pred, priv_pred, prot_probs, priv_probs)
             
             return {
                 'protected_PPV': metrics[0],
@@ -145,12 +167,14 @@ class FairnessAnalyzerWithCI:
                 'protected_FNR': metrics[10],
                 'privileged_FNR': metrics[11],
                 'protected_ACC': metrics[12],
-                'privileged_ACC': metrics[13]
+                'privileged_ACC': metrics[13],
+                'protected_AUROC': metrics[14],
+                'privileged_AUROC': metrics[15]
             }
         
         # Compute original metrics
         original_metrics = compute_single_fairness_metrics(
-            protected_gt, privileged_gt, protected_pred, privileged_pred
+            protected_gt, privileged_gt, protected_pred, privileged_pred, protected_probs, privileged_probs
         )
         
         # Bootstrap sampling for confidence intervals
@@ -164,7 +188,8 @@ class FairnessAnalyzerWithCI:
             'NPV_diff': [],
             'TE_diff': [],
             'FNR_diff': [],
-            'ACC_diff': []
+            'ACC_diff': [],
+            'AUROC_diff': []
         }
         
         np.random.seed(42)  # For reproducibility
@@ -183,10 +208,14 @@ class FairnessAnalyzerWithCI:
             boot_priv_gt = privileged_gt[priv_indices]
             boot_priv_pred = privileged_pred[priv_indices]
             
+            # Bootstrap probability samples if available
+            boot_prot_probs = protected_probs[prot_indices] if protected_probs is not None else None
+            boot_priv_probs = privileged_probs[priv_indices] if privileged_probs is not None else None
+            
             # Compute metrics for bootstrap sample
             try:
                 boot_metrics = compute_single_fairness_metrics(
-                    boot_prot_gt, boot_priv_gt, boot_prot_pred, boot_priv_pred
+                    boot_prot_gt, boot_priv_gt, boot_prot_pred, boot_priv_pred, boot_prot_probs, boot_priv_probs
                 )
                 
                 for key, value in boot_metrics.items():
@@ -213,6 +242,9 @@ class FairnessAnalyzerWithCI:
                 )
                 fairness_differences['ACC_diff'].append(
                     boot_metrics['privileged_ACC'] - boot_metrics['protected_ACC']
+                )
+                fairness_differences['AUROC_diff'].append(
+                    boot_metrics['privileged_AUROC'] - boot_metrics['protected_AUROC']
                 )
                 
             except Exception as e:
@@ -279,7 +311,7 @@ class FairnessAnalyzerWithCI:
         """
         
         # Extract metrics for plotting
-        metrics_to_plot = ['PPV', 'FPR', 'TPR', 'NPV', 'ACC']
+        metrics_to_plot = ['PPV', 'FPR', 'TPR', 'NPV', 'ACC', 'AUROC']
         protected_values = []
         privileged_values = []
         protected_cis = []

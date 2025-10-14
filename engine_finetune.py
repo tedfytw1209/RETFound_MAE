@@ -406,6 +406,8 @@ def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, 
         file_names.extend(batch[3])
     
     # Convert to numpy arrays
+    true_onehot = np.array(true_onehot)
+    pred_onehot = np.array(pred_onehot)
     true_labels = np.array(true_labels)
     pred_labels = np.array(pred_labels)
     pred_softmax = np.array(pred_softmax)
@@ -421,6 +423,8 @@ def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, 
     prevalent_preds = pred_labels[prevalent_mask]
     protect_probs = pred_softmax[protect_mask]
     prevalent_probs = pred_softmax[prevalent_mask]
+    protect_gt_onehot = true_onehot[protect_mask]
+    prevalent_gt_onehot = true_onehot[prevalent_mask]
     
     print(f"Protected group size: {len(protect_labels)}")
     print(f"Privileged group size: {len(prevalent_labels)}")
@@ -431,7 +435,7 @@ def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, 
     
     if len(protect_labels) > 0 and len(prevalent_labels) > 0:
         # Original fairness score
-        fairness_score = fariness_score(protect_labels, prevalent_labels, protect_preds, prevalent_preds)
+        fairness_score = fariness_score(protect_labels, prevalent_labels, protect_preds, prevalent_preds, protect_probs, prevalent_probs, protect_gt_onehot, prevalent_gt_onehot)
         
         print("=== ENHANCED FAIRNESS ANALYSIS ===")
         print(f"Original fairness metrics: {fairness_score}")
@@ -519,7 +523,7 @@ def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, 
             
             # Compute fairness metrics with confidence intervals
             fairness_ci_results = fairness_analyzer.compute_fairness_metrics_with_ci(
-                protect_labels, prevalent_labels, protect_preds, prevalent_preds
+                protect_labels, prevalent_labels, protect_preds, prevalent_preds, protect_probs, prevalent_probs, protect_gt_onehot, prevalent_gt_onehot
             )
             
             # Print fairness differences with significance testing
@@ -646,14 +650,14 @@ def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, 
             print("Falling back to basic fairness metrics.")
     else:
         print("Warning: Insufficient data for fairness analysis")
-        fairness_score = (0,) * 14  # Default empty fairness metrics
+        fairness_score = (0,) * 16  # Default empty fairness metrics (now includes AUROC)
     
     # Add original fairness metrics to output
     fairness_metric_names = [
         'protected_PPV', 'privileged_PPV', 'protected_FPR', 'privileged_FPR',
         'protected_TPR', 'privileged_TPR', 'protected_NPV', 'privileged_NPV', 
         'protected_TE', 'privileged_TE', 'protected_FNR', 'privileged_FNR',
-        'protected_ACC', 'privileged_ACC'
+        'protected_ACC', 'privileged_ACC', 'protected_AUROC', 'privileged_AUROC'
     ]
     
     for i, metric_name in enumerate(fairness_metric_names):
