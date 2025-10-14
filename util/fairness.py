@@ -8,7 +8,6 @@ from typing import Dict, Optional
 
 # fairness metric
 def fariness_score(protected_ground_truth, privileged_ground_truth, protected_pred, privileged_pred, protected_probs=None, privileged_probs=None,protected_gt_onehot=None,privileged_gt_onehot=None):
-    print('fairness:', np.unique(protected_ground_truth), np.unique(protected_pred),np.unique(privileged_ground_truth), np.unique(privileged_pred))
     ## confusion matrix
     if len(set(protected_ground_truth)) == 1 or len(set(protected_pred)) == 1:
         protected_cm = confusion_matrix(protected_ground_truth, protected_pred, labels=[0, 1])  
@@ -218,43 +217,38 @@ class FairnessAnalyzerWithCI:
             boot_priv_gt_onehot = privileged_gt_onehot[priv_indices] if privileged_gt_onehot is not None else None
             
             # Compute metrics for bootstrap sample
-            try:
-                boot_metrics = compute_single_fairness_metrics(
-                    boot_prot_gt, boot_priv_gt, boot_prot_pred, boot_priv_pred, boot_prot_probs, boot_priv_probs, boot_prot_gt_onehot, boot_priv_gt_onehot
-                )
-                
-                for key, value in boot_metrics.items():
-                    bootstrap_results[key].append(value)
-                
-                # Compute fairness differences
-                fairness_differences['PPV_diff'].append(
-                    boot_metrics['privileged_PPV'] - boot_metrics['protected_PPV']
-                )
-                fairness_differences['FPR_diff'].append(
-                    boot_metrics['privileged_FPR'] - boot_metrics['protected_FPR']
-                )
-                fairness_differences['TPR_diff'].append(
-                    boot_metrics['privileged_TPR'] - boot_metrics['protected_TPR']
-                )
-                fairness_differences['NPV_diff'].append(
-                    boot_metrics['privileged_NPV'] - boot_metrics['protected_NPV']
-                )
-                fairness_differences['TE_diff'].append(
-                    boot_metrics['privileged_TE'] - boot_metrics['protected_TE']
-                )
-                fairness_differences['FNR_diff'].append(
-                    boot_metrics['privileged_FNR'] - boot_metrics['protected_FNR']
-                )
-                fairness_differences['ACC_diff'].append(
-                    boot_metrics['privileged_ACC'] - boot_metrics['protected_ACC']
-                )
-                fairness_differences['AUROC_diff'].append(
-                    boot_metrics['privileged_AUROC'] - boot_metrics['protected_AUROC']
-                )
-                
-            except Exception as e:
-                # Skip failed bootstrap samples
-                continue
+            boot_metrics = compute_single_fairness_metrics(
+                boot_prot_gt, boot_priv_gt, boot_prot_pred, boot_priv_pred, boot_prot_probs, boot_priv_probs, boot_prot_gt_onehot, boot_priv_gt_onehot
+            )
+            
+            for key, value in boot_metrics.items():
+                bootstrap_results[key].append(value)
+            
+            # Compute fairness differences
+            fairness_differences['PPV_diff'].append(
+                boot_metrics['privileged_PPV'] - boot_metrics['protected_PPV']
+            )
+            fairness_differences['FPR_diff'].append(
+                boot_metrics['privileged_FPR'] - boot_metrics['protected_FPR']
+            )
+            fairness_differences['TPR_diff'].append(
+                boot_metrics['privileged_TPR'] - boot_metrics['protected_TPR']
+            )
+            fairness_differences['NPV_diff'].append(
+                boot_metrics['privileged_NPV'] - boot_metrics['protected_NPV']
+            )
+            fairness_differences['TE_diff'].append(
+                boot_metrics['privileged_TE'] - boot_metrics['protected_TE']
+            )
+            fairness_differences['FNR_diff'].append(
+                boot_metrics['privileged_FNR'] - boot_metrics['protected_FNR']
+            )
+            fairness_differences['ACC_diff'].append(
+                boot_metrics['privileged_ACC'] - boot_metrics['protected_ACC']
+            )
+            fairness_differences['AUROC_diff'].append(
+                boot_metrics['privileged_AUROC'] - boot_metrics['protected_AUROC']
+            )
         
         # Compute confidence intervals
         def compute_ci(values):
