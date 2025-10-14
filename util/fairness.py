@@ -133,7 +133,9 @@ class FairnessAnalyzerWithCI:
                                        protected_pred: np.ndarray,
                                        privileged_pred: np.ndarray,
                                        protected_probs: np.ndarray = None,
-                                       privileged_probs: np.ndarray = None) -> Dict:
+                                       privileged_probs: np.ndarray = None,
+                                       protected_gt_onehot: np.ndarray = None,
+                                       privileged_gt_onehot: np.ndarray = None) -> Dict:
         """
         Compute fairness metrics with confidence intervals using bootstrap sampling.
         
@@ -147,11 +149,11 @@ class FairnessAnalyzerWithCI:
             Dictionary with fairness metrics and confidence intervals
         """
         
-        def compute_single_fairness_metrics(prot_gt, priv_gt, prot_pred, priv_pred, prot_probs=None, priv_probs=None):
+        def compute_single_fairness_metrics(prot_gt, priv_gt, prot_pred, priv_pred, prot_probs=None, priv_probs=None, prot_gt_onehot=None, priv_gt_onehot=None):
             """Compute fairness metrics for a single bootstrap sample."""
             
             # Use existing fairness function
-            metrics = fariness_score(prot_gt, priv_gt, prot_pred, priv_pred, prot_probs, priv_probs)
+            metrics = fariness_score(prot_gt, priv_gt, prot_pred, priv_pred, prot_probs, priv_probs, prot_gt_onehot, priv_gt_onehot)
             
             return {
                 'protected_PPV': metrics[0],
@@ -174,7 +176,7 @@ class FairnessAnalyzerWithCI:
         
         # Compute original metrics
         original_metrics = compute_single_fairness_metrics(
-            protected_gt, privileged_gt, protected_pred, privileged_pred, protected_probs, privileged_probs
+            protected_gt, privileged_gt, protected_pred, privileged_pred, protected_probs, privileged_probs, protected_gt_onehot, privileged_gt_onehot
         )
         
         # Bootstrap sampling for confidence intervals
@@ -212,10 +214,13 @@ class FairnessAnalyzerWithCI:
             boot_prot_probs = protected_probs[prot_indices] if protected_probs is not None else None
             boot_priv_probs = privileged_probs[priv_indices] if privileged_probs is not None else None
             
+            boot_prot_gt_onehot = protected_gt_onehot[prot_indices] if protected_gt_onehot is not None else None
+            boot_priv_gt_onehot = privileged_gt_onehot[priv_indices] if privileged_gt_onehot is not None else None
+            
             # Compute metrics for bootstrap sample
             try:
                 boot_metrics = compute_single_fairness_metrics(
-                    boot_prot_gt, boot_priv_gt, boot_prot_pred, boot_priv_pred, boot_prot_probs, boot_priv_probs
+                    boot_prot_gt, boot_priv_gt, boot_prot_pred, boot_priv_pred, boot_prot_probs, boot_priv_probs, boot_prot_gt_onehot, boot_priv_gt_onehot
                 )
                 
                 for key, value in boot_metrics.items():

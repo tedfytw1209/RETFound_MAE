@@ -476,29 +476,15 @@ def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, 
                 eval_probs, eval_labels, strategy=roc_strategy
             )
             
-            print(f"ROC Optimal Threshold: {roc_results['optimal_threshold']:.3f}")
-            print(f"ROC Coverage: {roc_results['coverage']:.3f}")
-            print(f"ROC Accuracy (accepted): {roc_results['accuracy']:.3f}")
-            print(f"ROC Rejection Rate: {roc_results['rejection_rate']:.3f}")
-            
             # 2. Conformal Prediction
             conformal_results = uncertainty_quantifier.conformal_prediction(
                 cal_probs, cal_labels, eval_probs, eval_labels
             )
             
-            print(f"Conformal Target Coverage: {conformal_results['target_coverage']:.3f}")
-            print(f"Conformal Empirical Coverage: {conformal_results['empirical_coverage']:.3f}")
-            print(f"Conformal Average Set Size: {conformal_results['average_set_size']:.3f}")
-            print(f"Conformal Singleton Rate: {conformal_results['singleton_rate']:.3f}")
-            
             # 3. Calibration Assessment
             calibration_results = uncertainty_quantifier.calibration_assessment(
                 eval_probs, eval_labels, n_bins=getattr(args, 'calibration_bins', 10)
             )
-            
-            print(f"Expected Calibration Error (ECE): {calibration_results['ECE']:.4f}")
-            print(f"Mean Confidence: {calibration_results['mean_confidence']:.3f}")
-            print(f"Mean Accuracy: {calibration_results['mean_accuracy']:.3f}")
             
             # Add uncertainty metrics to output
             metric_dict.update({
@@ -525,16 +511,6 @@ def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, 
             fairness_ci_results = fairness_analyzer.compute_fairness_metrics_with_ci(
                 protect_labels, prevalent_labels, protect_preds, prevalent_preds, protect_probs, prevalent_probs, protect_gt_onehot, prevalent_gt_onehot
             )
-            
-            # Print fairness differences with significance testing
-            print(f"Fairness Analysis (Bootstrap samples: {fairness_ci_results['bootstrap_samples']})")
-            print(f"Confidence Level: {fairness_ci_results['confidence_level']*100}%")
-            print("\nFairness Differences (Privileged - Protected):")
-            
-            for metric, diff_data in fairness_ci_results['fairness_differences'].items():
-                significance = "***" if diff_data['is_significant'] else "n.s."
-                print(f"{metric}: {diff_data['original']:.4f} "
-                      f"[{diff_data['ci_lower']:.4f}, {diff_data['ci_upper']:.4f}] {significance}")
             
             # Add fairness CI metrics to output
             for metric, diff_data in fairness_ci_results['fairness_differences'].items():
