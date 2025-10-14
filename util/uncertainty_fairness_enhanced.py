@@ -6,8 +6,6 @@ This module provides uncertainty quantification methods for model evaluation:
 - Conformal Prediction for prediction sets with coverage guarantees
 - Model calibration assessment
 
-Author: AI Assistant
-Date: 2025-01-13
 """
 
 import numpy as np
