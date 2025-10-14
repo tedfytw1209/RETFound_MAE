@@ -534,6 +534,8 @@ def main(args, criterion):
         #TODO: check it is correct or not
         prevalent_group = dataset_test.annotations[~dataset_test.annotations['patient_id'].isin(patient_ids)].reset_index(drop=True)
         protect_group = dataset_test.annotations[dataset_test.annotations['patient_id'].isin(patient_ids)].reset_index(drop=True)
+        print('Prevalent group size: ', prevalent_group.shape)
+        print('Protect group size: ', protect_group.shape)
         if args.modality == 'OCT':
             protect_image_names = protect_group['OCT']
             prevalent_image_names = prevalent_group['OCT']
