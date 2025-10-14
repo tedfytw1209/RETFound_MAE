@@ -4,7 +4,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
+import json
 from typing import Iterable, Optional
 from timm.data import Mixup
 from timm.utils import accuracy
@@ -16,6 +18,7 @@ from sklearn.metrics import (
 from pycm import ConfusionMatrix
 import util.misc as misc
 import util.lr_sched as lr_sched
+from util.fairness import fariness_score
 
 def compute_regularization_loss(model, l1_reg=0.0, l2_reg=0.0):
     """
@@ -366,6 +369,302 @@ def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k,
         plt.savefig(task+'confusion_matrix_test.jpg',dpi=600,bbox_inches ='tight')
 
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()},auc_roc
+
+@torch.no_grad()
+def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, k, log_writer, eval_score='', protect_image_names=None, prevalent_image_names=None):
+    """Enhanced fairness evaluation with uncertainty quantification and confidence intervals."""
+    criterion = nn.CrossEntropyLoss()
+    metric_logger = misc.MetricLogger(delimiter="  ")
+    os.makedirs(os.path.join(args.output_dir, args.task), exist_ok=True)
+    
+    model.eval()
+    true_onehot, pred_onehot, true_labels, pred_labels, pred_softmax = [], [], [], [], []
+    file_names = []
+    
+    for batch in metric_logger.log_every(data_loader, 10, f'{mode}:'):
+        images, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True)
+        target_onehot = F.one_hot(target.to(torch.int64), num_classes=num_class)
+        
+        with torch.cuda.amp.autocast():
+            output = model(images)
+            if hasattr(output, 'logits'):
+                output = output.logits
+            else:
+                output = output
+            loss = criterion(output, target)
+        
+        output_ = nn.Softmax(dim=1)(output)
+        output_label = output_.argmax(dim=1)
+        output_onehot = F.one_hot(output_label.to(torch.int64), num_classes=num_class)
+        
+        metric_logger.update(loss=loss.item())
+        true_onehot.extend(target_onehot.cpu().numpy())
+        pred_onehot.extend(output_onehot.detach().cpu().numpy())
+        true_labels.extend(target.cpu().numpy())
+        pred_labels.extend(output_label.detach().cpu().numpy())
+        pred_softmax.extend(output_.detach().cpu().numpy())
+        file_names.extend(batch[3])
+    
+    # Convert to numpy arrays
+    true_labels = np.array(true_labels)
+    pred_labels = np.array(pred_labels)
+    pred_softmax = np.array(pred_softmax)
+    file_names = np.array(file_names)
+    
+    # Separate protected and privileged groups
+    protect_mask = np.isin(file_names, protect_image_names) if protect_image_names is not None else np.zeros(len(file_names), dtype=bool)
+    prevalent_mask = np.isin(file_names, prevalent_image_names) if prevalent_image_names is not None else np.ones(len(file_names), dtype=bool)
+    
+    protect_labels = true_labels[protect_mask]
+    prevalent_labels = true_labels[prevalent_mask]
+    protect_preds = pred_labels[protect_mask]
+    prevalent_preds = pred_labels[prevalent_mask]
+    protect_probs = pred_softmax[protect_mask]
+    prevalent_probs = pred_softmax[prevalent_mask]
+    
+    print(f"Protected group size: {len(protect_labels)}")
+    print(f"Privileged group size: {len(prevalent_labels)}")
+    
+    # Basic fairness metrics using existing function
+    metric_dict = {}
+    conf = confusion_matrix(true_labels, pred_labels)
+    
+    if len(protect_labels) > 0 and len(prevalent_labels) > 0:
+        # Original fairness score
+        fairness_score = fariness_score(protect_labels, prevalent_labels, protect_preds, prevalent_preds, args.outcome_flag)
+        
+        print("=== ENHANCED FAIRNESS ANALYSIS ===")
+        print(f"Original fairness metrics: {fairness_score}")
+        
+        # Enhanced analysis with uncertainty quantification and confidence intervals
+        try:
+            from util.uncertainty_fairness_enhanced import UncertaintyQuantifier
+            from util.fairness import FairnessAnalyzerWithCI, bootstrap_ci
+            
+            # ===== UNCERTAINTY QUANTIFICATION =====
+            print("\n--- Uncertainty Quantification ---")
+            
+            # Initialize uncertainty quantifier
+            uncertainty_quantifier = UncertaintyQuantifier(
+                num_classes=num_class, 
+                alpha=getattr(args, 'conformal_alpha', 0.1)
+            )
+            
+            # Split data for calibration and evaluation
+            n_samples = len(true_labels)
+            cal_split_ratio = getattr(args, 'cal_split_ratio', 0.5)
+            n_cal = int(n_samples * cal_split_ratio)
+            
+            # Random split
+            np.random.seed(getattr(args, 'seed', 42))
+            indices = np.random.permutation(n_samples)
+            cal_indices = indices[:n_cal]
+            eval_indices = indices[n_cal:]
+            
+            cal_probs = pred_softmax[cal_indices]
+            cal_labels = true_labels[cal_indices]
+            eval_probs = pred_softmax[eval_indices]
+            eval_labels = true_labels[eval_indices]
+            
+            # 1. Reject Option Classification
+            roc_strategy = getattr(args, 'roc_strategy', 'accuracy_coverage')
+            roc_results = uncertainty_quantifier.reject_option_classification(
+                eval_probs, eval_labels, strategy=roc_strategy
+            )
+            
+            print(f"ROC Optimal Threshold: {roc_results['optimal_threshold']:.3f}")
+            print(f"ROC Coverage: {roc_results['coverage']:.3f}")
+            print(f"ROC Accuracy (accepted): {roc_results['accuracy']:.3f}")
+            print(f"ROC Rejection Rate: {roc_results['rejection_rate']:.3f}")
+            
+            # 2. Conformal Prediction
+            conformal_results = uncertainty_quantifier.conformal_prediction(
+                cal_probs, cal_labels, eval_probs, eval_labels
+            )
+            
+            print(f"Conformal Target Coverage: {conformal_results['target_coverage']:.3f}")
+            print(f"Conformal Empirical Coverage: {conformal_results['empirical_coverage']:.3f}")
+            print(f"Conformal Average Set Size: {conformal_results['average_set_size']:.3f}")
+            print(f"Conformal Singleton Rate: {conformal_results['singleton_rate']:.3f}")
+            
+            # 3. Calibration Assessment
+            calibration_results = uncertainty_quantifier.calibration_assessment(
+                eval_probs, eval_labels, n_bins=getattr(args, 'calibration_bins', 10)
+            )
+            
+            print(f"Expected Calibration Error (ECE): {calibration_results['ECE']:.4f}")
+            print(f"Mean Confidence: {calibration_results['mean_confidence']:.3f}")
+            print(f"Mean Accuracy: {calibration_results['mean_accuracy']:.3f}")
+            
+            # Add uncertainty metrics to output
+            metric_dict.update({
+                'uncertainty_roc_threshold': roc_results['optimal_threshold'],
+                'uncertainty_roc_coverage': roc_results['coverage'],
+                'uncertainty_roc_accuracy': roc_results['accuracy'],
+                'uncertainty_roc_rejection_rate': roc_results['rejection_rate'],
+                'uncertainty_conformal_coverage': conformal_results['empirical_coverage'],
+                'uncertainty_conformal_set_size': conformal_results['average_set_size'],
+                'uncertainty_conformal_singleton_rate': conformal_results['singleton_rate'],
+                'uncertainty_calibration_ece': calibration_results['ECE'],
+                'uncertainty_mean_confidence': calibration_results['mean_confidence']
+            })
+            
+            # ===== FAIRNESS ANALYSIS WITH CONFIDENCE INTERVALS =====
+            print("\n--- Fairness Analysis with Confidence Intervals ---")
+            
+            fairness_analyzer = FairnessAnalyzerWithCI(
+                n_bootstrap=getattr(args, 'n_bootstrap', 1000),
+                confidence_level=getattr(args, 'confidence_level', 0.95)
+            )
+            
+            # Compute fairness metrics with confidence intervals
+            fairness_ci_results = fairness_analyzer.compute_fairness_metrics_with_ci(
+                protect_labels, prevalent_labels, protect_preds, prevalent_preds
+            )
+            
+            # Print fairness differences with significance testing
+            print(f"Fairness Analysis (Bootstrap samples: {fairness_ci_results['bootstrap_samples']})")
+            print(f"Confidence Level: {fairness_ci_results['confidence_level']*100}%")
+            print("\nFairness Differences (Privileged - Protected):")
+            
+            for metric, diff_data in fairness_ci_results['fairness_differences'].items():
+                significance = "***" if diff_data['is_significant'] else "n.s."
+                print(f"{metric}: {diff_data['original']:.4f} "
+                      f"[{diff_data['ci_lower']:.4f}, {diff_data['ci_upper']:.4f}] {significance}")
+            
+            # Add fairness CI metrics to output
+            for metric, diff_data in fairness_ci_results['fairness_differences'].items():
+                metric_dict[f'fairness_{metric}_original'] = diff_data['original']
+                metric_dict[f'fairness_{metric}_ci_lower'] = diff_data['ci_lower']
+                metric_dict[f'fairness_{metric}_ci_upper'] = diff_data['ci_upper']
+                metric_dict[f'fairness_{metric}_significant'] = 1.0 if diff_data['is_significant'] else 0.0
+            
+            # ===== GROUP-WISE UNCERTAINTY ANALYSIS =====
+            print("\n--- Group-wise Uncertainty Analysis ---")
+            
+            if len(protect_probs) > 10 and len(prevalent_probs) > 10:  # Minimum sample size
+                # Uncertainty analysis for protected group
+                protect_roc = uncertainty_quantifier.reject_option_classification(
+                    protect_probs, protect_labels, strategy=roc_strategy
+                )
+                
+                # Uncertainty analysis for privileged group  
+                prevalent_roc = uncertainty_quantifier.reject_option_classification(
+                    prevalent_probs, prevalent_labels, strategy=roc_strategy
+                )
+                
+                print(f"Protected Group - ROC Coverage: {protect_roc['coverage']:.3f}, "
+                      f"Accuracy: {protect_roc['accuracy']:.3f}")
+                print(f"Privileged Group - ROC Coverage: {prevalent_roc['coverage']:.3f}, "
+                      f"Accuracy: {prevalent_roc['accuracy']:.3f}")
+                
+                # Compute confidence intervals for group-wise uncertainty metrics
+                def coverage_stat(probs_labels):
+                    probs, labels = probs_labels[:, :-1], probs_labels[:, -1].astype(int)
+                    roc_result = uncertainty_quantifier.reject_option_classification(probs, labels)
+                    return roc_result['coverage']
+                
+                def accuracy_stat(probs_labels):
+                    probs, labels = probs_labels[:, :-1], probs_labels[:, -1].astype(int)
+                    roc_result = uncertainty_quantifier.reject_option_classification(probs, labels)
+                    return roc_result['accuracy']
+                
+                # Bootstrap CI for group-wise uncertainty
+                protect_data = np.column_stack([protect_probs, protect_labels])
+                prevalent_data = np.column_stack([prevalent_probs, prevalent_labels])
+                
+                if len(protect_data) > 20:  # Minimum for bootstrap
+                    prot_cov_ci = bootstrap_ci(protect_data, coverage_stat, n_bootstrap=500)
+                    prot_acc_ci = bootstrap_ci(protect_data, accuracy_stat, n_bootstrap=500)
+                    
+                    print(f"Protected Group Coverage CI: [{prot_cov_ci[0]:.3f}, {prot_cov_ci[1]:.3f}]")
+                    print(f"Protected Group Accuracy CI: [{prot_acc_ci[0]:.3f}, {prot_acc_ci[1]:.3f}]")
+                    
+                    metric_dict.update({
+                        'uncertainty_protected_coverage': protect_roc['coverage'],
+                        'uncertainty_protected_coverage_ci_lower': prot_cov_ci[0],
+                        'uncertainty_protected_coverage_ci_upper': prot_cov_ci[1],
+                        'uncertainty_protected_accuracy': protect_roc['accuracy'],
+                        'uncertainty_protected_accuracy_ci_lower': prot_acc_ci[0],
+                        'uncertainty_protected_accuracy_ci_upper': prot_acc_ci[1]
+                    })
+                
+                if len(prevalent_data) > 20:  # Minimum for bootstrap
+                    prev_cov_ci = bootstrap_ci(prevalent_data, coverage_stat, n_bootstrap=500)
+                    prev_acc_ci = bootstrap_ci(prevalent_data, accuracy_stat, n_bootstrap=500)
+                    
+                    print(f"Privileged Group Coverage CI: [{prev_cov_ci[0]:.3f}, {prev_cov_ci[1]:.3f}]")
+                    print(f"Privileged Group Accuracy CI: [{prev_acc_ci[0]:.3f}, {prev_acc_ci[1]:.3f}]")
+                    
+                    metric_dict.update({
+                        'uncertainty_privileged_coverage': prevalent_roc['coverage'],
+                        'uncertainty_privileged_coverage_ci_lower': prev_cov_ci[0],
+                        'uncertainty_privileged_coverage_ci_upper': prev_cov_ci[1],
+                        'uncertainty_privileged_accuracy': prevalent_roc['accuracy'],
+                        'uncertainty_privileged_accuracy_ci_lower': prev_acc_ci[0],
+                        'uncertainty_privileged_accuracy_ci_upper': prev_acc_ci[1]
+                    })
+            
+            # ===== SAVE DETAILED RESULTS =====
+            if getattr(args, 'export_detailed_results', True):
+                # Create analysis directory
+                analysis_dir = os.path.join(args.output_dir, args.task, 'fairness_uncertainty_analysis')
+                os.makedirs(analysis_dir, exist_ok=True)
+                
+                # Save uncertainty results
+                uncertainty_results = {
+                    'reject_option_classification': roc_results,
+                    'conformal_prediction': conformal_results,
+                    'calibration_assessment': calibration_results,
+                    'parameters': {
+                        'conformal_alpha': uncertainty_quantifier.alpha,
+                        'roc_strategy': roc_strategy,
+                        'calibration_bins': getattr(args, 'calibration_bins', 10)
+                    }
+                }
+                
+                with open(os.path.join(analysis_dir, 'uncertainty_results.json'), 'w') as f:
+                    json.dump(uncertainty_results, f, indent=2, default=str)
+                
+                # Save fairness results with CI
+                with open(os.path.join(analysis_dir, 'fairness_ci_results.json'), 'w') as f:
+                    json.dump(fairness_ci_results, f, indent=2, default=str)
+                
+                # Generate fairness plots with CI
+                if getattr(args, 'save_fairness_plots', True):
+                    plot_path = os.path.join(analysis_dir, 'fairness_metrics_with_ci.png')
+                    fairness_analyzer.plot_fairness_with_ci(fairness_ci_results, plot_path)
+                    print(f"Fairness plots saved to: {plot_path}")
+                
+                print(f"Detailed results saved to: {analysis_dir}")
+        
+        except ImportError as e:
+            print(f"Enhanced analysis not available: {e}")
+            print("Using basic fairness metrics only.")
+        except Exception as e:
+            print(f"Error in enhanced analysis: {e}")
+            print("Falling back to basic fairness metrics.")
+    else:
+        print("Warning: Insufficient data for fairness analysis")
+        fairness_score = (0,) * 14  # Default empty fairness metrics
+    
+    # Add original fairness metrics to output
+    fairness_metric_names = [
+        'protected_PPV', 'privileged_PPV', 'protected_FPR', 'privileged_FPR',
+        'protected_TPR', 'privileged_TPR', 'protected_NPV', 'privileged_NPV', 
+        'protected_TE', 'privileged_TE', 'protected_FNR', 'privileged_FNR',
+        'protected_ACC', 'privileged_ACC'
+    ]
+    
+    for i, metric_name in enumerate(fairness_metric_names):
+        if i < len(fairness_score):
+            metric_dict[f'fairness_{metric_name}'] = fairness_score[i]
+    
+    print("=== FAIRNESS ANALYSIS COMPLETE ===")
+    
+    out_dict = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    out_dict.update(metric_dict)
+    return out_dict, None
 
 #train for dual model
 def train_one_epoch_dual(

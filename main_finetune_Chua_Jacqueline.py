@@ -246,6 +246,27 @@ def get_args_parser():
                         help='Column name for patient ID in CSV file for CV splitting')
     parser.add_argument('--cv_seed', type=int, default=42,
                         help='Random seed for CV patient splitting (default: 42)')
+    
+    # Enhanced fairness and uncertainty parameters
+    parser.add_argument('--n_bootstrap', type=int, default=1000,
+                        help='Number of bootstrap samples for confidence intervals')
+    parser.add_argument('--confidence_level', type=float, default=0.95,
+                        help='Confidence level for bootstrap confidence intervals')
+    parser.add_argument('--outcome_flag', type=str, default='binary',
+                        help='Outcome flag for fairness analysis (binary/multiclass)')
+    parser.add_argument('--conformal_alpha', type=float, default=0.1,
+                        help='Miscoverage level for conformal prediction (1-alpha is target coverage)')
+    parser.add_argument('--roc_strategy', type=str, default='accuracy_coverage',
+                        choices=['accuracy_coverage', 'target_coverage', 'max_accuracy'],
+                        help='Strategy for reject option classification threshold selection')
+    parser.add_argument('--calibration_bins', type=int, default=10,
+                        help='Number of bins for calibration assessment')
+    parser.add_argument('--cal_split_ratio', type=float, default=0.5,
+                        help='Ratio of test set to use for calibration (rest for final evaluation)')
+    parser.add_argument('--save_fairness_plots', action='store_true', default=True,
+                        help='Save fairness analysis plots')
+    parser.add_argument('--export_detailed_results', action='store_true', default=True,
+                        help='Export detailed results to CSV/JSON files')
 
     return parser
 

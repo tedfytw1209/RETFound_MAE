@@ -154,6 +154,7 @@ class CSV_Dataset(Dataset):
         self.loader = datasets.folder.default_loader
         self.use_ducan_preprocessing = use_ducan_preprocessing
         self.modality = modality
+        self.pid_key = pid_key
         
         # Initialize DuCAN preprocessor if needed
         if use_ducan_preprocessing:
@@ -375,6 +376,73 @@ class CSV_Dataset(Dataset):
         #print(image)
         return image, label, image_len
 
+class CSV_Dataset_eval(CSV_Dataset):
+    def __getitem__(self, idx):
+        sample = self.samples[idx]
+        if self.half3D: #output multiple images
+            img_name = [os.path.join(self.root_dir, each_name) for each_name in sample[0]]
+            image = [self.loader(each_name) for each_name in img_name]
+            image = [self.transfroms(each_image) for each_image in image]
+            image_len = len(image)
+            p3d = (0, 0, 0, 0 ,0 ,0 , 0, self.max_slice - image_len)
+            image = torch.stack(image)
+            image = torch.nn.functional.pad(image, p3d, mode='constant', value=0)
+        else:
+            img_name = os.path.join(self.root_dir, sample[0])
+            if self.modality != 'Thickness':
+                image = self.loader(img_name)
+            else:
+                npy_data = np.load(img_name)
+                image = np.sum(npy_data[self.select_idx], axis=0, keepdims=True) #C,H,W
+                if self.th_heatmap:
+                    # Normalize
+                    normed = (image[0] - image.min()) / (image.max() - image.min())
+                    # Apply colormap
+                    cmap = plt.get_cmap("jet")
+                    heatmap_rgba = cmap(normed)  # (H, W, 4)
+                    heatmap_array = (heatmap_rgba[..., :self.channel] * 255).astype(np.uint8) # (H,W,C)
+                    image = Image.fromarray(heatmap_array, mode='RGB')  # RGB
+                else:
+                    # Expand to N channels (repeat)
+                    image = np.repeat(image, self.channel, axis=0).transpose(1,2,0)  # (C,H,W)->(H,W,C)
+                    image = Image.fromarray(image, mode='RGB')  # RGB
+            
+            # Apply DuCAN preprocessing if enabled
+            if self.use_ducan_preprocessing and hasattr(self, 'ducan_preprocessor'):
+                # Convert PIL Image to numpy array for preprocessing
+                if hasattr(image, 'mode'):  # PIL Image
+                    image_np = np.array(image)
+                else:
+                    image_np = image
+                
+                # Apply modality-specific preprocessing
+                if self.modality in ['CFP', 'Fundus']:
+                    # Fundus preprocessing: ROI extraction, size standardization, CLAHE
+                    preprocessed_np = self.ducan_preprocessor.preprocess_fundus(image_np)
+                elif self.modality == 'OCT':
+                    # OCT preprocessing: denoising, intensity normalization, size standardization
+                    preprocessed_np = self.ducan_preprocessor.preprocess_oct(image_np)
+                else:
+                    # Default preprocessing
+                    preprocessed_np = image_np
+                # Convert back to PIL Image for transforms
+                image = Image.fromarray(preprocessed_np)
+            
+            # mask processing
+            if self.add_mask:
+                mask_path = os.path.join(Thickness_DIR,sample[2])
+                mask = np.load(mask_path) # (Layer Interface, slice_num, W)
+                slice_index = int(os.path.basename(img_name).split("_")[-1].split(".")[0])
+                mask_slice = mask[:, slice_index, :]
+                image, _ = masking_image_pil(image, mask_slice)
+            # (H,W,C)
+            image = self.transfroms(image)
+            image_len = 1
+
+        label = int(sample[1])
+        #output image name for evaluation
+        return image, label, image_len, sample[0]
+
 class DualCSV_Dataset(Dataset):
     def __init__(self,data_oct,data_cfp):
         self.data_oct = data_oct
@@ -395,28 +463,35 @@ class DualCSV_Dataset(Dataset):
         assert label_oct == label_cfp, "The label of OCT and CFP must be the same"
         return sample_oct, sample_cfp, label_oct
 
-def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, modality='OCT', patient_ids=None, pid_key='patient_id', select_layers=None,th_resize=True,th_heatmap=False, CV=False):
+def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, modality='OCT', patient_ids=None, pid_key='patient_id', select_layers=None,th_resize=True,th_heatmap=False, CV=False, eval_mode=False):
     if transform is None:
         transform = build_transform(is_train, args)
-    #subgroup patient ids or not
+    #subgroup patient ids or not, tmp disable
+    '''
     if hasattr(args, 'subgroup_path') and args.subgroup_path != '' and os.path.exists(args.subgroup_path):
         print('Using subgroup patient ids from: ', args.subgroup_path)
         subgroup_df = pd.read_csv(args.subgroup_path)
         patient_ids = subgroup_df['person_id'].values.tolist()
+    '''
+    #csv dataset
+    if eval_mode:
+        csv_func = CSV_Dataset_eval
+    else:
+        csv_func = CSV_Dataset
     
     if 'dual_input_cnn'  in args.model: #Dual model special dataset
         img_dir_oct = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
         img_dir_cfp = "/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
-        dataset_oct = CSV_Dataset(args.data_path, img_dir_oct, is_train, transform, k, modality="Thickness", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_img_per_patient=args.use_img_per_patient, CV=CV)
-        dataset_cfp = CSV_Dataset(args.data_path, img_dir_cfp, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_img_per_patient=args.use_img_per_patient, CV=CV)
+        dataset_oct = csv_func(args.data_path, img_dir_oct, is_train, transform, k, modality="Thickness", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_img_per_patient=args.use_img_per_patient, CV=CV)
+        dataset_cfp = csv_func(args.data_path, img_dir_cfp, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_img_per_patient=args.use_img_per_patient, CV=CV)
         dataset = DualCSV_Dataset(dataset_oct, dataset_cfp)
     elif 'ducan' in args.model: #DuCAN dual-modal dataset
         # DuCAN requires both fundus and OCT images with specialized preprocessing
-        dataset_oct = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality="OCT", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True,add_mask=args.add_mask, use_img_per_patient=args.use_img_per_patient, CV=CV)
-        dataset_fundus = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True, use_img_per_patient=args.use_img_per_patient, CV=CV)
+        dataset_oct = csv_func(args.data_path, img_dir, is_train, transform, k, modality="OCT", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True,add_mask=args.add_mask, use_img_per_patient=args.use_img_per_patient, CV=CV)
+        dataset_fundus = csv_func(args.data_path, img_dir, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True, use_img_per_patient=args.use_img_per_patient, CV=CV)
         dataset = DualCSV_Dataset(dataset_fundus, dataset_oct)  # Note: fundus first, OCT second for DuCAN
     elif args.data_path.endswith('.csv'):
-        dataset = CSV_Dataset(args.data_path, img_dir, is_train, transform, k, modality=modality, patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, add_mask=args.add_mask, use_img_per_patient=args.use_img_per_patient, CV=CV)
+        dataset = csv_func(args.data_path, img_dir, is_train, transform, k, modality=modality, patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, add_mask=args.add_mask, use_img_per_patient=args.use_img_per_patient, CV=CV)
     else:
         root = os.path.join(args.data_path, is_train)
         dataset = datasets.ImageFolder(root, transform=transform)
