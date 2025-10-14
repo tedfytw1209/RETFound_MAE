@@ -431,7 +431,7 @@ def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, 
     
     if len(protect_labels) > 0 and len(prevalent_labels) > 0:
         # Original fairness score
-        fairness_score = fariness_score(protect_labels, prevalent_labels, protect_preds, prevalent_preds, args.outcome_flag)
+        fairness_score = fariness_score(protect_labels, prevalent_labels, protect_preds, prevalent_preds)
         
         print("=== ENHANCED FAIRNESS ANALYSIS ===")
         print(f"Original fairness metrics: {fairness_score}")
