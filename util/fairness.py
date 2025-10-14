@@ -4,7 +4,6 @@ import pandas as pd
 from sklearn.metrics import confusion_matrix, accuracy_score
 from sklearn.calibration import calibration_curve
 from typing import Dict, Optional
-import seaborn as sns
 
 # fairness metric
 def fariness_score(protected_ground_truth, privileged_ground_truth, protected_pred, privileged_pred):

@@ -11,8 +11,6 @@ Date: 2025-01-13
 """
 
 import numpy as np
-import torch
-import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.calibration import calibration_curve
 from typing import Dict, List, Tuple, Optional, Union
