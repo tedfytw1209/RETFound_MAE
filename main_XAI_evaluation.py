@@ -89,6 +89,8 @@ def get_args_parser():
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--resume', default='0',
                         help='resume from checkpoint')
+    parser.add_argument('--eval', action='store_true',
+                        help='Perform evaluation only')
     parser.add_argument('--num_workers', default=10, type=int)
     parser.add_argument('--pin_mem', action='store_true',
                         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
@@ -121,6 +123,8 @@ def get_args_parser():
                         help='Whether to use image per patient sampling')
 
     # fine-tuning parameters
+    # * Finetuning params
+    parser.add_argument('--finetune', default='', type=str, help='finetune from checkpoint')
     parser.add_argument('--global_pool', action='store_true')
     parser.set_defaults(global_pool=True)
     parser.add_argument('--norm', default='IMAGENET', type=str, help='Normalization method')
