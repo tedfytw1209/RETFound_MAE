@@ -70,6 +70,8 @@ def get_args_parser():
                         help='Name of xai method to use, e.g., attn, rise')
     parser.add_argument('--use_rollout', action='store_true',
                     help='Use rollout for attention map generation')
+    parser.add_argument('--drop_path', type=float, default=0.2, metavar='PCT',
+                        help='Drop path rate (default: 0.1)')
 
     # Dataset parameters
     parser.add_argument('--data_path', default='./data/', type=str,
