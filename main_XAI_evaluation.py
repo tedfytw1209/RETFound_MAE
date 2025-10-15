@@ -121,6 +121,8 @@ def get_args_parser():
                         help='Whether to use image per patient sampling')
 
     # fine-tuning parameters
+    parser.add_argument('--global_pool', action='store_true')
+    parser.set_defaults(global_pool=True)
     parser.add_argument('--norm', default='IMAGENET', type=str, help='Normalization method')
     parser.add_argument('--enhance', action='store_true', default=False, help='Use enhanced data')
     parser.add_argument('--datasets_seed', default=2026, type=int)
