@@ -188,7 +188,8 @@ def get_args_parser():
     #subgroup settings
     parser.add_argument('--subgroup_path', default='', type=str, help='Subgroup for training')
     parser.add_argument('--subgroup_col', default='', type=str, help='Subgroup column for training')
-    parser.add_argument('--subgroup_value', default='', type=str, help='Subgroup value for training')
+    parser.add_argument('--protect_value', default='', type=str, help='Protected attribute value for training')
+    parser.add_argument('--prevalent_value', default='', type=str, help='Prevalent attribute value for training')
 
     # fine-tuning parameters
     parser.add_argument('--savemodel', action='store_true', default=True,
@@ -531,11 +532,16 @@ def main(args, criterion):
     #prevalent and protect group
     if hasattr(args, 'subgroup_path') and args.subgroup_path != '' and os.path.exists(args.subgroup_path):
         print('Using subgroup patient ids from: ', args.subgroup_path)
-        subgroup_df = pd.read_csv(args.subgroup_path)
-        patient_ids = subgroup_df['person_id'].values.tolist()
+        protect_path = os.path.join(args.subgroup_path,args.subgroup_col,args.protect_value + '.csv')
+        prevalent_path = os.path.join(args.subgroup_path,args.subgroup_col,args.prevalent_value + '.csv')
+        protect_df = pd.read_csv(protect_path)
+        prevalent_df = pd.read_csv(prevalent_path)
+         # Get patient IDs for each group
+        protect_patient_ids = protect_df['person_id'].values.tolist()
+        prevalent_patient_ids = prevalent_df['person_id'].values.tolist()
         #TODO: check it is correct or not
-        prevalent_group = dataset_test.annotations[~dataset_test.annotations['patient_id'].isin(patient_ids)].reset_index(drop=True)
-        protect_group = dataset_test.annotations[dataset_test.annotations['patient_id'].isin(patient_ids)].reset_index(drop=True)
+        prevalent_group = dataset_test.annotations[dataset_test.annotations['patient_id'].isin(prevalent_patient_ids)].reset_index(drop=True)
+        protect_group = dataset_test.annotations[dataset_test.annotations['patient_id'].isin(protect_patient_ids)].reset_index(drop=True)
         print('Prevalent group size: ', prevalent_group.shape)
         print('Protect group size: ', protect_group.shape)
         if args.modality == 'OCT':
@@ -547,7 +553,8 @@ def main(args, criterion):
         else:
             print('Incompatible modality: ', args.modality)
             exit(1)
-        
+        print('Protect image names sample: ', protect_image_names.values[:5])
+        print('Prevalent image names sample: ', prevalent_image_names.values[:5])
 
     if args.resume and args.eval:
         checkpoint = torch.load(args.resume, map_location='cpu')
