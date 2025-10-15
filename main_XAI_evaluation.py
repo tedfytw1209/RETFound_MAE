@@ -274,7 +274,8 @@ def get_model(args):
                 repo_id=f'YukunZhou/{args.finetune}',
                 filename=f'{args.finetune}.pth',
             )
-            checkpoint = torch.load(checkpoint_path, map_location='cpu')
+            with torch.serialization.safe_globals([argparse.Namespace]):
+                checkpoint = torch.load(checkpoint_path, map_location='cpu')
             print("Load pre-trained checkpoint from: %s" % args.finetune)
             if args.model!='RETFound_mae':
                 checkpoint_model = checkpoint['teacher']
@@ -297,7 +298,8 @@ def get_model(args):
         elif args.model.startswith('pvig') or args.model.startswith('vig'):
             pretrain_root = "/orange/ruogu.fang/tienyuchang/visionGNN_pretrain/"
             print('Loading:', args.finetune)
-            state_dict = torch.load(os.path.join(pretrain_root, args.finetune + '.pth'))
+            with torch.serialization.safe_globals([argparse.Namespace]):
+                state_dict = torch.load(os.path.join(pretrain_root, args.finetune + '.pth'))
             drop_keys = ["prediction.4.weight", "prediction.4.bias"]
             for k in drop_keys:
                 if k in state_dict:
@@ -408,7 +410,8 @@ def main(args, criterion):
             checkpoint = torch.hub.load_state_dict_from_url(
                 args.resume, map_location='cpu', check_hash=True)
         else:
-            checkpoint = torch.load(args.resume, map_location='cpu')
+            with torch.serialization.safe_globals([argparse.Namespace]):
+                checkpoint = torch.load(args.resume, map_location='cpu')
         if 'model' in checkpoint:
             checkpoint_model = checkpoint['model']
         else:
