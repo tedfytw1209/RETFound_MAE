@@ -30,9 +30,7 @@ from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.losses import FocalLoss, compute_alpha_from_labels
 from util.evaluation import (
-    InsertionMetric, DeletionMetric,
-    SufficiencyMetric, ConsistencyMetric, PointingGameMetric, 
-    ComplexityMetric, RandomLogitMetric
+    InsertionMetric, DeletionMetric
 )
 from baselines.Attention import Attention_Map
 from baselines.GradCAM import GradCAM
@@ -72,6 +70,10 @@ def get_args_parser():
                     help='Use rollout for attention map generation')
     parser.add_argument('--drop_path', type=float, default=0.2, metavar='PCT',
                         help='Drop path rate (default: 0.1)')
+    
+    # Metrics parameters
+    parser.add_argument('--used_quantus', action='store_true', default=False,
+                        help='Whether to use quantus library for some metrics')
 
     # Dataset parameters
     parser.add_argument('--data_path', default='./data/', type=str,
@@ -458,12 +460,17 @@ def main(args, criterion):
     metric_func_dict = {
         'insertion': InsertionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
         'deletion': DeletionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
-        #TODO: currently some issues with these metrics
-        #'sufficiency': SufficiencyMetric(model),
-        #'consistency': ConsistencyMetric(model),
-        #'complexity': ComplexityMetric(model),
-        #'random_logit': RandomLogitMetric(model, n_classes=args.nb_classes),
     }
+
+    if args.used_quantus:
+        from util.evaluation_quantus import SufficiencyMetric, ConsistencyMetric, PointingGameMetric, ComplexityMetric, RandomLogitMetric
+        metric_func_dict = {
+            #TODO: currently some issues with these metrics
+            'sufficiency': SufficiencyMetric(model),
+            'consistency': ConsistencyMetric(model),
+            'complexity': ComplexityMetric(model),
+            'random_logit': RandomLogitMetric(model, n_classes=args.nb_classes),
+        }
     test_stats, auc_roc = evaluate_XAI(data_loader_test, XAI_module,metric_func_dict, device, args, epoch=0, mode='test',
                                     num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
     wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
