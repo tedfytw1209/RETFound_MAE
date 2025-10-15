@@ -185,8 +185,6 @@ def get_args_parser():
     # Image per Patient settings
     parser.add_argument('--use_img_per_patient', action='store_true', default=False,
                         help='Whether to use image per patient sampling')
-    #subgroup settings
-    parser.add_argument('--subgroup_path', default='', type=str, help='Subgroup for training')
 
     # fine-tuning parameters
     parser.add_argument('--savemodel', action='store_true', default=True,

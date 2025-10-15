@@ -29,7 +29,11 @@ from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapp
 from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.losses import FocalLoss, compute_alpha_from_labels
-from util.evaluation import InsertionMetric, DeletionMetric
+from util.evaluation import (
+    InsertionMetric, DeletionMetric,
+    SufficiencyMetric, ConsistencyMetric, PointingGameMetric, 
+    ComplexityMetric, RandomLogitMetric
+)
 from baselines.Attention import Attention_Map
 from baselines.GradCAM import GradCAM
 from baselines.RISE import RISE, RISEBatch
@@ -89,6 +93,8 @@ def get_args_parser():
     parser.set_defaults(pin_mem=True)
     parser.add_argument('--img_dir', default='/orange/bianjiang/tienyu/OCT_AD/all_images/', type=str)
     parser.add_argument('--num_k', default=0, type=float)
+    parser.add_argument('--select_layer_idx', default=-1, type=int, help='number of layers to select for training')
+    parser.add_argument('--th_heatmap', action='store_true', default=False, help='Transform thickness map to heatmap')
     
     # Augmentation parameters (Not used for XAI evaluation)
     parser.add_argument('--color_jitter', type=float, default=None, metavar='PCT',
@@ -108,10 +114,24 @@ def get_args_parser():
     parser.add_argument('--resplit', action='store_true', default=False,
                         help='Do not random erase first (clean) augmentation split')
     
+    # Image per Patient settings
+    parser.add_argument('--use_img_per_patient', action='store_true', default=False,
+                        help='Whether to use image per patient sampling')
+
     # fine-tuning parameters
     parser.add_argument('--norm', default='IMAGENET', type=str, help='Normalization method')
     parser.add_argument('--enhance', action='store_true', default=False, help='Use enhanced data')
     parser.add_argument('--datasets_seed', default=2026, type=int)
+    parser.add_argument('--subset_ratio', default=0, type=float,
+                        help='Subset ratio for sampling dataset. If > 0, sample subset_ratio * minor_class_numbers from train/val/test datasets with seed 42')
+    parser.add_argument('--subset_num', default=0, type=int,
+                        help='Subset number for sampling dataset. If > 0, sample subset_num from train datasets with seed 42')
+    parser.add_argument('--new_subset_num', default=0, type=int,
+                        help='Subset number for sampling dataset. If > 0, sample subset_num from train datasets with seed 42')
+    parser.add_argument('--visualize_samples', action='store_true', default=False,
+                        help='Visualize sample images from the dataset')
+    parser.add_argument('--add_mask', action='store_true', default=False,
+                        help='Add mask to the image based on thickness map')
 
     return parser
 
@@ -297,7 +317,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
             attention_map_bs = xai_method(images) # numpy shape: (B, img_size, img_size)
             print(f'Attention map shape: {attention_map_bs.shape}')
             for k, v in metric_func_dict.items():
-                e_score = v(images, attention_map_bs, bs)
+                e_score = v(images, attention_map_bs, batch_size=bs, y_batch=target, explain_func=xai_method, explain_func_kwargs={})
                 overall_metrics_dict[k].append(e_score)
                 each_dict[k] = e_score
             
@@ -344,7 +364,7 @@ def main(args, criterion):
     sampler_val = None
     sampler_test = None
     wandb.init(
-        project="RETFound_MAE",
+        project="RETFound_MAE_XAI_Evaluation",
         name=args.task,
         config=args,
         dir=os.path.join(args.log_dir,args.task),
@@ -427,6 +447,11 @@ def main(args, criterion):
     metric_func_dict = {
         'insertion': InsertionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
         'deletion': DeletionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
+        #TODO: currently some issues with these metrics
+        #'sufficiency': SufficiencyMetric(model),
+        #'consistency': ConsistencyMetric(model),
+        #'complexity': ComplexityMetric(model),
+        #'random_logit': RandomLogitMetric(model, n_classes=args.nb_classes),
     }
     test_stats, auc_roc = evaluate_XAI(data_loader_test, XAI_module,metric_func_dict, device, args, epoch=0, mode='test',
                                     num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
