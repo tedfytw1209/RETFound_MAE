@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 from torch.utils.data.sampler import Sampler
 from torchvision import transforms, datasets
 
