@@ -123,8 +123,6 @@ def get_args_parser():
                         help='Whether to use image per patient sampling')
 
     # fine-tuning parameters
-    # * Finetuning params
-    parser.add_argument('--finetune', default='', type=str, help='finetune from checkpoint')
     parser.add_argument('--global_pool', action='store_true')
     parser.set_defaults(global_pool=True)
     parser.add_argument('--norm', default='IMAGENET', type=str, help='Normalization method')
