@@ -3,7 +3,7 @@ import torch.nn as nn
 import quantus
 
 class SufficiencyMetric():
-    def __init__(self, model, threshold=0.5, return_aggregate=False):
+    def __init__(self, model, device, threshold=0.5, return_aggregate=False):
         r"""Create sufficiency metric instance.
 
         Args:
@@ -12,7 +12,7 @@ class SufficiencyMetric():
             return_aggregate (bool): whether to return aggregate score or per-sample scores.
         """
         self.model = model
-        self.device = model.device
+        self.device = device
         self.threshold = threshold
         self.return_aggregate = return_aggregate
         self.metric = quantus.Sufficiency(threshold=threshold, return_aggregate=return_aggregate)
@@ -31,7 +31,7 @@ class SufficiencyMetric():
         return self.metric(self.model, x_batch, y_batch, a_batch, self.device)
 
 class ConsistencyMetric():
-    def __init__(self, model, discretise_func=quantus.discretise_func.top_n_sign, return_aggregate=False):
+    def __init__(self, model, device, discretise_func=quantus.discretise_func.top_n_sign, return_aggregate=False):
         r"""Create sufficiency metric instance.
 
         Args:
@@ -40,7 +40,7 @@ class ConsistencyMetric():
             return_aggregate (bool): whether to return aggregate score or per-sample scores.
         """
         self.model = model
-        self.device = model.device
+        self.device = device
         self.discretise_func = discretise_func
         self.return_aggregate = return_aggregate
         self.metric = quantus.Consistency(discretise_func=discretise_func, return_aggregate=return_aggregate)
@@ -63,7 +63,7 @@ class ConsistencyMetric():
         return result
 
 class PointingGameMetric():
-    def __init__(self, model):
+    def __init__(self, model, device):
         r"""Create sufficiency metric instance.
 
         Args:
@@ -72,7 +72,7 @@ class PointingGameMetric():
             return_aggregate (bool): whether to return aggregate score or per-sample scores.
         """
         self.model = model
-        self.device = model.device
+        self.device = device
         self.metric = quantus.PointingGame()
         
     def __call__(self, x_batch, a_batch = None, y_batch = None, explain_func=quantus.explain, explain_func_kwargs={"method": "Saliency"}, **kwargs):
@@ -93,7 +93,7 @@ class PointingGameMetric():
         return result
 
 class ComplexityMetric():
-    def __init__(self, model):
+    def __init__(self, model, device):
         r"""Create sufficiency metric instance.
 
         Args:
@@ -102,7 +102,7 @@ class ComplexityMetric():
             return_aggregate (bool): whether to return aggregate score or per-sample scores.
         """
         self.model = model
-        self.device = model.device
+        self.device = device
         self.metric = quantus.Complexity()
         
     def __call__(self, x_batch, a_batch = None, y_batch = None, explain_func=quantus.explain, explain_func_kwargs={"method": "Saliency"}, **kwargs):
@@ -122,7 +122,7 @@ class ComplexityMetric():
         return result
 
 class RandomLogitMetric():
-    def __init__(self, model, n_classes):
+    def __init__(self, model, device, n_classes):
         r"""Create sufficiency metric instance.
 
         Args:
@@ -131,7 +131,7 @@ class RandomLogitMetric():
             return_aggregate (bool): whether to return aggregate score or per-sample scores.
         """
         self.model = model
-        self.device = model.device
+        self.device = device
         self.metric = quantus.RandomLogit(num_classes=n_classes, similarity_func=quantus.similarity_func.ssim)
         
     def __call__(self, x_batch, a_batch = None, y_batch = None, explain_func=quantus.explain, explain_func_kwargs={"method": "Saliency"}, **kwargs):
