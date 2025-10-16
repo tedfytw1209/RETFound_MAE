@@ -1,6 +1,19 @@
 import torch
 import torch.nn as nn
+import numpy as np
 import quantus
+
+
+def to_tensor(x, device, dtype=torch.float32):
+    if isinstance(x, np.ndarray):
+        t = torch.from_numpy(x)
+    elif torch.is_tensor(x):
+        t = x
+    else:
+        raise TypeError(f"Unsupported type for tensor conversion: {type(x)}")
+    if t.dtype != dtype:
+        t = t.to(dtype)
+    return t.to(device)
 
 class SufficiencyMetric():
     def __init__(self, model, device, threshold=0.5, return_aggregate=False):
@@ -27,7 +40,10 @@ class SufficiencyMetric():
         Returns:
             float or np.ndarray: sufficiency metric score.
         """
-        a_batch = a_batch.unsqueeze(1)
+        x_batch = to_tensor(x_batch, self.device)
+        if y_batch is not None:
+            y_batch = to_tensor(y_batch, self.device, dtype=torch.long)
+        a_batch = to_tensor(a_batch, self.device).unsqueeze(1)
         return self.metric(self.model, x_batch, y_batch, a_batch, self.device)
 
 class ConsistencyMetric():
@@ -55,8 +71,11 @@ class ConsistencyMetric():
         Returns:
             float or np.ndarray: consistency metric score.
         """
+        x_batch = to_tensor(x_batch, self.device)
+        if y_batch is not None:
+            y_batch = to_tensor(y_batch, self.device, dtype=torch.long)
         if a_batch is not None:
-            a_batch = a_batch.unsqueeze(1)
+            a_batch = to_tensor(a_batch, self.device).unsqueeze(1)
         result = self.metric(model=self.model, x_batch=x_batch, y_batch=y_batch, a_batch=None, 
                     explain_func=explain_func, explain_func_kwargs=explain_func_kwargs, device=self.device)
         
@@ -85,8 +104,11 @@ class PointingGameMetric():
         Returns:
             float or np.ndarray: consistency metric score.
         """
+        x_batch = to_tensor(x_batch, self.device)
+        if y_batch is not None:
+            y_batch = to_tensor(y_batch, self.device, dtype=torch.long)
         if a_batch is not None:
-            a_batch = a_batch.unsqueeze(1)
+            a_batch = to_tensor(a_batch, self.device).unsqueeze(1)
         #TODO: Check difference between a_batch and s_batch
         result = self.metric(model=self.model, x_batch=x_batch, y_batch=y_batch, a_batch=None, s_batch=a_batch, explain_func=explain_func,    explain_func_kwargs=explain_func_kwargs, device=self.device)
         
@@ -115,8 +137,11 @@ class ComplexityMetric():
         Returns:
             float or np.ndarray: consistency metric score.
         """
+        x_batch = to_tensor(x_batch, self.device)
+        if y_batch is not None:
+            y_batch = to_tensor(y_batch, self.device, dtype=torch.long)
         if a_batch is not None:
-            a_batch = a_batch.unsqueeze(1)
+            a_batch = to_tensor(a_batch, self.device).unsqueeze(1)
         result = self.metric(model=self.model, x_batch=x_batch, y_batch=y_batch, a_batch=None, explain_func=explain_func,    explain_func_kwargs=explain_func_kwargs, device=self.device)
         
         return result
@@ -144,8 +169,11 @@ class RandomLogitMetric():
         Returns:
             float or np.ndarray: consistency metric score.
         """
+        x_batch = to_tensor(x_batch, self.device)
+        if y_batch is not None:
+            y_batch = to_tensor(y_batch, self.device, dtype=torch.long) 
         if a_batch is not None:
-            a_batch = a_batch.unsqueeze(1)
+            a_batch = to_tensor(a_batch, self.device).unsqueeze(1)
         result = self.metric(model=self.model, x_batch=x_batch, y_batch=y_batch, a_batch=None, explain_func=explain_func,    explain_func_kwargs=explain_func_kwargs, device=self.device)
         
         return result
