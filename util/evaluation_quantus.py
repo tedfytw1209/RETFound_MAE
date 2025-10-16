@@ -61,6 +61,7 @@ class SufficiencyMetric():
         Returns:
             float or np.ndarray: sufficiency metric score.
         """
+        self.model.eval()
         x_batch = to_numpy(x_batch, dtype=np.float32)
         if y_batch is not None:
             y_batch = to_numpy(y_batch, dtype=np.int64)
@@ -94,6 +95,7 @@ class ConsistencyMetric():
         Returns:
             float or np.ndarray: consistency metric score.
         """
+        self.model.eval()
         x_batch = to_numpy(x_batch, dtype=np.float32)
         if y_batch is not None:
             y_batch = to_numpy(y_batch, dtype=np.int64)
@@ -129,6 +131,7 @@ class PointingGameMetric():
         Returns:
             float or np.ndarray: consistency metric score.
         """
+        self.model.eval()
         x_batch = to_numpy(x_batch, dtype=np.float32)
         if y_batch is not None:
             y_batch = to_numpy(y_batch, dtype=np.int64)
@@ -164,6 +167,7 @@ class ComplexityMetric():
         Returns:
             float or np.ndarray: consistency metric score.
         """
+        self.model.eval()
         x_batch = to_numpy(x_batch, dtype=np.float32)
         if y_batch is not None:
             y_batch = to_numpy(y_batch, dtype=np.int64)
@@ -198,6 +202,7 @@ class RandomLogitMetric():
         Returns:
             float or np.ndarray: consistency metric score.
         """
+        self.model.eval()
         x_batch = to_numpy(x_batch, dtype=np.float32)
         if y_batch is not None:
             y_batch = to_numpy(y_batch, dtype=np.int64) 

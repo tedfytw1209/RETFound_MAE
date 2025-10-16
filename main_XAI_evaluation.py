@@ -325,13 +325,13 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         images, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True)
         bs = images.shape[0]
         each_dict = {}
-        with torch.cuda.amp.autocast():
-            attention_map_bs = xai_method(images) # numpy shape: (B, img_size, img_size)
-            print(f'Attention map shape: {attention_map_bs.shape}')
-            for k, v in metric_func_dict.items():
-                e_score = v(images, attention_map_bs, batch_size=bs, y_batch=target, explain_func=xai_method, explain_func_kwargs={})
-                overall_metrics_dict[k].append(e_score)
-                each_dict[k] = e_score
+        #with torch.cuda.amp.autocast():
+        attention_map_bs = xai_method(images) # numpy shape: (B, img_size, img_size)
+        print(f'Attention map shape: {attention_map_bs.shape}')
+        for k, v in metric_func_dict.items():
+            e_score = v(images, attention_map_bs, batch_size=bs, y_batch=target, explain_func=xai_method, explain_func_kwargs={})
+            overall_metrics_dict[k].append(e_score)
+            each_dict[k] = e_score
             
         metric_logger.update(**each_dict)
     
@@ -423,6 +423,7 @@ def main(args, criterion):
         model.load_state_dict(checkpoint_model, strict=False)
         print("Resume checkpoint %s" % args.resume)
 
+    model = model.float()
     model.to(device)
     
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
