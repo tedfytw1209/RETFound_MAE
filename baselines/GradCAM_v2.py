@@ -14,6 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from transformers import ViTForImageClassification, ViTImageProcessor
+from util.misc import to_tensor, to_numpy
 
 def _get(obj, name, default=None):
     return getattr(obj, name, default)
@@ -178,7 +179,7 @@ def run_grad_cam_on_image(model: torch.nn.Module,
         return np.hstack(results)
 
 class PytorchCAM(torch.nn.Module):
-    def __init__(self, model, model_name, img_size, patch_size=14, method=GradCAM, reshape_transform=None, normalize_cam=True):
+    def __init__(self, model, model_name, img_size, patch_size=14, method=GradCAM, reshape_transform=None, normalize_cam=True, device=None):
         super(PytorchCAM, self).__init__()
         self.model = model
         self.model_name = model_name
@@ -187,7 +188,8 @@ class PytorchCAM(torch.nn.Module):
         self.patch_size = patch_size
         self.features = None
         self.gradients = None
-
+        self.device = device
+        
         # Register hooks on the last layer of the encoder
         if 'RETFound' in model_name:
             # timm or HuggingFace ViT
@@ -213,6 +215,7 @@ class PytorchCAM(torch.nn.Module):
         Returns:
             torch.Tensor: The CAM for the given pixel values and targets for Grad-CAM.
         """
+        pixel_values = to_tensor(pixel_values, device=self.device)
         # Ensure 4D input [B, C, H, W]
         if pixel_values.dim() == 3:
             pixel_values = pixel_values.unsqueeze(0)

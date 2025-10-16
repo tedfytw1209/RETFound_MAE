@@ -2,39 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import quantus
-
-
-def to_tensor(x, device, dtype=torch.float32):
-    if isinstance(x, np.ndarray):
-        t = torch.from_numpy(x)
-    elif torch.is_tensor(x):
-        t = x
-    else:
-        raise TypeError(f"Unsupported type for tensor conversion: {type(x)}")
-    if t.dtype != dtype:
-        t = t.to(dtype)
-    return t.to(device)
-
-def to_numpy(x, dtype=np.float32):
-    """Convert tensor or array to numpy array.
-    
-    Args:
-        x: Input data (tensor or numpy array)
-        dtype: Target numpy dtype
-    
-    Returns:
-        numpy array
-    """
-    if isinstance(x, np.ndarray):
-        arr = x
-    elif torch.is_tensor(x):
-        arr = x.detach().cpu().numpy()
-    else:
-        raise TypeError(f"Unsupported type for numpy conversion: {type(x)}")
-    
-    if arr.dtype != dtype:
-        arr = arr.astype(dtype)
-    return arr
+from util.misc import to_tensor, to_numpy
 
 class SufficiencyMetric():
     def __init__(self, model, device, threshold=0.5, return_aggregate=False):

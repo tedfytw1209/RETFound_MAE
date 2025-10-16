@@ -6,6 +6,7 @@ from skimage.transform import resize
 from tqdm import tqdm
 import os
 from contextlib import nullcontext
+from util.misc import to_tensor, to_numpy
 
 """ Model wrapper to return a tensor"""
 class HuggingfaceToTensorModelWrapper(torch.nn.Module):
@@ -37,11 +38,12 @@ class HuggingfaceToTensorModelWrapper(torch.nn.Module):
         return logits
 
 class RISE(nn.Module):
-    def __init__(self, model, input_size, gpu_batch=100, maskspath='masks.npy', N=1000):
+    def __init__(self, model, input_size, gpu_batch=100, maskspath='masks.npy', N=1000, device=None):
         super(RISE, self).__init__()
         self.model = HuggingfaceToTensorModelWrapper(model.eval())
         self.input_size = input_size # (H, W)
         self.gpu_batch = gpu_batch
+        self.device = device
         if not os.path.isfile(maskspath):
             self.generate_masks(N=N, s=10, p1=0.1, savepath=maskspath)
         else:
@@ -83,7 +85,7 @@ class RISE(nn.Module):
         """
         if inputs is None:
             raise ValueError("inputs parameter is required")
-        x = inputs
+        x = to_tensor(inputs, device=self.device)
         assert x.dim() == 4 and x.size(0) == 1
         device = x.device
         N = self.N
@@ -122,7 +124,7 @@ class RISEBatch(RISE):
         """
         if inputs is None:
             raise ValueError("inputs parameter is required")
-        x = inputs
+        x = to_tensor(inputs, device=self.device)
         assert x.is_cuda
         device = x.device
         B, C, H, W = x.size()

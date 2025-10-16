@@ -11,6 +11,7 @@ import timm
 from timm.models.layers import PatchEmbed
 from torchvision.models.feature_extraction import get_graph_node_names
 from torchvision.models.feature_extraction import create_feature_extractor
+from util.misc import to_tensor, to_numpy
 
 def generate_attention_map_single(attentions, img_size=224, use_rollout=True):
     if use_rollout:
@@ -76,12 +77,13 @@ def generate_attention_map_batch(attentions, img_size=224, use_rollout=True):
     return np.stack(attention_maps)  # shape: (B, img_size, img_size)
 
 class Attention_Map(torch.nn.Module):
-    def __init__(self, model, model_name, input_size, N=12, use_rollout=True, print_layers=False):
+    def __init__(self, model, model_name, input_size, N=12, use_rollout=True, print_layers=False, device=None):
         super(Attention_Map, self).__init__()
         self.model = model
         self.input_size = input_size
         self.use_rollout = use_rollout
         self.model_name = model_name
+        self.device = device
         
         if print_layers:
             self.print_model(model, use_timm=False)
@@ -108,6 +110,7 @@ class Attention_Map(torch.nn.Module):
             model = self.model
         if inputs is None:
             raise ValueError("inputs parameter is required")
+        inputs = to_tensor(inputs, device=self.device)
         model.eval()
         with torch.no_grad():
             if self.use_timm:

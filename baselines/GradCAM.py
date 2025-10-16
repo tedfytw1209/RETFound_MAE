@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from transformers import ViTForImageClassification, ViTImageProcessor
 import re
 import torch.nn as nn
-
+from util.misc import to_tensor, to_numpy
 
 def _get(obj, name, default=None):
     return getattr(obj, name, default)
@@ -77,14 +77,14 @@ def _resolve_target_layer(model, model_name=None):
     raise ValueError("Unsupported model for GradCAM: cannot resolve target layer automatically.")
 
 class GradCAM(torch.nn.Module):
-    def __init__(self, model, model_name, img_size, patch_size=14, target_layer=None):
+    def __init__(self, model, model_name, img_size, patch_size=14, target_layer=None, device=None):
         super(GradCAM, self).__init__()
         self.model = model
         self.model_name = model_name
         self.model.eval()
         self.img_size = img_size
         self.patch_size = patch_size
-
+        self.device = device
         self.features = None
         self.gradients = None
 
@@ -104,6 +104,7 @@ class GradCAM(torch.nn.Module):
         self.gradients = grad_output[0]
 
     def compute_cam(self, pixel_values, target_class=None):
+        pixel_values = to_tensor(pixel_values, device=self.device)
         is_batch = pixel_values.dim() == 4
         B = pixel_values.size(0) if is_batch else 1
         if not is_batch:

@@ -12,6 +12,7 @@ from crp.attribution import CondAttribution
 
 from lxt.efficient import monkey_patch, monkey_patch_zennit
 from crp.helper import get_layer_names
+from util.misc import to_tensor, to_numpy
 
 """ Model wrapper to return a tensor"""
 class HuggingfaceToTensorModelWrapper(torch.nn.Module):
@@ -46,12 +47,13 @@ def _get(obj, name, default=None):
     return getattr(obj, name, default)
 ## CRP
 class CRP(torch.nn.Module):
-    def __init__(self, model, model_name, img_size, patch_size):
+    def __init__(self, model, model_name, img_size, patch_size, device=None):
         super(CRP, self).__init__()
         self.model = model
         self.model_name = model_name
         self.img_size = img_size
         self.patch_size = patch_size
+        self.device = device
         self.cc = ChannelConcept()
         self.composite = EpsilonPlusFlat([SequentialMergeBatchNorm()])
         if _get(self.model, 'resnet', None) is not None:
@@ -80,6 +82,7 @@ class CRP(torch.nn.Module):
         cam = (heatmap - cam_min) / (cam_max - cam_min + 1e-8)
         return cam # (B, H, W)
     def forward(self, image_tensor, target_class=None):
+        image_tensor = to_tensor(image_tensor, device=self.device)
         """Generate CRP heatmap"""
         if target_class is None:
             # Get predicted class
@@ -95,7 +98,7 @@ class CRP(torch.nn.Module):
 # in the backward pass. For ViTs, we utilize the LRP Gamma rule. It is implemented
 # inside the 'zennit' library. To make it compatible with LXT, we also monkey patch it. That's it.
 class LXT(torch.nn.Module):
-    def __init__(self, model, model_name, img_size, patch_size, conv_gamma = 0.25, lin_gamma = 0.05):
+    def __init__(self, model, model_name, img_size, patch_size, conv_gamma = 0.25, lin_gamma = 0.05, device=None):
         super(LXT, self).__init__()
         self.model = model
         self.model_name = model_name
@@ -103,6 +106,7 @@ class LXT(torch.nn.Module):
         self.patch_size = patch_size
         self.conv_gamma = conv_gamma #[0.1, 0.25, 100]
         self.lin_gamma = lin_gamma #[0, 0.01, 0.05, 0.1, 1]
+        self.device = device
         if _get(self.model, 'resnet', None) is not None:
             hook = _get(self.model, 'resnet', None)
         elif _get(self.model, 'vit', None) is not None:
@@ -143,6 +147,7 @@ class LXT(torch.nn.Module):
     
     def forward(self, image_tensor, target_class=None):
         """Generate LXT heatmap"""
+        image_tensor = to_tensor(image_tensor, device=self.device)
         if target_class is None:
             # Get predicted class
             with torch.no_grad():

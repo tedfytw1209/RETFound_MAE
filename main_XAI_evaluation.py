@@ -439,21 +439,21 @@ def main(args, criterion):
     ###TODO: evaluate XAI baselines
     if args.xai == 'rise':
         print("Using RISE for XAI")
-        XAI_module = RISEBatch(model, input_size=(args.input_size, args.input_size), gpu_batch=args.batch_size)
+        XAI_module = RISEBatch(model, input_size=(args.input_size, args.input_size), gpu_batch=args.batch_size, device=device)
     elif args.xai == 'attn':
-        XAI_module = Attention_Map(model, args.model, input_size=args.input_size, N=11, use_rollout=args.use_rollout, print_layers=True)
+        XAI_module = Attention_Map(model, args.model, input_size=args.input_size, N=11, use_rollout=args.use_rollout, print_layers=True, device=device)
     elif args.xai == 'gradcam':
-        XAI_module = GradCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size)
+        XAI_module = GradCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, device=device)
     elif args.xai == 'gradcamv2':
-        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=GradCAMv2)
+        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=GradCAMv2, device=device)
     elif args.xai == 'scorecam':
-        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=ScoreCAM)
+        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=ScoreCAM, device=device)
     elif args.xai == 'crp':
         from baselines.CRP_LXT import CRP
-        XAI_module = CRP(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size)
+        XAI_module = CRP(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, device=device)
     elif args.xai == 'lxt':
         from baselines.CRP_LXT import LXT
-        XAI_module = LXT(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, conv_gamma=0.25, lin_gamma=0.05)
+        XAI_module = LXT(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, conv_gamma=0.25, lin_gamma=0.05, device=device)
     else:
         raise ValueError(f"Unknown XAI method: {args.xai}")
     XAI_module.to(device)
