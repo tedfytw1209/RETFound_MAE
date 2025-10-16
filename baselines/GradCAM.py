@@ -141,8 +141,10 @@ class GradCAM(torch.nn.Module):
 
         return cam if is_batch else cam.squeeze(0)
 
-    def forward(self, pixel_values, target_class=None):
-        cam_bs = self.compute_cam(pixel_values, target_class).detach().cpu()
+    def forward(self, inputs=None, targets=None, model=None, **kwargs):
+        if inputs is None:
+            raise ValueError("inputs parameter is required")
+        cam_bs = self.compute_cam(inputs, targets).detach().cpu()
         # back to original image size
         cam_bs = F.interpolate(cam_bs.unsqueeze(1), size=(self.img_size, self.img_size), mode='bilinear', align_corners=False)
         return cam_bs.squeeze(1).numpy() #shape: (B, img_size, img_size)

@@ -172,7 +172,8 @@ class CRP_LXT(torch.nn.Module):
             self.method = CRP(model, model_name, img_size, patch_size)
         else:
             raise ValueError(f"Model {model_name} is not supported for CRP_LXT.")
-    def forward(self, x, target_class=None):
-        return self.method(x, target_class)
+    ##model=model, inputs=x_batch, targets=y_batch, **self.explain_func_kwargs
+    def forward(self, inputs=None, targets=None, model=None, **kwargs):
+        return self.method(inputs=inputs, targets=targets, model=model, **kwargs)
         
 

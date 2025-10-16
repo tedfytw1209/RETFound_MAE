@@ -102,24 +102,29 @@ class Attention_Map(torch.nn.Module):
         else:
             raise ValueError(f"Model {model_name} is not supported for attention map extraction.")
 
-    def forward(self, x):
-        self.model.eval()
+    #model=model, inputs=x_batch, targets=y_batch, **self.explain_func_kwargs
+    def forward(self, inputs=None, targets=None, model=None, **kwargs):
+        if model is None:
+            model = self.model
+        if inputs is None:
+            raise ValueError("inputs parameter is required")
+        model.eval()
         with torch.no_grad():
             if self.use_timm:
-                attentions = self.feature_extractor(x) #(B, n_heads, num_tokens, num_tokens)
+                attentions = self.feature_extractor(inputs) #(B, n_heads, num_tokens, num_tokens)
                 attentions = [attentions[key] for key in self.return_attns]
             else:
                 # Make sure x is shaped [B,3,224,224] and already normalized by the processor
                 try:
                     # Some HF models will propagate flags through the classifier
-                    outputs = self.model(pixel_values=x, output_attentions=True, return_dict=True)
+                    outputs = model(pixel_values=inputs, output_attentions=True, return_dict=True)
                     attentions = getattr(outputs, "attentions", None)
                 except TypeError:
                     attentions = None
 
                 if attentions is None:
                     # Call the base ViT encoder directly (works reliably)
-                    base_out = self.model.vit(pixel_values=x, output_attentions=True, return_dict=True)
+                    base_out = model.vit(pixel_values=inputs, output_attentions=True, return_dict=True)
                     attentions = base_out.attentions
 
                 if attentions is None:

@@ -76,11 +76,14 @@ class RISE(nn.Module):
         self.N = self.masks.shape[0]
         self.p1 = float(self.masks.mean().item())
 
-    def forward(self, x):
+    def forward(self, inputs=None, targets=None, model=None, **kwargs):
         """
-        x: (1, C, H, W) tensor on GPU
+        inputs: (1, C, H, W) tensor on GPU
         Returns: saliency (CL, H, W) on CPU
         """
+        if inputs is None:
+            raise ValueError("inputs parameter is required")
+        x = inputs
         assert x.dim() == 4 and x.size(0) == 1
         device = x.device
         N = self.N
@@ -112,11 +115,14 @@ class RISE(nn.Module):
     
 class RISEBatch(RISE):
     @torch.no_grad()
-    def forward(self, x):
+    def forward(self, inputs=None, targets=None, model=None, **kwargs):
         """
-        x: (B, C, H, W) on GPU
+        inputs: (B, C, H, W) on GPU
         return: (B, CL, H, W) -> numpy
         """
+        if inputs is None:
+            raise ValueError("inputs parameter is required")
+        x = inputs
         assert x.is_cuda
         device = x.device
         B, C, H, W = x.size()
