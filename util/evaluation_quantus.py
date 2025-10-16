@@ -68,7 +68,7 @@ class SufficiencyMetric():
         a_batch = to_numpy(a_batch, dtype=np.float32)
         if a_batch.ndim == 3:
             a_batch = np.expand_dims(a_batch, axis=1)
-        return self.metric(self.model, x_batch, y_batch, a_batch, self.device)
+        return self.metric(model=self.model, x_batch=x_batch, y_batch=y_batch, a_batch=a_batch, device=self.device)
 
 class ConsistencyMetric():
     def __init__(self, model, device, discretise_func=quantus.discretise_func.top_n_sign, return_aggregate=False):
@@ -210,6 +210,6 @@ class RandomLogitMetric():
             a_batch = to_numpy(a_batch, dtype=np.float32)
             if a_batch.ndim == 3:
                 a_batch = np.expand_dims(a_batch, axis=1)
-        result = self.metric(model=self.model, x_batch=x_batch, y_batch=y_batch, a_batch=None, explain_func=explain_func,    explain_func_kwargs=explain_func_kwargs, device=self.device)
-        
+        result = self.metric(model=self.model, x_batch=x_batch, y_batch=y_batch, a_batch=None, explain_func=explain_func, explain_func_kwargs=explain_func_kwargs, device=self.device)
+
         return result
