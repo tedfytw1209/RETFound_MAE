@@ -23,7 +23,7 @@ weight_decay="0.05"
 Eval_score="default"
 Modality="OCT" # CFP, OCT, OCT_CFP
 #SUBSETNUM="500" # 0, 500, 1000
-SUBSETNUM="0" # 0, 500, 1000
+SUBSETNUM="500" # 0, 500, 1000
 MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
 
 NUM_K=0
