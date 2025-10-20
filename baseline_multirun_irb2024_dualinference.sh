@@ -16,6 +16,7 @@ module load conda
 conda activate retfound_new
 
 SCRIPT=$1
+SUBSETNUM=${2:-"500"} # 0, 500, 1000
 MODEL="DualViT"
 FINETUNED_MODEL="DualViT_natureOCT"
 LR="5e-4"
@@ -23,12 +24,11 @@ weight_decay="0.05"
 Eval_score="default"
 Modality="OCT" # CFP, OCT, OCT_CFP
 #SUBSETNUM="500" # 0, 500, 1000
-SUBSETNUM="500" # 0, 500, 1000
 MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
 
 NUM_K=0
 
-#sbatch baseline_multirun_irb2024_dualinference.sh infernce_retfound_UFirb2024v5_dualvit.sh
+#sbatch baseline_multirun_irb2024_dualinference.sh infernce_retfound_UFirb2024v5_dualvit.sh 500
 #DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_binary_all_split Glaucoma_binary_all_split DME_all_split CSR_all_split Drusen_all_split ERM_all_split MH_all_split CRVO_CRAO_all_split PVD_all_split RNV_all_split DME_binary_all_split) 
 #CLASSES=(2 2 6 6 2 2 5 2 2 2 2 2 2 2 2)  # Number of classes for each dataset
 DATASETS=(PD_all_split DKD_all_split Diabetes_all_split) 
