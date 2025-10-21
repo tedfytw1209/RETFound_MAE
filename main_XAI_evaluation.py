@@ -470,9 +470,9 @@ def main(args, criterion):
         from util.evaluation_quantus import SufficiencyMetric, ConsistencyMetric, PointingGameMetric, ComplexityMetric, RandomLogitMetric
         metric_func_dict = {
             #TODO: currently some issues with these metrics
-            #'sufficiency': SufficiencyMetric(model, device),
-            #'consistency': ConsistencyMetric(model, device),
-            #'complexity': ComplexityMetric(model, device),
+            'sufficiency': SufficiencyMetric(model, device),
+            'consistency': ConsistencyMetric(model, device),
+            'complexity': ComplexityMetric(model, device),
             'random_logit': RandomLogitMetric(model, device, n_classes=args.nb_classes),
         }
     test_stats, auc_roc = evaluate_XAI(data_loader_test, XAI_module,metric_func_dict, device, args, epoch=0, mode='test',
