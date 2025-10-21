@@ -384,6 +384,7 @@ def main(args, criterion):
     os.makedirs(args.log_dir, exist_ok=True)
     log_writer = SummaryWriter(log_dir=os.path.join(args.log_dir,args.task))
 
+    '''
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train, sampler=sampler_train,
         batch_size=args.batch_size,
@@ -399,6 +400,7 @@ def main(args, criterion):
         pin_memory=args.pin_mem,
         drop_last=False
     )
+    '''
 
     data_loader_test = torch.utils.data.DataLoader(
         dataset_test, sampler=sampler_test,
@@ -467,8 +469,8 @@ def main(args, criterion):
         from util.evaluation_quantus import SufficiencyMetric, ConsistencyMetric, PointingGameMetric, ComplexityMetric, RandomLogitMetric
         metric_func_dict = {
             #TODO: currently some issues with these metrics
-            'sufficiency': SufficiencyMetric(model, device),
-            #'consistency': ConsistencyMetric(model, device),
+            #'sufficiency': SufficiencyMetric(model, device),
+            'consistency': ConsistencyMetric(model, device),
             #'complexity': ComplexityMetric(model, device),
             #'random_logit': RandomLogitMetric(model, device, n_classes=args.nb_classes),
         }

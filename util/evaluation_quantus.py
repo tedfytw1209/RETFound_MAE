@@ -36,13 +36,15 @@ class SufficiencyMetric():
         a_batch = to_numpy(a_batch, dtype=np.float32)
         if a_batch.ndim == 3:
             a_batch = np.expand_dims(a_batch, axis=1)
-        #debug
+        #debug: Seems no bug here, but the score is still 0
+        '''
         print(f'x_batch shape: {x_batch.shape}')
         print(f'y_batch shape: {y_batch.shape}')
         print(f'a_batch shape: {a_batch.shape}')
         print(f'a_batch min: {a_batch.min()}, a_batch max: {a_batch.max()}')
         print(f'a_batch mean: {a_batch.mean()}, a_batch std: {a_batch.std()}')
         print(y_batch)
+        '''
         return self.metric(model=self.model, x_batch=x_batch, y_batch=y_batch, a_batch=a_batch, device=self.device)
 
 class ConsistencyMetric():
