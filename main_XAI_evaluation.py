@@ -332,6 +332,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
             e_score_bs = np.mean(v(images, attention_map_bs, batch_size=bs, y_batch=target, explain_func=xai_method, explain_func_kwargs={}))
             overall_metrics_dict[k].append(e_score_bs)
             each_dict[k] = e_score_bs
+            print(f'{k}: {e_score_bs:.4f}')
             
         metric_logger.update(**each_dict)
     
