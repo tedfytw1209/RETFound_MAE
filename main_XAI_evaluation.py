@@ -472,8 +472,8 @@ def main(args, criterion):
             #TODO: currently some issues with these metrics
             #'sufficiency': SufficiencyMetric(model, device),
             #'consistency': ConsistencyMetric(model, device),
-            'complexity': ComplexityMetric(model, device),
-            #'random_logit': RandomLogitMetric(model, device, n_classes=args.nb_classes),
+            #'complexity': ComplexityMetric(model, device),
+            'random_logit': RandomLogitMetric(model, device, n_classes=args.nb_classes),
         }
     test_stats, auc_roc = evaluate_XAI(data_loader_test, XAI_module,metric_func_dict, device, args, epoch=0, mode='test',
                                     num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
