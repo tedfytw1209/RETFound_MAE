@@ -81,7 +81,7 @@ class CRP(torch.nn.Module):
         cam_max = heatmap.view(B, -1).max(dim=1)[0].view(B, 1, 1)
         cam = (heatmap - cam_min) / (cam_max - cam_min + 1e-8)
         return cam # (B, H, W)
-    def forward(self, image_tensor, target_class=None):
+    def forward(self, image_tensor, target_class=None, **kwargs):
         image_tensor = to_tensor(image_tensor, device=self.device)
         """Generate CRP heatmap"""
         if target_class is None:
@@ -145,7 +145,7 @@ class LXT(torch.nn.Module):
         cam = (heatmap - cam_min) / (cam_max - cam_min + 1e-8)
         return cam # (B, H, W)
     
-    def forward(self, image_tensor, target_class=None):
+    def forward(self, image_tensor, target_class=None, **kwargs):
         """Generate LXT heatmap"""
         image_tensor = to_tensor(image_tensor, device=self.device)
         if target_class is None:
@@ -179,6 +179,6 @@ class CRP_LXT(torch.nn.Module):
             raise ValueError(f"Model {model_name} is not supported for CRP_LXT.")
     ##model=model, inputs=x_batch, targets=y_batch, **self.explain_func_kwargs
     def forward(self, inputs=None, targets=None, model=None, **kwargs):
-        return self.method(inputs=inputs, targets=targets, model=model, **kwargs)
+        return self.method(image_tensor=inputs, target_class=targets, **kwargs)
         
 
