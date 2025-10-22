@@ -16,13 +16,13 @@ FINETUNED_MODEL=${3:-"RETFound_mae_natureOCT"}
 
 NUM_K=0
 
-#output_dir/AMD_all_split-IRB2024_v2-all-RETFound_mae-OCT-mcceval---testval-/checkpoint-best.pth
+#microsoft/resnet-50, timm_efficientnet-b4, google/vit-base-patch16-224-in21k, RETFound_mae_natureOCT
 #DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_binary_all_split Glaucoma_binary_all_split)  # List of datasets
 #CLASSES=(2 2 6 6 2 2)  # Number of classes for each dataset
 DATASETS=(DME_binary_all_split)  # List of datasets
 CLASSES=(2)  # Number of classes for each dataset
 
-#sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh
+#sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh RETFound_mae RETFound_mae_natureOCT
 #XAI_METHODS=("attn" "gradcam")  # List of XAI methods
 XAI_METHODS=("attn" "gradcamv2" "scorecam" "rise" "crp")  # List of XAI methods
 for i in "${!DATASETS[@]}"
