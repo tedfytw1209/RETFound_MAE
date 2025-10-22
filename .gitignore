@@ -132,4 +132,4 @@ dmypy.json
 .pyre/
 
 IDRiD_data
-vis_notebook/heatmap_layer_statistics_modelmask.csv
+vis_notebook/*.csv
