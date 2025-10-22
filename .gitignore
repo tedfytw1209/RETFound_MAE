@@ -133,3 +133,4 @@ dmypy.json
 
 IDRiD_data
 vis_notebook/*.csv
+/vis_notebook/output
