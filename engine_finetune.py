@@ -1155,3 +1155,66 @@ def evaluate_dualv2(data_loader, model, device, args, epoch, mode, num_class, k,
     out_dict = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
     out_dict.update(metric_dict)
     return out_dict, score
+
+def reinit_model_weights_(model: nn.Module, seed: int = None):
+    if seed is not None:
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
+    std_for_embedding = 0.02
+    try:
+        cfg = getattr(model, 'config', None)
+        if cfg is not None and hasattr(cfg, 'initializer_range'):
+            std_for_embedding = float(getattr(cfg, 'initializer_range'))
+    except Exception:
+        pass
+
+    is_hf = False
+    try:
+        from transformers import PreTrainedModel  # type: ignore
+        is_hf = isinstance(model, PreTrainedModel)
+    except Exception:
+        is_hf = False
+
+    if is_hf and hasattr(model, 'init_weights') and callable(model.init_weights):
+        model.init_weights()
+        if hasattr(model, 'tie_weights'):
+            try:
+                model.tie_weights()
+            except Exception:
+                pass
+        return
+
+    model.apply(lambda m: _reset_module_parameters_(m, std_for_embedding=std_for_embedding))
+    return model
+
+def _reset_module_parameters_(m: nn.Module, std_for_embedding: float = 0.02):
+    # Linear
+    if isinstance(m, nn.Linear):
+        nn.init.xavier_uniform_(m.weight)
+        if m.bias is not None:
+            nn.init.zeros_(m.bias)
+
+    # Conv2d
+    elif isinstance(m, nn.Conv2d):
+        nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        if m.bias is not None:
+            nn.init.zeros_(m.bias)
+
+    # Norm layers
+    elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d,
+                        nn.LayerNorm, nn.GroupNorm)):
+        if hasattr(m, 'weight') and m.weight is not None:
+            nn.init.ones_(m.weight)
+        if hasattr(m, 'bias') and m.bias is not None:
+            nn.init.zeros_(m.bias)
+        # reset running stats for BatchNorm
+        if hasattr(m, 'reset_running_stats'):
+            m.reset_running_stats()
+
+    # Embedding
+    elif isinstance(m, nn.Embedding):
+        nn.init.normal_(m.weight, mean=0.0, std=std_for_embedding)
+        if hasattr(m, 'padding_idx') and m.padding_idx is not None:
+            with torch.no_grad():
+                m.weight[m.padding_idx].zero_()

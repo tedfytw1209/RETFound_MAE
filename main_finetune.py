@@ -35,7 +35,7 @@ from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.losses import FocalLoss, compute_alpha_from_labels
 from huggingface_hub import hf_hub_download, login
-from engine_finetune import evaluate_half3D, train_one_epoch, evaluate
+from engine_finetune import evaluate_half3D, train_one_epoch, evaluate, reinit_model_weights_
 import wandb
 from pytorch_pretrained_vit import ViT
 
@@ -62,6 +62,8 @@ def get_args_parser():
                         help='images input size')
     parser.add_argument('--drop_path', type=float, default=0.2, metavar='PCT',
                         help='Drop path rate (default: 0.1)')
+    parser.add_argument('--init_pretrained', action='store_true', default=False,
+                        help='Initialize the pretrained model')
 
     # Optimizer parameters
     parser.add_argument('--optimizer', default='adamw', type=str, metavar='OPTIMIZER',
@@ -458,6 +460,10 @@ def get_model(args):
             model = relynet_load_pretrained(model, args.finetune, args.device)
         else:
             print("No checkpoints from: %s" % args.finetune)
+    #initialize the pretrained model if needed
+    if hasattr(model, 'init_pretrained') and args.init_pretrained:
+        model.init_pretrained(args.finetune)
+        reinit_model_weights_(model, seed=getattr(args, 'seed', None))
     return model, processor
 
 def main(args, criterion):
