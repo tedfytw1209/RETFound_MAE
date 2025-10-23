@@ -1,20 +1,16 @@
 import warnings
 warnings.filterwarnings('ignore')
-from torchvision import transforms
-from datasets import load_dataset
-from pytorch_grad_cam import run_dff_on_image, GradCAM
-from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
+from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 from PIL import Image
 import numpy as np
-import cv2
 from typing import List, Callable, Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from transformers import ViTForImageClassification, ViTImageProcessor
-from util.misc import to_tensor, to_numpy
+from util.misc import to_tensor
 
 def _get(obj, name, default=None):
     return getattr(obj, name, default)

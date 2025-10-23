@@ -4,9 +4,8 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 from transformers import ViTForImageClassification, ViTImageProcessor
-import re
 import torch.nn as nn
-from util.misc import to_tensor, to_numpy
+from util.misc import to_tensor
 
 def _get(obj, name, default=None):
     return getattr(obj, name, default)

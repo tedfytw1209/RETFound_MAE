@@ -6,7 +6,7 @@ from skimage.transform import resize
 from tqdm import tqdm
 import os
 from contextlib import nullcontext
-from util.misc import to_tensor, to_numpy
+from util.misc import to_tensor
 
 """ Model wrapper to return a tensor"""
 class HuggingfaceToTensorModelWrapper(torch.nn.Module):

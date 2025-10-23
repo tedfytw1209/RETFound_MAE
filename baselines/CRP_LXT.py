@@ -1,18 +1,15 @@
 import torch
-import itertools
-from PIL import Image
 from crp.concepts import ChannelConcept
 
-from zennit.image import imgify
 from zennit.composites import LayerMapComposite
 import zennit.rules as z_rules
 from zennit.composites import EpsilonPlusFlat
 from zennit.canonizers import SequentialMergeBatchNorm
 from crp.attribution import CondAttribution
 
-from lxt.efficient import monkey_patch, monkey_patch_zennit
+from lxt.efficient import monkey_patch
 from crp.helper import get_layer_names
-from util.misc import to_tensor, to_numpy
+from util.misc import to_tensor
 
 """ Model wrapper to return a tensor"""
 class HuggingfaceToTensorModelWrapper(torch.nn.Module):
