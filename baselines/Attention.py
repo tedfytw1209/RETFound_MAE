@@ -2,16 +2,13 @@
 from PIL import Image
 import numpy as np
 import torch
-import torch.nn.functional as F
 from pprint import pprint
-
-import os
 
 import timm
 from timm.models.layers import PatchEmbed
 from torchvision.models.feature_extraction import get_graph_node_names
 from torchvision.models.feature_extraction import create_feature_extractor
-from util.misc import to_tensor, to_numpy
+from util.misc import to_tensor
 
 def generate_attention_map_single(attentions, img_size=224, use_rollout=True):
     if use_rollout:
