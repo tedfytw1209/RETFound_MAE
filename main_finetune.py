@@ -461,7 +461,7 @@ def get_model(args):
         else:
             print("No checkpoints from: %s" % args.finetune)
     #initialize the pretrained model if needed
-    if hasattr(model, 'init_pretrained') and args.init_pretrained:
+    if args.init_pretrained:
         print("Initialize the pretrained model weights")
         print('Weight before init:', model.parameters()[0,:5])
         model.init_pretrained(args.finetune)
