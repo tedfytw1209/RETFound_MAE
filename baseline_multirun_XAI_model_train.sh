@@ -23,6 +23,6 @@ do
     MODEL="${MODELS[$i]}"
     FINETUNED_MODEL="${FINETUNED_MODELS[$i]}"
     # Submit the job to Slurm
-    echo "sbatch finetune_retfound_UFbenchmark_irb2024v5.sh $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2"
-    sbatch finetune_retfound_UFbenchmark_irb2024v5.sh $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2
+    echo "sbatch finetune_retfound_UFbenchmark_irb2024v5_tmp.sh $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2"
+    sbatch finetune_retfound_UFbenchmark_irb2024v5_tmp.sh $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2
 done
