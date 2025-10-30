@@ -465,7 +465,6 @@ def get_model(args):
         print("Initialize the pretrained model weights")
         first_param_before = next(model.parameters()).detach().clone()
         print("Weight before init:", first_param_before.view(-1)[:5])
-        model.init_pretrained(args.finetune)
         reinit_model_weights_(model, seed=getattr(args, 'seed', None))
         first_param_after = next(model.parameters()).detach().view(-1)[:5]
         print("Weight after init:", first_param_after)
