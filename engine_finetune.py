@@ -3,6 +3,8 @@ import csv
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
+from torch.nn.parallel import DistributedDataParallel as DDP, DataParallel as DP
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -1156,37 +1158,92 @@ def evaluate_dualv2(data_loader, model, device, args, epoch, mode, num_class, k,
     out_dict.update(metric_dict)
     return out_dict, score
 
-def reinit_model_weights_(model: nn.Module, seed: int = None):
+def _unwrap(model):
+    return model.module if isinstance(model, (DDP, DP)) else model
+
+def reinit_model_weights_(model: nn.Module, seed: int | None = None):
+    base = _unwrap(model)
+
     if seed is not None:
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
     std_for_embedding = 0.02
+    cfg = getattr(base, "config", None)
+    if cfg is not None and hasattr(cfg, "initializer_range"):
+        try:
+            std_for_embedding = float(getattr(cfg, "initializer_range"))
+        except Exception:
+            pass
+
     try:
-        cfg = getattr(model, 'config', None)
-        if cfg is not None and hasattr(cfg, 'initializer_range'):
-            std_for_embedding = float(getattr(cfg, 'initializer_range'))
+        from transformers import PreTrainedModel  # type: ignore
+        if isinstance(base, PreTrainedModel) and hasattr(base, "init_weights") and callable(base.init_weights):
+            base.init_weights()
+            if hasattr(base, "tie_weights"):
+                try:
+                    base.tie_weights()
+                except Exception:
+                    pass
+            return base
     except Exception:
         pass
 
-    is_hf = False
-    try:
-        from transformers import PreTrainedModel  # type: ignore
-        is_hf = isinstance(model, PreTrainedModel)
-    except Exception:
-        is_hf = False
+    for _, m in base.named_modules():
+        if isinstance(m, (nn.Linear, nn.Conv1d, nn.Conv2d, nn.Conv3d)):
+            if getattr(m, "weight", None) is not None and m.weight.requires_grad:
+                if isinstance(m, nn.Linear):
+                    nn.init.kaiming_uniform_(m.weight, a=math.sqrt(5), nonlinearity="relu")
+                else:
+                    nn.init.kaiming_normal_(m.weight, nonlinearity="relu")
+            if getattr(m, "bias", None) is not None and m.bias is not None and m.bias.requires_grad:
+                nn.init.zeros_(m.bias)
 
-    if is_hf and hasattr(model, 'init_weights') and callable(model.init_weights):
-        model.init_weights()
-        if hasattr(model, 'tie_weights'):
-            try:
-                model.tie_weights()
-            except Exception:
-                pass
-        return
+        elif isinstance(
+            m,
+            (
+                nn.LayerNorm, nn.GroupNorm,
+                nn.InstanceNorm1d, nn.InstanceNorm2d, nn.InstanceNorm3d,
+                nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d,
+            ),
+        ):
+            if getattr(m, "weight", None) is not None and m.weight.requires_grad:
+                nn.init.ones_(m.weight)
+            if getattr(m, "bias", None) is not None and m.bias is not None and m.bias.requires_grad:
+                nn.init.zeros_(m.bias)
 
-    model.apply(lambda m: _reset_module_parameters_(m, std_for_embedding=std_for_embedding))
-    return model
+        elif isinstance(m, nn.Embedding):
+            if getattr(m, "weight", None) is not None and m.weight.requires_grad:
+                nn.init.normal_(m.weight, mean=0.0, std=std_for_embedding)
+                if getattr(m, "padding_idx", None) is not None:
+                    with torch.no_grad():
+                        m.weight[m.padding_idx].fill_(0)
+
+        elif isinstance(m, (nn.RNN, nn.GRU, nn.LSTM)):
+            for name, p in m.named_parameters(recurse=False):
+                if not p.requires_grad:
+                    continue
+                if "weight_ih" in name:
+                    nn.init.xavier_uniform_(p)
+                elif "weight_hh" in name:
+                    nn.init.orthogonal_(p)
+                elif "bias" in name:
+                    nn.init.zeros_(p)
+
+    for n, p in base.named_parameters():
+        if not p.requires_grad:
+            continue
+        if p.grad is not None:
+            p.grad = None
+        try:
+            if p.ndim >= 2:
+                nn.init.kaiming_uniform_(p, a=math.sqrt(5))
+            else:
+                nn.init.zeros_(p)
+        except Exception:
+            nn.init.normal_(p, mean=0.0, std=0.02)
+
+    return base
 
 def _reset_module_parameters_(m: nn.Module, std_for_embedding: float = 0.02):
     # Linear
