@@ -47,6 +47,11 @@ def to_numpy(x, dtype=np.float32):
         arr = arr.astype(dtype)
     return arr
 
+def print_all_named_parameters(model):
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(f"{name}: mean = {param.data.mean().item():.6f}, std = {param.data.std().item():.6f}")
+
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a
     window or the global series average.

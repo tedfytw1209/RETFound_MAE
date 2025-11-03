@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import json
-from typing import Iterable, Optional
+from typing import Any, Dict, Iterable, Optional
 from timm.data import Mixup
 from timm.utils import accuracy
 from sklearn.metrics import (
@@ -1158,120 +1158,219 @@ def evaluate_dualv2(data_loader, model, device, args, epoch, mode, num_class, k,
     out_dict.update(metric_dict)
     return out_dict, score
 
-def _unwrap(model):
-    return model.module if isinstance(model, (DDP, DP)) else model
+def _unwrap_module(m: nn.Module) -> nn.Module:
+    # DDP / DataParallel
+    if hasattr(m, "module"):
+        m = m.module  # type: ignore[attr-defined]
+    # nn.Sequential etc. (no special unwrapping needed)
+    # torch.compile wrapper (PyTorch 2.x)
+    if hasattr(m, "_orig_mod"):
+        try:
+            m = m._orig_mod  # type: ignore[attr-defined]
+        except Exception:
+            pass
+    # Some libs wrap with __wrapped__
+    if hasattr(m, "__wrapped__"):
+        try:
+            m = m.__wrapped__  # type: ignore[attr-defined]
+        except Exception:
+            pass
+    return m
 
-def reinit_model_weights_(model: nn.Module, seed: int | None = None):
-    base = _unwrap(model)
+
+def _fan_in_bound_for_bias(weight: torch.Tensor) -> float:
+    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(weight)
+    if fan_in > 0:
+        return 1.0 / math.sqrt(fan_in)
+    return 0.0
+
+
+def _reset_module_parameters_fallback_(m: nn.Module, emb_std: float) -> None:
+    # Linear
+    if isinstance(m, nn.Linear):
+        if m.weight is not None and m.weight.requires_grad:
+            nn.init.kaiming_uniform_(m.weight, a=math.sqrt(5), nonlinearity="relu")
+        if m.bias is not None and m.bias.requires_grad:
+            # match PyTorch default: uniform(-b, b) with b = 1/sqrt(fan_in)
+            bound = _fan_in_bound_for_bias(m.weight)
+            nn.init.uniform_(m.bias, -bound, bound)
+
+    # Convs
+    elif isinstance(m, (nn.Conv1d, nn.Conv2d, nn.Conv3d)):
+        if m.weight is not None and m.weight.requires_grad:
+            nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+        if m.bias is not None and m.bias.requires_grad:
+            nn.init.zeros_(m.bias)
+
+    # Transposed Convs
+    elif isinstance(m, (nn.ConvTranspose1d, nn.ConvTranspose2d, nn.ConvTranspose3d)):
+        if m.weight is not None and m.weight.requires_grad:
+            nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+        if m.bias is not None and m.bias.requires_grad:
+            nn.init.zeros_(m.bias)
+
+    # Norms
+    elif isinstance(
+        m,
+        (
+            nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d,
+            nn.LayerNorm, nn.GroupNorm,
+            nn.InstanceNorm1d, nn.InstanceNorm2d, nn.InstanceNorm3d,
+        ),
+    ):
+        if hasattr(m, "weight") and m.weight is not None and m.weight.requires_grad:
+            nn.init.ones_(m.weight)
+        if hasattr(m, "bias") and m.bias is not None and m.bias.requires_grad:
+            nn.init.zeros_(m.bias)
+        # Reset BN running stats if present
+        if hasattr(m, "reset_running_stats"):
+            try:
+                m.reset_running_stats()
+            except Exception:
+                pass
+
+    # Embeddings
+    elif isinstance(m, nn.Embedding):
+        if m.weight is not None and m.weight.requires_grad:
+            nn.init.normal_(m.weight, mean=0.0, std=emb_std)
+            if getattr(m, "padding_idx", None) is not None:
+                with torch.no_grad():
+                    m.weight[m.padding_idx].fill_(0)
+
+    # RNN family
+    elif isinstance(m, (nn.RNN, nn.GRU, nn.LSTM)):
+        for name, p in m.named_parameters(recurse=False):
+            if p is None or not p.requires_grad:
+                continue
+            if "weight_ih" in name:
+                nn.init.xavier_uniform_(p)
+            elif "weight_hh" in name:
+                nn.init.orthogonal_(p)
+            elif "bias" in name:
+                nn.init.zeros_(p)
+
+
+def reinit_model_weights_(
+    model: nn.Module,
+    seed: Optional[int] = None,
+    *,
+    prefer_library_init: bool = True,
+) -> Dict[str, Any]:
+    """
+    Reinitialize weights of a PyTorch/timm/Transformers model.
+    - Uses library-native init methods first when available (Transformers/timm).
+    - Falls back to explicit per-module initialization otherwise.
+    - Skips frozen parameters (requires_grad=False) and re-ties weights if possible.
+    - Clears any existing gradients.
+
+    Returns a dict summary with keys:
+      {
+        'used_transformers_init': bool,
+        'used_timm_init': bool,
+        'fallback_applied': bool,
+        'embedding_std': float,
+        'skipped_params': List[str],
+      }
+    """
+    base = _unwrap_module(model)
 
     if seed is not None:
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
-    std_for_embedding = 0.02
+    # Determine embedding std from HF config if present
+    emb_std = 0.02
     cfg = getattr(base, "config", None)
     if cfg is not None and hasattr(cfg, "initializer_range"):
         try:
-            std_for_embedding = float(getattr(cfg, "initializer_range"))
+            emb_std = float(getattr(cfg, "initializer_range"))
         except Exception:
             pass
 
-    try:
-        from transformers import PreTrainedModel  # type: ignore
-        if isinstance(base, PreTrainedModel) and hasattr(base, "init_weights") and callable(base.init_weights):
-            base.init_weights()
-            if hasattr(base, "tie_weights"):
-                try:
-                    base.tie_weights()
-                except Exception:
-                    pass
-            return base
-    except Exception:
-        pass
+    summary = {
+        "used_transformers_init": False,
+        "used_timm_init": False,
+        "fallback_applied": False,
+        "embedding_std": emb_std,
+        "skipped_params": [],
+    }
 
-    for _, m in base.named_modules():
-        if isinstance(m, (nn.Linear, nn.Conv1d, nn.Conv2d, nn.Conv3d)):
-            if getattr(m, "weight", None) is not None and m.weight.requires_grad:
-                if isinstance(m, nn.Linear):
-                    nn.init.kaiming_uniform_(m.weight, a=math.sqrt(5), nonlinearity="relu")
-                else:
-                    nn.init.kaiming_normal_(m.weight, nonlinearity="relu")
-            if getattr(m, "bias", None) is not None and m.bias is not None and m.bias.requires_grad:
-                nn.init.zeros_(m.bias)
+    # Try 🤗 Transformers native init if appropriate
+    if prefer_library_init:
+        try:
+            from transformers import PreTrainedModel  # type: ignore
+            if isinstance(base, PreTrainedModel) and hasattr(base, "init_weights") and callable(base.init_weights):
+                base.init_weights()
+                if hasattr(base, "tie_weights"):
+                    try:
+                        base.tie_weights()
+                    except Exception:
+                        pass
+                # Clear grads if any
+                for n, p in base.named_parameters():
+                    if p.grad is not None:
+                        p.grad = None
+                summary["used_transformers_init"] = True
+                return summary
+        except Exception:
+            # Keep going if transformers isn't installed or model isn't PreTrainedModel
+            pass
 
-        elif isinstance(
-            m,
-            (
-                nn.LayerNorm, nn.GroupNorm,
-                nn.InstanceNorm1d, nn.InstanceNorm2d, nn.InstanceNorm3d,
-                nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d,
-            ),
-        ):
-            if getattr(m, "weight", None) is not None and m.weight.requires_grad:
-                nn.init.ones_(m.weight)
-            if getattr(m, "bias", None) is not None and m.bias is not None and m.bias.requires_grad:
-                nn.init.zeros_(m.bias)
+    # Try timm models' native init if available
+    if prefer_library_init:
+        try:
+            # Many timm models define an `init_weights` method on the top module.
+            if hasattr(base, "init_weights") and callable(getattr(base, "init_weights")):
+                base.init_weights()
+                # Clear grads if any
+                for _, p in base.named_parameters():
+                    if p.grad is not None:
+                        p.grad = None
+                summary["used_timm_init"] = True
+                # Still run a light fallback pass for any odd layers not covered:
+                # (harmless because we skip frozen and use type-appropriate inits)
+                base.apply(lambda m: _reset_module_parameters_fallback_(m, emb_std))
+                summary["fallback_applied"] = True
+                # Re-tie if present (some timm wrappers or custom models expose tie_weights)
+                if hasattr(base, "tie_weights"):
+                    try:
+                        base.tie_weights()
+                    except Exception:
+                        pass
+                return summary
+        except Exception:
+            pass
 
-        elif isinstance(m, nn.Embedding):
-            if getattr(m, "weight", None) is not None and m.weight.requires_grad:
-                nn.init.normal_(m.weight, mean=0.0, std=std_for_embedding)
-                if getattr(m, "padding_idx", None) is not None:
-                    with torch.no_grad():
-                        m.weight[m.padding_idx].fill_(0)
+    # Generic fallback: per-module resets
+    base.apply(lambda m: _reset_module_parameters_fallback_(m, emb_std))
 
-        elif isinstance(m, (nn.RNN, nn.GRU, nn.LSTM)):
-            for name, p in m.named_parameters(recurse=False):
-                if not p.requires_grad:
-                    continue
-                if "weight_ih" in name:
-                    nn.init.xavier_uniform_(p)
-                elif "weight_hh" in name:
-                    nn.init.orthogonal_(p)
-                elif "bias" in name:
-                    nn.init.zeros_(p)
-
-    for n, p in base.named_parameters():
-        if not p.requires_grad:
+    # As a last pass, ensure *all* trainable parameters are initialized to something reasonable.
+    # This catches custom layers that slipped through the cracks.
+    for name, p in base.named_parameters():
+        if p is None or not p.requires_grad:
+            if p is not None and not p.requires_grad:
+                summary["skipped_params"].append(name)
             continue
+        # Clear grads
         if p.grad is not None:
             p.grad = None
+        # Avoid reinitializing tensors we already handled cleanly via module-level rules:
+        # If it's 2D+ (weight-like), use Kaiming uniform; else (bias/scale) use zeros.
         try:
             if p.ndim >= 2:
                 nn.init.kaiming_uniform_(p, a=math.sqrt(5))
             else:
                 nn.init.zeros_(p)
         except Exception:
-            nn.init.normal_(p, mean=0.0, std=0.02)
+            # Absolute last resort
+            nn.init.normal_(p, mean=0.0, std=emb_std)
 
-    return base
+    # If there are tied weights or a custom tying hook, call it now.
+    if hasattr(base, "tie_weights"):
+        try:
+            base.tie_weights()
+        except Exception:
+            pass
 
-def _reset_module_parameters_(m: nn.Module, std_for_embedding: float = 0.02):
-    # Linear
-    if isinstance(m, nn.Linear):
-        nn.init.xavier_uniform_(m.weight)
-        if m.bias is not None:
-            nn.init.zeros_(m.bias)
-
-    # Conv2d
-    elif isinstance(m, nn.Conv2d):
-        nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-        if m.bias is not None:
-            nn.init.zeros_(m.bias)
-
-    # Norm layers
-    elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d,
-                        nn.LayerNorm, nn.GroupNorm)):
-        if hasattr(m, 'weight') and m.weight is not None:
-            nn.init.ones_(m.weight)
-        if hasattr(m, 'bias') and m.bias is not None:
-            nn.init.zeros_(m.bias)
-        # reset running stats for BatchNorm
-        if hasattr(m, 'reset_running_stats'):
-            m.reset_running_stats()
-
-    # Embedding
-    elif isinstance(m, nn.Embedding):
-        nn.init.normal_(m.weight, mean=0.0, std=std_for_embedding)
-        if hasattr(m, 'padding_idx') and m.padding_idx is not None:
-            with torch.no_grad():
-                m.weight[m.padding_idx].zero_()
+    summary["fallback_applied"] = True
+    return summary
