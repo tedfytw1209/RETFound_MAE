@@ -1184,101 +1184,38 @@ def _fan_in_bound_for_bias(weight: torch.Tensor) -> float:
         return 1.0 / math.sqrt(fan_in)
     return 0.0
 
-
-def _reset_module_parameters_fallback_(m: nn.Module, emb_std: float) -> None:
-    # Linear
-    if isinstance(m, nn.Linear):
-        if m.weight is not None and m.weight.requires_grad:
-            nn.init.kaiming_uniform_(m.weight, a=math.sqrt(5), nonlinearity="relu")
-        if m.bias is not None and m.bias.requires_grad:
-            # match PyTorch default: uniform(-b, b) with b = 1/sqrt(fan_in)
-            bound = _fan_in_bound_for_bias(m.weight)
-            nn.init.uniform_(m.bias, -bound, bound)
-
-    # Convs
-    elif isinstance(m, (nn.Conv1d, nn.Conv2d, nn.Conv3d)):
-        if m.weight is not None and m.weight.requires_grad:
-            nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
-        if m.bias is not None and m.bias.requires_grad:
-            nn.init.zeros_(m.bias)
-
-    # Transposed Convs
-    elif isinstance(m, (nn.ConvTranspose1d, nn.ConvTranspose2d, nn.ConvTranspose3d)):
-        if m.weight is not None and m.weight.requires_grad:
-            nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
-        if m.bias is not None and m.bias.requires_grad:
-            nn.init.zeros_(m.bias)
-
-    # Norms
-    elif isinstance(
-        m,
-        (
-            nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d,
-            nn.LayerNorm, nn.GroupNorm,
-            nn.InstanceNorm1d, nn.InstanceNorm2d, nn.InstanceNorm3d,
-        ),
-    ):
-        if hasattr(m, "weight") and m.weight is not None and m.weight.requires_grad:
-            nn.init.ones_(m.weight)
-        if hasattr(m, "bias") and m.bias is not None and m.bias.requires_grad:
-            nn.init.zeros_(m.bias)
-        # Reset BN running stats if present
-        if hasattr(m, "reset_running_stats"):
+def reinit_model_weights_(model: nn.Module, seed: Optional[int] = None) -> Dict[str, Any]:
+    # ---------- helpers (scoped) ----------
+    def _unwrap(m: nn.Module) -> nn.Module:
+        # DDP / DataParallel
+        if hasattr(m, "module"):
+            m = m.module  # type: ignore[attr-defined]
+        # torch.compile originals
+        if hasattr(m, "_orig_mod"):
             try:
-                m.reset_running_stats()
+                m = m._orig_mod  # type: ignore[attr-defined]
             except Exception:
                 pass
+        # generic wrappers
+        if hasattr(m, "__wrapped__"):
+            try:
+                m = m.__wrapped__  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        return m
 
-    # Embeddings
-    elif isinstance(m, nn.Embedding):
-        if m.weight is not None and m.weight.requires_grad:
-            nn.init.normal_(m.weight, mean=0.0, std=emb_std)
-            if getattr(m, "padding_idx", None) is not None:
-                with torch.no_grad():
-                    m.weight[m.padding_idx].fill_(0)
+    def _fan_in_bound_for_bias(weight: torch.Tensor) -> float:
+        fan_in, _ = nn.init._calculate_fan_in_and_fan_out(weight)
+        return 1.0 / math.sqrt(fan_in) if fan_in > 0 else 0.0
 
-    # RNN family
-    elif isinstance(m, (nn.RNN, nn.GRU, nn.LSTM)):
-        for name, p in m.named_parameters(recurse=False):
-            if p is None or not p.requires_grad:
-                continue
-            if "weight_ih" in name:
-                nn.init.xavier_uniform_(p)
-            elif "weight_hh" in name:
-                nn.init.orthogonal_(p)
-            elif "bias" in name:
-                nn.init.zeros_(p)
-
-
-def reinit_model_weights_(
-    model: nn.Module,
-    seed: Optional[int] = None,
-    *,
-    prefer_library_init: bool = True,
-) -> Dict[str, Any]:
-    """
-    Reinitialize weights of a PyTorch/timm/Transformers model.
-    - Uses library-native init methods first when available (Transformers/timm).
-    - Falls back to explicit per-module initialization otherwise.
-    - Skips frozen parameters (requires_grad=False) and re-ties weights if possible.
-    - Clears any existing gradients.
-
-    Returns a dict summary with keys:
-      {
-        'used_transformers_init': bool,
-        'used_timm_init': bool,
-        'fallback_applied': bool,
-        'embedding_std': float,
-        'skipped_params': List[str],
-      }
-    """
-    base = _unwrap_module(model)
+    # ---------- setup ----------
+    base = _unwrap(model)
 
     if seed is not None:
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
-    # Determine embedding std from HF config if present
+    # Embedding std from HF config if available
     emb_std = 0.02
     cfg = getattr(base, "config", None)
     if cfg is not None and hasattr(cfg, "initializer_range"):
@@ -1287,65 +1224,148 @@ def reinit_model_weights_(
         except Exception:
             pass
 
-    summary = {
-        "used_transformers_init": False,
-        "used_timm_init": False,
-        "fallback_applied": False,
+    summary: Dict[str, Any] = {
         "embedding_std": emb_std,
         "skipped_params": [],
+        "fallback_applied": True,
+        "used_transformers_init": False,   # informative only (we don't call it here)
+        "used_timm_init": False            # informative only (we don't call it here)
     }
 
-    # Try 🤗 Transformers native init if appropriate
-    if prefer_library_init:
-        try:
-            from transformers import PreTrainedModel  # type: ignore
-            if isinstance(base, PreTrainedModel) and hasattr(base, "init_weights") and callable(base.init_weights):
-                base.init_weights()
-                if hasattr(base, "tie_weights"):
-                    try:
-                        base.tie_weights()
-                    except Exception:
-                        pass
-                # Clear grads if any
-                for n, p in base.named_parameters():
-                    if p.grad is not None:
-                        p.grad = None
-                summary["used_transformers_init"] = True
-                return summary
-        except Exception:
-            # Keep going if transformers isn't installed or model isn't PreTrainedModel
+    # ---------- module-wise initialization with attention awareness ----------
+    # We want access to names for attention heuristics, so iterate named_modules.
+    for mod_name, m in base.named_modules():
+        # Skip the top-level container itself; we still handle its parameters later if any.
+        if m is base:
             pass
 
-    # Try timm models' native init if available
-    if prefer_library_init:
-        try:
-            # Many timm models define an `init_weights` method on the top module.
-            if hasattr(base, "init_weights") and callable(getattr(base, "init_weights")):
-                base.init_weights()
-                # Clear grads if any
-                for _, p in base.named_parameters():
-                    if p.grad is not None:
-                        p.grad = None
-                summary["used_timm_init"] = True
-                # Still run a light fallback pass for any odd layers not covered:
-                # (harmless because we skip frozen and use type-appropriate inits)
-                base.apply(lambda m: _reset_module_parameters_fallback_(m, emb_std))
-                summary["fallback_applied"] = True
-                # Re-tie if present (some timm wrappers or custom models expose tie_weights)
-                if hasattr(base, "tie_weights"):
-                    try:
-                        base.tie_weights()
-                    except Exception:
-                        pass
-                return summary
-        except Exception:
-            pass
+        # 1) Attention blocks
+        # nn.MultiheadAttention
+        if isinstance(m, nn.MultiheadAttention):
+            # in_proj_weight / in_proj_bias hold q,k,v stacked
+            if hasattr(m, "in_proj_weight") and m.in_proj_weight is not None and m.in_proj_weight.requires_grad:
+                nn.init.xavier_uniform_(m.in_proj_weight)
+            if hasattr(m, "in_proj_bias") and m.in_proj_bias is not None and m.in_proj_bias.requires_grad:
+                nn.init.zeros_(m.in_proj_bias)
+            # out projection is a Linear
+            if hasattr(m, "out_proj") and isinstance(m.out_proj, nn.Linear):
+                if m.out_proj.weight is not None and m.out_proj.weight.requires_grad:
+                    nn.init.xavier_uniform_(m.out_proj.weight)
+                if m.out_proj.bias is not None and m.out_proj.bias.requires_grad:
+                    nn.init.zeros_(m.out_proj.bias)
+            continue  # handled
 
-    # Generic fallback: per-module resets
-    base.apply(lambda m: _reset_module_parameters_fallback_(m, emb_std))
+        # timm ViT-style Attention that has a single Linear `qkv` and a Linear `proj`
+        if hasattr(m, "qkv") and isinstance(getattr(m, "qkv"), nn.Linear):
+            qkv = m.qkv
+            if qkv.weight is not None and qkv.weight.requires_grad:
+                nn.init.xavier_uniform_(qkv.weight)
+            if qkv.bias is not None and qkv.bias.requires_grad:
+                nn.init.zeros_(qkv.bias)
+            if hasattr(m, "proj") and isinstance(getattr(m, "proj"), nn.Linear):
+                proj = m.proj
+                if proj.weight is not None and proj.weight.requires_grad:
+                    nn.init.xavier_uniform_(proj.weight)
+                if proj.bias is not None and proj.bias.requires_grad:
+                    nn.init.zeros_(proj.bias)
+            continue  # handled
 
-    # As a last pass, ensure *all* trainable parameters are initialized to something reasonable.
-    # This catches custom layers that slipped through the cracks.
+        # HF-style attention blocks often expose q_proj/k_proj/v_proj/o_proj linears
+        had_hf_qkvo = False
+        for proj_name in ("q_proj", "k_proj", "v_proj", "o_proj", "out_proj"):
+            if hasattr(m, proj_name) and isinstance(getattr(m, proj_name), nn.Linear):
+                lin = getattr(m, proj_name)
+                if lin.weight is not None and lin.weight.requires_grad:
+                    nn.init.xavier_uniform_(lin.weight)
+                if lin.bias is not None and lin.bias.requires_grad:
+                    nn.init.zeros_(lin.bias)
+                had_hf_qkvo = True
+        if had_hf_qkvo:
+            continue  # handled
+
+        # If this Linear looks like attention (by name), use xavier_uniform
+        if isinstance(m, nn.Linear) and any(
+            tok in mod_name.lower()
+            for tok in ("attn", "attention", "q_proj", "k_proj", "v_proj", "o_proj", "out_proj", "qkv")
+        ):
+            if m.weight is not None and m.weight.requires_grad:
+                nn.init.xavier_uniform_(m.weight)
+            if m.bias is not None and m.bias.requires_grad:
+                nn.init.zeros_(m.bias)
+            continue  # handled
+
+        # 2) Generic layers
+        # Linear (non-attention)
+        if isinstance(m, nn.Linear):
+            if m.weight is not None and m.weight.requires_grad:
+                nn.init.kaiming_uniform_(m.weight, a=math.sqrt(5), nonlinearity="relu")
+            if m.bias is not None and m.bias.requires_grad:
+                bound = _fan_in_bound_for_bias(m.weight)
+                nn.init.uniform_(m.bias, -bound, bound)
+            continue
+
+        # Convs
+        if isinstance(m, (nn.Conv1d, nn.Conv2d, nn.Conv3d)):
+            if m.weight is not None and m.weight.requires_grad:
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+            if m.bias is not None and m.bias.requires_grad:
+                nn.init.zeros_(m.bias)
+            continue
+
+        # Transposed Convs
+        if isinstance(m, (nn.ConvTranspose1d, nn.ConvTranspose2d, nn.ConvTranspose3d)):
+            if m.weight is not None and m.weight.requires_grad:
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+            if m.bias is not None and m.bias.requires_grad:
+                nn.init.zeros_(m.bias)
+            continue
+
+        # Norms
+        if isinstance(
+            m,
+            (
+                nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d,
+                nn.LayerNorm, nn.GroupNorm,
+                nn.InstanceNorm1d, nn.InstanceNorm2d, nn.InstanceNorm3d,
+            ),
+        ):
+            if hasattr(m, "weight") and m.weight is not None and m.weight.requires_grad:
+                nn.init.ones_(m.weight)
+            if hasattr(m, "bias") and m.bias is not None and m.bias.requires_grad:
+                nn.init.zeros_(m.bias)
+            if hasattr(m, "reset_running_stats"):
+                try:
+                    m.reset_running_stats()
+                except Exception:
+                    pass
+            continue
+
+        # Embeddings
+        if isinstance(m, nn.Embedding):
+            if m.weight is not None and m.weight.requires_grad:
+                nn.init.normal_(m.weight, mean=0.0, std=emb_std)
+                if getattr(m, "padding_idx", None) is not None:
+                    with torch.no_grad():
+                        m.weight[m.padding_idx].fill_(0)
+            continue
+
+        # RNN family
+        if isinstance(m, (nn.RNN, nn.GRU, nn.LSTM)):
+            for name, p in m.named_parameters(recurse=False):
+                if p is None or not p.requires_grad:
+                    continue
+                if "weight_ih" in name:
+                    nn.init.xavier_uniform_(p)
+                elif "weight_hh" in name:
+                    nn.init.orthogonal_(p)
+                elif "bias" in name:
+                    nn.init.zeros_(p)
+            continue
+
+        # Other custom modules fall through; their params will be handled by the safety pass.
+
+    # ---------- safety pass over all trainable parameters ----------
+    # Catch any tensors not covered above (custom layers, unusual attributes).
     for name, p in base.named_parameters():
         if p is None or not p.requires_grad:
             if p is not None and not p.requires_grad:
@@ -1354,23 +1374,21 @@ def reinit_model_weights_(
         # Clear grads
         if p.grad is not None:
             p.grad = None
-        # Avoid reinitializing tensors we already handled cleanly via module-level rules:
-        # If it's 2D+ (weight-like), use Kaiming uniform; else (bias/scale) use zeros.
+        # If likely a weight (>=2D), apply a general good default; else bias-like -> zeros.
         try:
             if p.ndim >= 2:
                 nn.init.kaiming_uniform_(p, a=math.sqrt(5))
             else:
                 nn.init.zeros_(p)
         except Exception:
-            # Absolute last resort
+            # Last resort: small normal around 0 with emb_std
             nn.init.normal_(p, mean=0.0, std=emb_std)
 
-    # If there are tied weights or a custom tying hook, call it now.
+    # Re-tie weights if the model exposes a tying hook (HF and some custom models)
     if hasattr(base, "tie_weights"):
         try:
             base.tie_weights()
         except Exception:
             pass
 
-    summary["fallback_applied"] = True
     return summary

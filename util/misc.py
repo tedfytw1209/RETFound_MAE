@@ -48,9 +48,14 @@ def to_numpy(x, dtype=np.float32):
     return arr
 
 def print_all_named_parameters(model):
+    top_k = 5
+    i = 0
     for name, param in model.named_parameters():
         if param.requires_grad:
             print(f"{name}: mean = {param.data.mean().item():.6f}, std = {param.data.std().item():.6f}")
+            i+=1
+        if i>top_k:
+            break
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a
