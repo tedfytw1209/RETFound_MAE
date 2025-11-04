@@ -1,4 +1,14 @@
-#! /bin/bash
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=8gb
+#SBATCH --partition=hpg-turin
+#SBATCH --gpus=1
+#SBATCH --time=24:00:00
+#SBATCH --output=%x.%j.out
+#SBATCH --account=ruogu.fang
+#SBATCH --qos=ruogu.fang
 
 DATASET=$1 #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_split 6, DR_binary_all_split 2, Glaucoma_binary_all_split 2
 MODEL=${2:-"RETFound_mae"}
@@ -23,6 +33,6 @@ do
     MODEL="${MODELS[$i]}"
     FINETUNED_MODEL="${FINETUNED_MODELS[$i]}"
     # Submit the job to Slurm
-    echo "sbatch finetune_retfound_UFbenchmark_irb2024v5_tmp.sh $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2"
-    sbatch finetune_retfound_UFbenchmark_irb2024v5_tmp.sh $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2
+    echo "bash finetune_retfound_UFbenchmark_irb2024v5_tmp.sh $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2"
+    bash finetune_retfound_UFbenchmark_irb2024v5_tmp.sh $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2
 done
