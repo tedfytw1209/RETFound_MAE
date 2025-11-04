@@ -467,13 +467,14 @@ def main(args, criterion):
     }
 
     if args.used_quantus:
+        import quantus
         from util.evaluation_quantus import SufficiencyMetric, ConsistencyMetric, PointingGameMetric, ComplexityMetric, RandomLogitMetric
         metric_func_dict = {
             #TODO: currently some issues with these metrics
             'insertion': InsertionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
             'deletion': DeletionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
             'sufficiency': SufficiencyMetric(model, device),
-            'consistency': ConsistencyMetric(model, device),
+            'consistency': ConsistencyMetric(model, device, discretise_func=quantus.discretise_func.rank),
             'complexity': ComplexityMetric(model, device),
             'random_logit': RandomLogitMetric(model, device, n_classes=args.nb_classes),
         }
