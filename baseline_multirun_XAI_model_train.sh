@@ -19,8 +19,10 @@ weight_decay=${6:-"0.05"}
 Eval_score=${7:-"default"}
 Modality=${8:-"OCT"} # CFP, OCT, OCT_CFP
 SUBSETNUM=${9:-0} # 0, 500, 1000
-ADDCMD="--add_mask"
-ADDCMD2="--train_no_aug"
+#ADDCMD="--add_mask"
+#ADDCMD2="--train_no_aug"
+ADDCMDS1=("" "--train_no_aug")
+ADDCMDS2=("" "--add_mask")
 
 NUM_K=0
 
@@ -29,10 +31,15 @@ MODELS=(timm_efficientnet-b4 resnet-50 vit-base-patch16-224 RETFound_mae)  # Lis
 FINETUNED_MODELS=(timm_efficientnet-b4 microsoft/resnet-50 google/vit-base-patch16-224-in21k RETFound_mae_natureOCT)  # Number of classes for each dataset
 for i in "${!MODELS[@]}"
 do
+    for j in "${!ADDCMDS1[@]}"
+    do
     # Create a job name based on the variables
     MODEL="${MODELS[$i]}"
     FINETUNED_MODEL="${FINETUNED_MODELS[$i]}"
+    ADDCMD="${ADDCMDS1[$j]}"
+    ADDCMD2="${ADDCMDS2[$j]}"
     # Submit the job to Slurm
     echo "bash finetune_retfound_UFbenchmark_irb2024v5_tmp.sh $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2"
     bash finetune_retfound_UFbenchmark_irb2024v5_tmp.sh $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2
+    done
 done
