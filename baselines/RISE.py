@@ -188,7 +188,7 @@ class RISEBatch(RISE):
         #       eff_p1 = sal_all[b].mean(dim=1).mean() / ???（或在 __init__ 預先用 resize 後的 masks 算 mean）
         sal_all = sal_all.view(B, CL, H, W) / self.N / self.p1
 
-        return sal_all.detach().cpu().numpy()
+        return sal_all.detach().cpu().numpy()[:,targets,:,:]  # shape: (B, CL, H, W)-> (B, H, W)
 
 # To process in batches
 # def explain_all_batch(data_loader, explainer):
