@@ -20,15 +20,14 @@ weight_decay=${7:-"0.05"}
 Eval_score=${8:-"default"}
 Modality=${9:-"OCT"} # CFP, OCT, OCT_CFP
 SUBSETNUM=${10:-0} # 0, 500, 1000
-#ADDCMD="--add_mask"
-#ADDCMD2="--train_no_aug"
-ADDCMDS1=("" "--train_no_aug")
-ADDCMDS2=("" "--add_mask")
+ADDCMD=${10:-""}
+ADDCMD2=${11:-""}
 
 NUM_K=0
 
-#sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_UFbenchmark_irb2024v5.sh DME_binary_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
-#sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_UFbenchmark_irb2024v5_init.sh DME_binary_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
+#sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_UFbenchmark_irb2024v5.sh DME_binary_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT 0 --add_mask --train_no_aug
+#sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_UFbenchmark_irb2024v5_init.sh DME_binary_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT 0 --add_mask --train_no_aug --init_pretrained
+# Different additional commands to try
 #sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_Celldata.sh DME_all RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
 #sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_OCTDL.sh DME_all RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
 #sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_OCTIDdata.sh DR_all RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
@@ -36,15 +35,15 @@ MODELS=(timm_efficientnet-b4 resnet-50 vit-base-patch16-224 RETFound_mae)  # Lis
 FINETUNED_MODELS=(timm_efficientnet-b4 microsoft/resnet-50 google/vit-base-patch16-224-in21k RETFound_mae_natureOCT)  # Number of classes for each dataset
 for i in "${!MODELS[@]}"
 do
-    for j in "${!ADDCMDS1[@]}"
-    do
+    #for j in "${!ADDCMDS1[@]}"
+    #do
     # Create a job name based on the variables
     MODEL="${MODELS[$i]}"
     FINETUNED_MODEL="${FINETUNED_MODELS[$i]}"
-    ADDCMD="${ADDCMDS1[$j]}"
-    ADDCMD2="${ADDCMDS2[$j]}"
+    #ADDCMD="${ADDCMDS1[$j]}"
+    #ADDCMD2="${ADDCMDS2[$j]}"
     # Submit the job to Slurm
     echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2"
     bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2
-    done
+    #done
 done
