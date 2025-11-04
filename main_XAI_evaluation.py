@@ -326,7 +326,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         bs = images.shape[0]
         each_dict = {}
         #with torch.cuda.amp.autocast():
-        attention_map_bs = xai_method(images) # numpy shape: (B, img_size, img_size)
+        attention_map_bs = xai_method(images,targets=target) # numpy shape: (B, img_size, img_size)
         #print(f'Attention map shape: {attention_map_bs.shape}')
         for k, v in metric_func_dict.items():
             e_score_bs = np.mean(v(images, attention_map_bs, batch_size=bs, y_batch=target, explain_func=xai_method, explain_func_kwargs={}))

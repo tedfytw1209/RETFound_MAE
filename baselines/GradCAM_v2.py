@@ -15,17 +15,6 @@ from util.misc import to_tensor
 def _get(obj, name, default=None):
     return getattr(obj, name, default)
 def _resolve_target_layer(model, model_name=None):
-    """
-    嘗試解析各框架最後一個適合掛勾的層：
-    - timm ViT:           model.blocks[-1]
-    - HF ViT:             model.vit.encoder.layer[-1]
-    - HF ViT (base_model):model.base_model.vit.encoder.layer[-1]
-    - timm Swin:          model.layers[-1].blocks[-1]
-    - HF Swin:            model.swin.encoder.layers[-1].blocks[-1]
-    - torchvision ResNet: model.layer4[-1]
-    - EfficientNet/MobileNet: model.features[-1] 或 blocks[-1]
-    找不到就丟 ValueError，請外部顯式傳入。
-    """
     # --- timm ViT 風格
     if _get(model, "blocks") is not None:
         blocks = model.blocks
