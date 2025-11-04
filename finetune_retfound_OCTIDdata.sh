@@ -23,7 +23,10 @@ LR=${4:-"5e-4"}
 Num_CLASS=${5:-"2"}
 weight_decay=${6:-"0.05"}
 Eval_score=${7:-"default"}
-Modality="OCT"
+Modality=${8:-"OCT"} # CFP, OCT, OCT_CFP
+SUBSETNUM=${9:-0} # 0, 500, 1000
+ADDCMD=${10:-""}
+ADDCMD2=${11:-""}
 
 NUM_K=0
 data_type="OCTID"
@@ -39,4 +42,4 @@ echo $Num_CLASS
 
 # Modify the path to your singularity container 
 # sbatch finetune_retfound_OCTIDdata.sh DR_all RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 roc_auc
-torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune.py --savemodel --global_pool --batch_size $BATCH_SIZE --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --optimizer $OPTIMIZER --layer_decay 0.65 --weight_decay $weight_decay --drop_path 0.0 --nb_classes $Num_CLASS --data_path /orange/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv --task $STUDY-${data_type}-all-$FINETUNED_MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}opt${OPTIMIZER}-${Eval_score}eval-$ADDCMD-$ADDCMD2/ --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k $NUM_K --eval_score $Eval_score --modality $Modality $ADDCMD $ADDCMD2
+torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune.py --savemodel --global_pool --batch_size $BATCH_SIZE --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --optimizer $OPTIMIZER --layer_decay 0.65 --weight_decay $weight_decay --drop_path 0.0 --nb_classes $Num_CLASS --data_path /orange/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv --task $STUDY-${data_type}-all-$FINETUNED_MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}opt${OPTIMIZER}-${Eval_score}eval-$ADDCMD-$ADDCMD2/ --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k $NUM_K --eval_score $Eval_score --modality $Modality --new_subset_num $SUBSETNUM $ADDCMD $ADDCMD2
