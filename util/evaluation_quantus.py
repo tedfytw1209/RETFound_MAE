@@ -17,7 +17,7 @@ class SufficiencyMetric():
         self.device = device
         self.threshold = threshold
         self.return_aggregate = return_aggregate
-        self.metric = quantus.Sufficiency(threshold=threshold, return_aggregate=return_aggregate)
+        self.metric = quantus.Sufficiency(threshold=threshold, abs=True, return_aggregate=return_aggregate)
         
     def __call__(self, x_batch, a_batch, y_batch = None, **kwargs):
         """Input batch images and explanations, return sufficiency metric.
@@ -60,7 +60,7 @@ class ConsistencyMetric():
         self.device = device
         self.discretise_func = discretise_func
         self.return_aggregate = return_aggregate
-        self.metric = quantus.Consistency(discretise_func=discretise_func, return_aggregate=return_aggregate)
+        self.metric = quantus.Consistency(discretise_func=discretise_func, abs=True, return_aggregate=return_aggregate)
         
     def __call__(self, x_batch, a_batch = None, y_batch = None, explain_func=quantus.explain, explain_func_kwargs={"method": "Saliency"}, **kwargs):
         """Input batch images and explanations, return sufficiency metric.
