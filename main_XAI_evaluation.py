@@ -326,6 +326,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         bs = images.shape[0]
         each_dict = {}
         #with torch.cuda.amp.autocast():
+        print(f'Input images shape: {images.shape}')
         attention_map_bs = xai_method(images,targets=target) # numpy shape: (B, img_size, img_size)
         print(f'Attention map shape: {attention_map_bs.shape}')
         for k, v in metric_func_dict.items():
@@ -443,7 +444,7 @@ def main(args, criterion):
     ###TODO: evaluate XAI baselines
     if args.xai == 'rise':
         print("Using RISE for XAI")
-        XAI_module = RISEBatch(model, input_size=(args.input_size, args.input_size), gpu_batch=args.batch_size, device=device)
+        XAI_module = RISEBatch(model, input_size=(args.input_size, args.input_size), gpu_batch=args.batch_size, device=device, n_class=args.nb_classes)
     elif args.xai == 'attn':
         XAI_module = Attention_Map(model, args.model, input_size=args.input_size, N=11, use_rollout=args.use_rollout, print_layers=True, device=device)
     elif args.xai == 'gradcam':

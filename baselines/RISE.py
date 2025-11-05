@@ -38,12 +38,13 @@ class HuggingfaceToTensorModelWrapper(torch.nn.Module):
         return logits
 
 class RISE(nn.Module):
-    def __init__(self, model, input_size, gpu_batch=100, maskspath='masks.npy', N=1000, device=None):
+    def __init__(self, model, input_size, gpu_batch=100, maskspath='masks.npy', N=1000, device=None, n_class = 1000):
         super(RISE, self).__init__()
         self.model = HuggingfaceToTensorModelWrapper(model.eval())
         self.input_size = input_size # (H, W)
         self.gpu_batch = gpu_batch
         self.device = device
+        self.n_class = n_class
         if not os.path.isfile(maskspath):
             self.generate_masks(N=N, s=10, p1=0.1, savepath=maskspath)
         else:
@@ -92,9 +93,7 @@ class RISE(nn.Module):
         _, _, H, W = x.size()
         # Apply array of filters to the image
         #stack = torch.mul(self.masks, x.data)
-        with torch.no_grad():
-            dummy = self.model(x)
-            CL = dummy.size(1)
+        CL = self.n_class
         sal_acc = torch.zeros(CL, H * W, device=device, dtype=x.dtype)
         
         amp_ctx = torch.autocast(device_type='cuda', dtype=torch.float16) if (device.type == 'cuda' and self.use_amp) else nullcontext()
@@ -128,10 +127,7 @@ class RISEBatch(RISE):
         assert x.is_cuda
         device = x.device
         B, C, H, W = x.size()
-
-        # 先跑一次模型拿到類別數
-        dummy_out = self.model(x[:1])      # (1, CL)
-        CL = dummy_out.size(1)
+        CL = self.n_class
 
         # AMP
         use_amp = bool(getattr(self, "use_amp", False))
@@ -188,7 +184,7 @@ class RISEBatch(RISE):
         #       eff_p1 = sal_all[b].mean(dim=1).mean() / ???（或在 __init__ 預先用 resize 後的 masks 算 mean）
         sal_all = sal_all.view(B, CL, H, W) / self.N / self.p1
 
-        return sal_all.detach().cpu().numpy()[:,targets,:,:]  # shape: (B, CL, H, W)-> (B, H, W)
+        return sal_all[torch.arange(B), targets].detach().cpu().numpy()  # shape: (B, CL, H, W)-> (B, H, W)
 
 # To process in batches
 # def explain_all_batch(data_loader, explainer):
