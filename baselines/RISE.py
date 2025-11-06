@@ -179,9 +179,7 @@ class RISEBatch(RISE):
                 sal_all[b] = sal_acc
 
         # RISE 正規化：除以遮罩數與每個像素為 1 的邊際機率 p1
-        # 注意：若你把 mask 做了插值（尤其 bilinear 變成連續值），
-        #       最好把 self.p1 改為「實際遮罩平均值」以對齊：
-        #       eff_p1 = sal_all[b].mean(dim=1).mean() / ???（或在 __init__ 預先用 resize 後的 masks 算 mean）
+        # eff_p1 = sal_all[b].mean(dim=1).mean()
         sal_all = sal_all.view(B, CL, H, W) / self.N / self.p1
 
         return sal_all[torch.arange(B), targets].detach().cpu().numpy()  # shape: (B, CL, H, W)-> (B, H, W)
