@@ -195,7 +195,7 @@ class CausalMetric():
                 start.cpu().numpy().reshape(1, 3, self.img_size*self.img_size)[0, :, coords] = finish.cpu().numpy().reshape(1, 3, self.img_size*self.img_size)[0, :, coords]
         return scores
 
-    def evaluate(self, img_batch, exp_batch, batch_size):
+    def evaluate(self, img_batch: torch.Tensor, exp_batch: np.ndarray, batch_size: int):
         r"""Efficiently evaluate big batch of images.
 
         Args:
@@ -276,16 +276,16 @@ class InsertionMetric(CausalMetric):
         #insertion = CausalMetric(model, 'ins', 224, substrate_fn=blur)
         super().__init__(model, 'ins', step, blur, img_size=img_size, n_classes=n_classes)
         
-    def __call__(self, img_batch, exp_batch, batch_size, **kwargs):
+    def __call__(self, img_batch: torch.Tensor, exp_batch: np.ndarray, batch_size: int, **kwargs):
         """Input batch images and explanations, return AUC of insertion metric.
 
         Args:
             img_batch (tensor.float32): All Input images. [N, C, H, W]
-            exp_batch (_type_): All Input explanations. [N, H, W]
-            batch_size (_type_): batch size for evaluation.
+            exp_batch (np.ndarray): All Input explanations. [N, H, W]
+            batch_size (int): batch size for evaluation.
 
         Returns:
-            _type_: average AUC of insertion metric for all images in batch.
+            float: average AUC of insertion metric for all images in batch.
         """
         # Evaluate insertion
         '''
@@ -306,16 +306,16 @@ class DeletionMetric(CausalMetric):
         """
         super().__init__(model, 'del', step, substrate_fn=torch.zeros_like, img_size=img_size, n_classes=n_classes)
         
-    def __call__(self, img_batch, exp_batch, batch_size, **kwargs):
+    def __call__(self, img_batch: torch.Tensor, exp_batch: np.ndarray, batch_size: int, **kwargs):
         """Input batch images and explanations, return AUC of deletion metric.
 
         Args:
             img_batch (tensor.float32): All Input images. [N, C, H, W]
-            exp_batch (_type_): All Input explanations. [N, H, W]
-            batch_size (_type_): batch size for evaluation.
+            exp_batch (np.ndarray): All Input explanations. [N, H, W]
+            batch_size (int): batch size for evaluation.
 
         Returns:
-            _type_: average AUC of deletion metric for all images in batch.
+            float: average AUC of deletion metric for all images in batch.
         """
         # Evaluate deletion
         '''
@@ -325,35 +325,182 @@ class DeletionMetric(CausalMetric):
         h = self.evaluate(img_batch, exp_batch, batch_size)
         return auc(h.mean(1))
 
-def pool_heatmap (heatmap: np.ndarray, pooling_type: str) -> np.ndarray:
+class RelevanceMetric():
+    
+    def __init__(self, pooling_type='l2-norm', output_type='mass'):
+        r"""Create relevance metric instance.
+        
+        Args:
+            pooling_type (str): Pooling method for aggregating channel-wise relevance.
+                Options: 'sum,abs', 'sum,pos', 'max-norm', 'l1-norm', 'l2-norm', 'l2-norm,sq'
+            output_type (str): Output type for the relevance metric.
+                Options: 'mass', 'rank'
+        """
+        valid_pooling_types = ['sum,abs', 'sum,pos', 'max-norm', 'l1-norm', 'l2-norm', 'l2-norm,sq']
+        assert pooling_type in valid_pooling_types, f"pooling_type must be one of {valid_pooling_types}"
+        self.pooling_type = pooling_type
+        self.output_type = output_type
+        
+    def pool_heatmap(self, heatmap: np.ndarray) -> np.ndarray:
+        """
+        Pool the relevance along the channel axis, according to the pooling technique specified by pooling_type.
+        
+        Args:
+            heatmap (np.ndarray): Heatmap of shape (C, H, W)
+            
+        Returns:
+            pooled_heatmap (np.ndarray): Pooled heatmap of shape (H, W)
+        """
+        C, H, W = heatmap.shape
+
+        if self.pooling_type == "sum,abs":
+            pooled_heatmap = np.abs(np.sum(heatmap, axis=0))
+
+        elif self.pooling_type == "sum,pos":
+            pooled_heatmap = np.sum(heatmap, axis=0)
+            pooled_heatmap = np.where(pooled_heatmap > 0.0, pooled_heatmap, 0.0)
+        
+        elif self.pooling_type == "max-norm":
+            pooled_heatmap = np.amax(np.abs(heatmap), axis=0)
+
+        elif self.pooling_type == "l1-norm":
+            pooled_heatmap = np.linalg.norm(heatmap, ord=1, axis=0)
+
+        elif self.pooling_type == "l2-norm":
+            pooled_heatmap = np.linalg.norm(heatmap, ord=2, axis=0)
+
+        elif self.pooling_type == "l2-norm,sq":
+            pooled_heatmap = (np.linalg.norm(heatmap, ord=2, axis=0)) ** 2
+
+        assert pooled_heatmap.shape == (H, W) and np.all(pooled_heatmap >= 0.0)
+        return pooled_heatmap
+    
+    def single_run(self, heatmap: np.ndarray, ground_truth: np.ndarray):
+        """
+        Evaluate a single image's relevance heatmap against ground truth.
+        
+        Given an image's relevance heatmap and a corresponding ground truth boolean ndarray, 
+        compute two metrics:
+         - relevance mass accuracy: ratio of relevance falling into the ground truth area 
+           w.r.t. the total amount of relevance
+         - relevance rank accuracy: ratio of pixels within the N highest relevant pixels 
+           (where N is the size of the ground truth area) that effectively belong to the 
+           ground truth area
+        
+        Args:
+            heatmap (np.ndarray): Heatmap of shape (C, H, W), with dtype float
+            ground_truth (np.ndarray): Ground truth mask of shape (H, W), with dtype bool
+            
+        Returns:
+            dict: Dictionary with keys ["mass", "rank"] containing:
+                - mass (np.float64): Relevance mass accuracy in [0.0, 1.0], higher is better
+                - rank (np.float64): Relevance rank accuracy in [0.0, 1.0], higher is better
+        """
+        C, H, W = heatmap.shape
+        assert ground_truth.shape == (H, W), f"Ground truth shape {ground_truth.shape} must match heatmap spatial dims ({H}, {W})"
+
+        # Cast heatmap to float64 precision for better accuracy
+        heatmap = heatmap.astype(dtype=np.float64)
+        
+        # Step 1: Pool the relevance across the channel dimension
+        pooled_heatmap = self.pool_heatmap(heatmap)
+
+        # Step 2: Compute the ratio of relevance mass within ground truth w.r.t the total relevance
+        relevance_within_ground_truth = np.sum(pooled_heatmap * np.where(ground_truth, 1.0, 0.0).astype(dtype=np.float64))
+        relevance_total = np.sum(pooled_heatmap)
+        relevance_mass_accuracy = 1.0 * relevance_within_ground_truth / relevance_total
+        assert (0.0 <= relevance_mass_accuracy) and (relevance_mass_accuracy <= 1.0)
+
+        # Step 3: Order pixels by relevance and count how many of the top-N fall in ground truth
+        pixels_sorted_by_relevance = np.argsort(np.ravel(pooled_heatmap))[::-1]
+        assert pixels_sorted_by_relevance.shape == (H * W,)
+        
+        gt_flat = np.ravel(ground_truth)
+        assert gt_flat.shape == (H * W,)
+        
+        N = np.sum(gt_flat)
+        N_gt = np.sum(gt_flat[pixels_sorted_by_relevance[:int(N)]])
+        relevance_rank_accuracy = 1.0 * N_gt / N
+        assert (0.0 <= relevance_rank_accuracy) and (relevance_rank_accuracy <= 1.0)
+            
+        return {"mass": relevance_mass_accuracy, "rank": relevance_rank_accuracy}
+    
+    def evaluate(self, heatmaps: np.ndarray, ground_truths: np.ndarray):
+        """
+        Evaluate a batch of heatmaps against ground truths.
+        
+        Args:
+            heatmaps (np.ndarray): Batch of heatmaps of shape (N, C, H, W)
+            ground_truths (np.ndarray): Batch of ground truth masks of shape (N, H, W)
+            
+        Returns:
+            dict: Dictionary with keys ["mass", "rank"] containing arrays of scores for each image:
+                - mass (np.ndarray): Array of relevance mass accuracies of shape (N,)
+                - rank (np.ndarray): Array of relevance rank accuracies of shape (N,)
+        """
+        n_samples = heatmaps.shape[0]
+        assert ground_truths.shape[0] == n_samples, "Number of heatmaps and ground truths must match"
+        
+        mass_scores = np.zeros(n_samples)
+        rank_scores = np.zeros(n_samples)
+        
+        for i in tqdm(range(n_samples), desc='Evaluating relevance'):
+            result = self.single_run(heatmaps[i], ground_truths[i])
+            mass_scores[i] = result['mass']
+            rank_scores[i] = result['rank']
+        
+        return {"mass": mass_scores, "rank": rank_scores}
+    
+    def __call__(self,images: torch.Tensor, exp_batch: np.ndarray, gt_mask: np.ndarray, **kwargs):
+        """
+        Evaluate heatmaps against ground truths and return average scores.
+        
+        Args:
+            images (torch.Tensor): Batch of images of shape (N, C, H, W), not used in this function
+            exp_batch (np.ndarray): Batch of heatmaps of shape (N, H, W) or single heatmap of shape (H, W)
+            gt_mask (np.ndarray): Batch of ground truth masks of shape (N, H, W) or single mask of shape (H, W)
+            **kwargs: Additional keyword arguments (not used in this function)
+            
+        Returns:
+            float or dict: Average relevance mass accuracy or dictionary with keys ["mass", "rank"] containing average scores
+        """
+        # Handle single image case (H, W) -> (1, H, W)
+        if exp_batch.ndim == 2:
+            exp_batch = exp_batch[np.newaxis, :, :]  # Add channel dimension
+            result = self.single_run(exp_batch, gt_mask)
+            if self.output_type == 'mass':
+                return result["mass"]
+            elif self.output_type == 'rank':
+                return result["rank"]
+            else:
+                return result
+        
+        # Handle batch case (N, H, W) -> (N, 1, H, W)
+        exp_batch = exp_batch[:, np.newaxis, :, :]  # Add channel dimension
+        
+        # Handle batch case
+        results = self.evaluate(exp_batch, gt_mask)
+        if self.output_type == 'mass':
+            return np.mean(results["mass"])
+        elif self.output_type == 'rank':
+            return np.mean(results["rank"])
+        else:
+            return {"mass": np.mean(results["mass"]), "rank": np.mean(results["rank"])}
+
+# Legacy functions for backward compatibility
+def pool_heatmap(heatmap: np.ndarray, pooling_type: str) -> np.ndarray:
     """
+    [DEPRECATED] Use RelevanceMetric class instead.
+    
     Pool the relevance along the channel axis, according to the pooling technique specified by pooling_type.
     """
-    C, H, W = heatmap.shape
-
-    if pooling_type=="sum,abs":
-        pooled_heatmap = np.abs(np.sum(heatmap, axis=0))
-
-    elif pooling_type=="sum,pos":
-        pooled_heatmap = np.sum(heatmap, axis=0) ; pooled_heatmap = np.where(pooled_heatmap>0.0, pooled_heatmap, 0.0)
-    
-    elif pooling_type=="max-norm":
-        pooled_heatmap = np.amax(np.abs(heatmap), axis=0)
-
-    elif pooling_type=="l1-norm":
-        pooled_heatmap = np.linalg.norm(heatmap, ord=1, axis=0)
-
-    elif pooling_type=="l2-norm":
-        pooled_heatmap = np.linalg.norm(heatmap, ord=2, axis=0)
-
-    elif pooling_type=="l2-norm,sq":
-        pooled_heatmap = (np.linalg.norm(heatmap, ord=2, axis=0))**2
-
-    assert pooled_heatmap.shape == (H, W) and np.all(pooled_heatmap>=0.0)
-    return pooled_heatmap
+    metric = RelevanceMetric(pooling_type=pooling_type)
+    return metric.pool_heatmap(heatmap)
 
 def evaluate_single(heatmap: np.ndarray, ground_truth: np.ndarray, pooling_type: str):
     """
+    [DEPRECATED] Use RelevanceMetric class instead.
+    
     Given an image's relevance heatmap and a corresponding ground truth boolean ndarray of the same vertical and horizontal dimensions, return both:
      - the ratio of relevance falling into the ground truth area w.r.t. the total amount of relevance ("relevance mass accuracy" metric)
      - the ratio of pixels within the N highest relevant pixels (where N is the size of the ground truth area) that effectively belong to the ground truth area
@@ -369,25 +516,5 @@ def evaluate_single(heatmap: np.ndarray, ground_truth: np.ndarray, pooling_type:
     - relevance_mass_accuracy (np.float64):     relevance mass accuracy, float in the range [0.0, 1.0], the higher the better.
     - relevance_rank_accuracy (np.float64):     relevance rank accuracy, float in the range [0.0, 1.0], the higher the better.
     """
-    C, H, W = heatmap.shape # C relevance values per pixel coordinate (C=number of channels), for an image with vertical and horizontal dimensions HxW
-    assert ground_truth.shape == (H, W)
-
-    heatmap = heatmap.astype(dtype=np.float64) # cast heatmap to float64 precision (better for computing relevance accuracy statistics)
-    
-    # step 1: pool the relevance across the channel dimension to get one positive relevance value per pixel coordinate
-    pooled_heatmap = pool_heatmap(heatmap, pooling_type)
-
-    # step 2: compute the ratio of relevance mass within ground truth w.r.t the total relevance
-    relevance_within_ground_truth = np.sum(pooled_heatmap * np.where(ground_truth, 1.0, 0.0).astype(dtype=np.float64) )
-    relevance_total               = np.sum(pooled_heatmap)
-    relevance_mass_accuracy       = 1.0 * relevance_within_ground_truth/relevance_total ; assert (0.0<=relevance_mass_accuracy) and (relevance_mass_accuracy<=1.0)
-
-    # step 3: order the pixel coordinates in decreasing order of their relevance, then count the number N_gt of pixels within the N highest relevant pixels that fall 
-    # into the ground truth area, where N is the total number of pixels of the ground truth area, then compute the ratio N_gt/N
-    pixels_sorted_by_relevance = np.argsort(np.ravel(pooled_heatmap))[::-1] ; assert pixels_sorted_by_relevance.shape == (H*W,) # sorted pixel indices over flattened array
-    gt_flat = np.ravel(ground_truth)                                        ; assert gt_flat.shape == (H*W,) # flattened ground truth array
-    N    = np.sum(gt_flat)  
-    N_gt = np.sum(gt_flat[pixels_sorted_by_relevance[:int(N)]])
-    relevance_rank_accuracy = 1.0 * N_gt/N ; assert (0.0<=relevance_rank_accuracy) and (relevance_rank_accuracy<=1.0)
-        
-    return {"mass": relevance_mass_accuracy, "rank": relevance_rank_accuracy} # dict of relevance accuracies, with key=evaluation metric
+    metric = RelevanceMetric(pooling_type=pooling_type)
+    return metric.single_run(heatmap, ground_truth)

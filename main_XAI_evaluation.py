@@ -30,7 +30,7 @@ from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.losses import FocalLoss, compute_alpha_from_labels
 from util.evaluation import (
-    InsertionMetric, DeletionMetric
+    InsertionMetric, DeletionMetric, RelevanceMetric
 )
 from baselines.Attention import Attention_Map
 from baselines.GradCAM import GradCAM
@@ -142,6 +142,8 @@ def get_args_parser():
                         help='Visualize sample images from the dataset')
     parser.add_argument('--add_mask', action='store_true', default=False,
                         help='Add mask to the image based on thickness map')
+    parser.add_argument('--output_mask', action='store_true', default=False,
+                        help='Output mask of the image based on thickness map')
 
     return parser
 
@@ -323,6 +325,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
     overall_metrics_dict = {k:[] for k in metric_func_dict.keys()}
     for batch in metric_logger.log_every(data_loader, 10, f'{mode}:'):
         images, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True)
+        gt_mask = batch[3]
         bs = images.shape[0]
         each_dict = {}
         #with torch.cuda.amp.autocast():
@@ -331,7 +334,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         attention_map_bs = attention_map_bs - attention_map_bs.min(axis=(1, 2), keepdims=True) + 1e-9 # numpy shape: (B, img_size, img_size), add small value to avoid all-zero map
         print(f'Attention map shape: {attention_map_bs.shape}')
         for k, v in metric_func_dict.items():
-            e_score_bs = v(images, attention_map_bs, batch_size=bs, y_batch=target, explain_func=xai_method, explain_func_kwargs={})
+            e_score_bs = v(images, attention_map_bs, gt_mask=gt_mask, batch_size=bs, y_batch=target, explain_func=xai_method, explain_func_kwargs={})
             e_score_bs_mean = np.mean(e_score_bs)
             overall_metrics_dict[k].append(e_score_bs_mean)
             each_dict[k] = float(e_score_bs_mean)
@@ -474,10 +477,12 @@ def main(args, criterion):
         from util.evaluation_quantus import SufficiencyMetric, ConsistencyMetric, PointingGameMetric, ComplexityMetric, RandomLogitMetric
         metric_func_dict = {
             #TODO: currently some issues with these metrics
-            'insertion': InsertionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
-            'deletion': DeletionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
-            'sufficiency': SufficiencyMetric(model, device),
-            'consistency': ConsistencyMetric(model, device, discretise_func=quantus.discretise_func.rank),
+            # 'insertion': InsertionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
+            # 'deletion': DeletionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
+            # 'sufficiency': SufficiencyMetric(model, device),
+            # 'consistency': ConsistencyMetric(model, device, discretise_func=quantus.discretise_func.rank),
+            'relevance_mass': RelevanceMetric(pooling_type='l2-norm', output_type='mass'),
+            'relevance_rank': RelevanceMetric(pooling_type='l2-norm', output_type='rank'),
             #'complexity': ComplexityMetric(model, device),
             #'random_logit': RandomLogitMetric(model, device, n_classes=args.nb_classes),
         }
