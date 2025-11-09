@@ -19,9 +19,9 @@ NUM_CLASS=${6:-"2"}
 weight_decay=${7:-"0.05"}
 Eval_score=${8:-"default"}
 Modality=${9:-"OCT"} # CFP, OCT, OCT_CFP
-SUBSETNUM=${10:-0} # 0, 500, 1000
-ADDCMD=${10:-""}
-ADDCMD2=${11:-""}
+SUBSETNUM=0 # 0, 500, 1000
+ADDCMD="--add_mask"
+ADDCMD2="--train_no_aug"
 
 #sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_UFbenchmark_irb2024v5.sh DME_binary_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT 0 --add_mask --train_no_aug
 #sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_UFbenchmark_irb2024v5_init.sh DME_binary_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT 0 --add_mask --train_no_aug
