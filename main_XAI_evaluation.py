@@ -375,9 +375,9 @@ def main(args, criterion):
 
     model, processor, patch_size = get_model(args)
 
-    dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir, modality=args.modality,transform=processor)
-    dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir, modality=args.modality,transform=processor)
-    dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir, modality=args.modality,transform=processor)
+    dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir, modality=args.modality,transform=processor, eval_mode=True)
+    dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir, modality=args.modality,transform=processor, eval_mode=True)
+    dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir, modality=args.modality,transform=processor, eval_mode=True)
 
     sampler_train = None
     sampler_val = None

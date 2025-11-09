@@ -147,7 +147,7 @@ Thickness_DIR = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 Thickness_CSV = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/thickness_map.csv"
 
 class CSV_Dataset(Dataset):
-    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=[], pid_key = 'patient_id', select_layers=None,th_resize=True,th_heatmap=False, use_ducan_preprocessing=False, add_mask=False, output_mask=False, use_img_per_patient=False, CV=False):
+    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=[], pid_key = 'patient_id', select_layers=None,th_resize=True,th_heatmap=False, use_ducan_preprocessing=False, add_mask=False, output_mask=False, mask_transforms=None, use_img_per_patient=False, CV=False):
         #common args
         self.transfroms = transfroms
         self.root_dir = img_dir
@@ -155,7 +155,7 @@ class CSV_Dataset(Dataset):
         self.use_ducan_preprocessing = use_ducan_preprocessing
         self.modality = modality
         self.pid_key = pid_key
-        
+        self.mask_transforms = mask_transforms
         # Initialize DuCAN preprocessor if needed
         if use_ducan_preprocessing:
             try:
@@ -195,7 +195,6 @@ class CSV_Dataset(Dataset):
             masked_df = masked_df.rename(columns={'OCT':'folder'}).dropna(subset=['Surface Name'])
             self.annotations = self.annotations.merge(masked_df,on='folder',how='inner').reset_index(drop=True)
             print('After adding mask, data len: ', self.annotations.shape[0])
-
         #assert index order control, mci, ad
         if not class_to_idx:
             self.class_to_idx = {}
@@ -369,8 +368,7 @@ class CSV_Dataset(Dataset):
                 slice_index = int(os.path.basename(img_name).split("_")[-1].split(".")[0])
                 mask_slice = mask[:, slice_index, :]
                 image_masked, output_mask = masking_image_pil(image.copy(), mask_slice)
-                if self.add_mask:
-                    image = image_masked
+                image = image_masked
             
             # (H,W,C)
             image = self.transfroms(image)
@@ -379,7 +377,7 @@ class CSV_Dataset(Dataset):
         label = int(sample[1])
         #debug visualization
         #print(image)
-        return image, label, image_len, output_mask
+        return image, label, image_len
 
 class CSV_Dataset_eval(CSV_Dataset):
     def __getitem__(self, idx):
@@ -445,11 +443,15 @@ class CSV_Dataset_eval(CSV_Dataset):
                     image = image_masked
             # (H,W,C)
             image = self.transfroms(image)
+            if output_mask is not None:
+                output_mask_tensor = self.mask_transforms(output_mask)
+            else:
+                output_mask_tensor = None
             image_len = 1
-
+        print(output_mask_tensor.shape)
         label = int(sample[1])
         #output image name for evaluation
-        return image, label, image_len, sample[0], output_mask
+        return image, label, image_len, sample[0], output_mask_tensor
 
 class DualCSV_Dataset(Dataset):
     def __init__(self,data_oct,data_cfp):
@@ -488,6 +490,7 @@ def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_A
         csv_func = CSV_Dataset
     
     output_mask = False if not hasattr(args, 'output_mask') else args.output_mask
+    mask_transforms = build_transform_mask(args)
     if 'dual_input_cnn'  in args.model: #Dual model special dataset
         img_dir_oct = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
         img_dir_cfp = "/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
@@ -496,11 +499,11 @@ def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_A
         dataset = DualCSV_Dataset(dataset_oct, dataset_cfp)
     elif 'ducan' in args.model: #DuCAN dual-modal dataset
         # DuCAN requires both fundus and OCT images with specialized preprocessing
-        dataset_oct = csv_func(args.data_path, img_dir, is_train, transform, k, modality="OCT", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True,add_mask=args.add_mask, output_mask=output_mask, use_img_per_patient=args.use_img_per_patient, CV=CV)
+        dataset_oct = csv_func(args.data_path, img_dir, is_train, transform, k, modality="OCT", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True,add_mask=args.add_mask, output_mask=output_mask, mask_transforms=mask_transforms, use_img_per_patient=args.use_img_per_patient, CV=CV)
         dataset_fundus = csv_func(args.data_path, img_dir, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True, use_img_per_patient=args.use_img_per_patient, CV=CV)
         dataset = DualCSV_Dataset(dataset_fundus, dataset_oct)  # Note: fundus first, OCT second for DuCAN
     elif args.data_path.endswith('.csv'):
-        dataset = csv_func(args.data_path, img_dir, is_train, transform, k, modality=modality, patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, add_mask=args.add_mask, output_mask=output_mask, use_img_per_patient=args.use_img_per_patient, CV=CV)
+        dataset = csv_func(args.data_path, img_dir, is_train, transform, k, modality=modality, patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, add_mask=args.add_mask, output_mask=output_mask, mask_transforms=mask_transforms, use_img_per_patient=args.use_img_per_patient, CV=CV)
     else:
         root = os.path.join(args.data_path, is_train)
         dataset = datasets.ImageFolder(root, transform=transform)
@@ -544,6 +547,20 @@ def build_transform(is_train, args):
     t.append(transforms.CenterCrop(args.input_size))
     t.append(transforms.ToTensor())
     t.append(transforms.Normalize(mean, std))
+    return transforms.Compose(t)
+
+def build_transform_mask(args):
+    t = []
+    if args.input_size <= 224:
+        crop_pct = 224 / 256
+    else:
+        crop_pct = 1.0
+    size = int(args.input_size / crop_pct)
+    t.append(
+        transforms.Resize(size, interpolation=transforms.InterpolationMode.BICUBIC),
+    )
+    t.append(transforms.CenterCrop(args.input_size))
+    t.append(transforms.ToTensor())
     return transforms.Compose(t)
 
 def build_transform_public(is_train, args):
