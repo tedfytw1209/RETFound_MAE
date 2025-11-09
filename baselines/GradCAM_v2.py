@@ -2,6 +2,7 @@ import warnings
 warnings.filterwarnings('ignore')
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
+from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 from PIL import Image
 import numpy as np
 from typing import List, Callable, Optional
@@ -239,7 +240,13 @@ class PytorchCAM(torch.nn.Module):
             raise ValueError("inputs parameter is required")
         if targets is None:
             raise ValueError("targets parameter is required")
-        targets = targets.cpu().numpy()
+        # Convert targets to ClassifierOutputTarget objects
+        if isinstance(targets, torch.Tensor):
+            targets = targets.cpu().numpy()
+        if isinstance(targets, np.ndarray):
+            targets = [ClassifierOutputTarget(int(t)) for t in targets]
+        elif isinstance(targets, (list, tuple)) and not callable(targets[0]):
+            targets = [ClassifierOutputTarget(int(t)) for t in targets]
         print(targets)
         cam_bs = self.compute_cam(inputs, targets).detach().cpu()
         # back to original image size
