@@ -208,27 +208,38 @@ class PytorchCAM(torch.nn.Module):
         B = pixel_values.size(0)
 
         # Expand inputs/targets to match pytorch-grad-cam expectations (batch len == len(targets))
-        if len(targets_for_gradcam) == 1 and B > 1:
+        if len(targets_for_gradcam) == B:
+            # One-to-one mapping: each image has its corresponding target (most common case)
+            targets_expanded = targets_for_gradcam
+            repeated_tensor = pixel_values
+            num_outputs = B
+        elif len(targets_for_gradcam) == 1 and B > 1:
+            # One target applied to all images
             targets_expanded = [targets_for_gradcam[0]] * B
             repeated_tensor = pixel_values
+            num_outputs = B
         elif len(targets_for_gradcam) > 1 and B == 1:
+            # Multiple targets for one image (create CAM for each target)
             targets_expanded = targets_for_gradcam
             repeated_tensor = pixel_values.repeat(len(targets_for_gradcam), 1, 1, 1)
-            B = repeated_tensor.size(0)
+            num_outputs = len(targets_for_gradcam)
         elif len(targets_for_gradcam) > 1 and B > 1:
-            # replicate each image for each target
+            # All combinations: replicate each image for each target
             repeated_tensor = pixel_values.repeat_interleave(len(targets_for_gradcam), dim=0)
             targets_expanded = targets_for_gradcam * B
-            B = repeated_tensor.size(0)
+            num_outputs = B * len(targets_for_gradcam)
         else:
             targets_expanded = targets_for_gradcam
             repeated_tensor = pixel_values
+            num_outputs = max(B, len(targets_for_gradcam))
+        
         with torch.set_grad_enabled(True):
             batch_results = torch.as_tensor(self.method(input_tensor=repeated_tensor, targets=targets_expanded))  # shape: (B', H', W')
-        # Normalize per image
+        
+        # Normalize per image using actual output size
         if self.normalize_cam:
-            cam_min = batch_results.view(B * len(targets_for_gradcam), -1).min(dim=1)[0].view(B * len(targets_for_gradcam), 1, 1)
-            cam_max = batch_results.view(B * len(targets_for_gradcam), -1).max(dim=1)[0].view(B * len(targets_for_gradcam), 1, 1)
+            cam_min = batch_results.view(num_outputs, -1).min(dim=1)[0].view(num_outputs, 1, 1)
+            cam_max = batch_results.view(num_outputs, -1).max(dim=1)[0].view(num_outputs, 1, 1)
             cam = (batch_results - cam_min) / (cam_max - cam_min + 1e-8)
         else:
             cam = batch_results
