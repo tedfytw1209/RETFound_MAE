@@ -81,41 +81,37 @@ def _resample_width(mask_slice: np.ndarray, W: int) -> np.ndarray:
     return out
 
 def _build_binary_mask(mask_slice: np.ndarray, image_size):
-    try:
-        W, H = image_size
-        if mask_slice is None:
-            return None
-        mask_slice = np.asarray(mask_slice)
-        if mask_slice.ndim != 2:
-            return None
-        L, Wm = mask_slice.shape
-        if L == 0 or H <= 0 or W <= 0:
-            return None
-
-        mask_slice = _resample_width(mask_slice, W)  # (L, W)
-        y = np.rint(mask_slice).astype(np.int32, copy=False)
-        y = np.clip(y, 0, H - 1)
-
-        binary_mask = np.zeros((H, W), dtype=np.uint8)
-        if L == 1:
-            rr = y[0]
-            binary_mask[rr, np.arange(W)] = 255
-            return Image.fromarray(binary_mask, mode="L")
-
-        rows = np.arange(H, dtype=np.int32)[:, None]   # (H,1)
-        for i in range(L - 1):
-            upper = y[i]
-            lower = y[i + 1]
-            ul = np.minimum(upper, lower)[None, :]
-            ll = np.maximum(upper, lower)[None, :]
-            band = (rows >= ul) & (rows < ll)
-            eq = (rows == ul) & (ul == ll)
-            binary_mask[band | eq] = 255
-
-        return Image.fromarray(binary_mask, mode="L")
-    except Exception as e:
-        print(f"[WARN] _build_binary_mask failed: {e}")
+    W, H = image_size
+    if mask_slice is None:
         return None
+    mask_slice = np.asarray(mask_slice)
+    if mask_slice.ndim != 2:
+        return None
+    L, Wm = mask_slice.shape
+    if L == 0 or H <= 0 or W <= 0:
+        return None
+
+    mask_slice = _resample_width(mask_slice, W)  # (L, W)
+    y = np.rint(mask_slice).astype(np.int32, copy=False)
+    y = np.clip(y, 0, H - 1)
+
+    binary_mask = np.zeros((H, W), dtype=np.uint8)
+    if L == 1:
+        rr = y[0]
+        binary_mask[rr, np.arange(W)] = 255
+        return Image.fromarray(binary_mask, mode="L")
+
+    rows = np.arange(H, dtype=np.int32)[:, None]   # (H,1)
+    for i in range(L - 1):
+        upper = y[i]
+        lower = y[i + 1]
+        ul = np.minimum(upper, lower)[None, :]
+        ll = np.maximum(upper, lower)[None, :]
+        band = (rows >= ul) & (rows < ll)
+        eq = (rows == ul) & (ul == ll)
+        binary_mask[band | eq] = 255
+
+    return Image.fromarray(binary_mask, mode="L")
 
 def masking_image_pil(image, mask_slice, fill_color=(0, 0, 0)):
     if not isinstance(image, Image.Image):
