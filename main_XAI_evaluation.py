@@ -327,6 +327,9 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
     for batch in metric_logger.log_every(data_loader, 10, f'{mode}:'):
         images, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True)
         gt_mask = to_numpy(batch[4])
+        # Remove channel dimension: (B, 1, H, W) -> (B, H, W)
+        if gt_mask is not None and gt_mask.ndim == 4 and gt_mask.shape[1] == 1:
+            gt_mask = gt_mask.squeeze(1)
         bs = images.shape[0]
         each_dict = {}
         #with torch.cuda.amp.autocast():
