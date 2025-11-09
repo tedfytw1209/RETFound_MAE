@@ -258,7 +258,7 @@ class PytorchCAM(torch.nn.Module):
             targets = [ClassifierOutputTarget(int(t)) for t in targets]
         elif isinstance(targets, (list, tuple)) and not callable(targets[0]):
             targets = [ClassifierOutputTarget(int(t)) for t in targets]
-        print(targets)
+        #print(targets)
         cam_bs = self.compute_cam(inputs, targets).detach().cpu()
         # back to original image size
         cam_bs = F.interpolate(cam_bs.unsqueeze(1), size=(self.img_size, self.img_size), mode='bilinear', align_corners=False)
