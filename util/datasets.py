@@ -136,7 +136,7 @@ def masking_image_pil(image, mask_slice, fill_color=(0, 0, 0)):
     mask_np = _build_binary_mask(mask_slice, image_rgb.size, return_tensor=True)
     if mask_np is not None:
         # Convert 255 -> 1, 0 -> 0 (masked area = 1, unmasked = 0)
-        mask_tensor = torch.from_numpy((mask_np / 255)).to(dtype=torch.int32)
+        mask_tensor = torch.from_numpy((mask_np / 255).astype(np.int32)).to(dtype=torch.int32)
     else:
         mask_tensor = None
     
@@ -375,18 +375,15 @@ class CSV_Dataset(Dataset):
                 image = Image.fromarray(preprocessed_np)
             
             # mask processing
-            
+            output_mask = None
             if self.add_mask or self.output_mask:
                 mask_path = os.path.join(Thickness_DIR,sample[2])
                 mask = np.load(mask_path) # (Layer Interface, slice_num, W)
                 slice_index = int(os.path.basename(img_name).split("_")[-1].split(".")[0])
                 mask_slice = mask[:, slice_index, :]
-                image_masked, output_mask_tensor = masking_image_pil(image.copy(), mask_slice)
-                print(output_mask_tensor.shape)
+                image_masked, output_mask = masking_image_pil(image.copy(), mask_slice)
                 if self.add_mask:
                     image = image_masked
-            else:
-                output_mask_tensor = None
             
             # (H,W,C)
             image = self.transfroms(image)
@@ -395,8 +392,8 @@ class CSV_Dataset(Dataset):
         label = int(sample[1])
         #debug visualization
         #print(image)
-        if output_mask_tensor is not None:
-            return image, label, image_len, output_mask_tensor
+        if output_mask is not None:
+            return image, label, image_len, output_mask
         else:
             return image, label, image_len
 
