@@ -80,7 +80,7 @@ def _resample_width(mask_slice: np.ndarray, W: int) -> np.ndarray:
         out[i] = np.interp(x_dst, x_src, row.astype(np.float32))
     return out
 
-def _build_binary_mask(mask_slice: np.ndarray, image_size):
+def _build_binary_mask(mask_slice: np.ndarray, image_size, return_tensor=False):
     try:
         W, H = image_size
         if mask_slice is None:
@@ -100,6 +100,8 @@ def _build_binary_mask(mask_slice: np.ndarray, image_size):
         if L == 1:
             rr = y[0]
             binary_mask[rr, np.arange(W)] = 255
+            if return_tensor:
+                return binary_mask
             return Image.fromarray(binary_mask, mode="L")
 
         rows = np.arange(H, dtype=np.int32)[:, None]   # (H,1)
@@ -112,6 +114,8 @@ def _build_binary_mask(mask_slice: np.ndarray, image_size):
             eq = (rows == ul) & (ul == ll)
             binary_mask[band | eq] = 255
 
+        if return_tensor:
+            return binary_mask
         return Image.fromarray(binary_mask, mode="L")
     except Exception as e:
         print(f"[WARN] _build_binary_mask failed: {e}")
@@ -122,12 +126,21 @@ def masking_image_pil(image, mask_slice, fill_color=(0, 0, 0)):
         image = Image.fromarray(np.asarray(image))
     image_rgb = image.convert("RGB")
 
-    mask_img = _build_binary_mask(mask_slice, image_rgb.size)
+    mask_img = _build_binary_mask(mask_slice, image_rgb.size, return_tensor=False)
     if mask_img is None:
         return image_rgb, None
     bg = Image.new("RGB", image_rgb.size, fill_color)
     masked_img = Image.composite(image_rgb, bg, mask_img)
-    return masked_img, mask_img
+    
+    # Get numpy mask and convert to tensor with 1 for masked area, 0 for unmasked
+    mask_np = _build_binary_mask(mask_slice, image_rgb.size, return_tensor=True)
+    if mask_np is not None:
+        # Convert 255 -> 1, 0 -> 0 (masked area = 1, unmasked = 0)
+        mask_tensor = torch.from_numpy((mask_np / 255).astype(np.int32)).to(dtype=torch.int32)
+    else:
+        mask_tensor = None
+    
+    return masked_img, mask_tensor
 
 def select_n_slices(k,depth):
     if k<1:
@@ -379,7 +392,10 @@ class CSV_Dataset(Dataset):
         label = int(sample[1])
         #debug visualization
         #print(image)
-        return image, label, image_len, output_mask
+        if output_mask is not None:
+            return image, label, image_len, output_mask
+        else:
+            return image, label, image_len
 
 class CSV_Dataset_eval(CSV_Dataset):
     def __getitem__(self, idx):
@@ -449,7 +465,10 @@ class CSV_Dataset_eval(CSV_Dataset):
 
         label = int(sample[1])
         #output image name for evaluation
-        return image, label, image_len, sample[0], output_mask
+        if output_mask is not None:
+            return image, label, image_len, sample[0], output_mask
+        else:
+            return image, label, image_len, sample[0]
 
 class DualCSV_Dataset(Dataset):
     def __init__(self,data_oct,data_cfp):
