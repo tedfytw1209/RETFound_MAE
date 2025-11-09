@@ -449,6 +449,7 @@ class CSV_Dataset_eval(CSV_Dataset):
                 output_mask_tensor = None
             image_len = 1
         print(output_mask_tensor.shape)
+        print(output_mask_tensor)
         label = int(sample[1])
         #output image name for evaluation
         return image, label, image_len, sample[0], output_mask_tensor
