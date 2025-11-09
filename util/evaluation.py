@@ -410,7 +410,7 @@ class RelevanceMetric():
         # Step 2: Compute the ratio of relevance mass within ground truth w.r.t the total relevance
         relevance_within_ground_truth = np.sum(pooled_heatmap * np.where(ground_truth, 1.0, 0.0).astype(dtype=np.float64))
         relevance_total = np.sum(pooled_heatmap)
-        relevance_mass_accuracy = 1.0 * relevance_within_ground_truth / relevance_total
+        relevance_mass_accuracy = 1.0 * relevance_within_ground_truth / (relevance_total + 1e-9)
         print('In ground truth:', relevance_within_ground_truth, 'Total:', relevance_total, 'Mass acc:', relevance_mass_accuracy)
         assert (0.0 <= relevance_mass_accuracy) and (relevance_mass_accuracy <= 1.0)
 
