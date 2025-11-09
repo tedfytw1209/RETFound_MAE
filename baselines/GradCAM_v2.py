@@ -239,6 +239,8 @@ class PytorchCAM(torch.nn.Module):
             raise ValueError("inputs parameter is required")
         if targets is None:
             raise ValueError("targets parameter is required")
+        targets = targets.cpu().numpy()
+        print(targets)
         cam_bs = self.compute_cam(inputs, targets).detach().cpu()
         # back to original image size
         cam_bs = F.interpolate(cam_bs.unsqueeze(1), size=(self.img_size, self.img_size), mode='bilinear', align_corners=False)
