@@ -326,12 +326,12 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
     overall_metrics_dict = {k:[] for k in metric_func_dict.keys()}
     for batch in metric_logger.log_every(data_loader, 10, f'{mode}:'):
         images, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True)
-        gt_mask = to_numpy(batch[3])
+        gt_mask = to_numpy(batch[4])
         bs = images.shape[0]
         each_dict = {}
         #with torch.cuda.amp.autocast():
         print(f'Input images shape: {images.shape}')
-        print(f'GT mask shape: {gt_mask.shape}')
+        print(gt_mask.shape, gt_mask.min(), gt_mask.max())
         attention_map_bs = xai_method(images,targets=target)
         attention_map_bs = attention_map_bs - attention_map_bs.min(axis=(1, 2), keepdims=True) + 1e-9 # numpy shape: (B, img_size, img_size), add small value to avoid all-zero map
         print(f'Attention map shape: {attention_map_bs.shape}')
