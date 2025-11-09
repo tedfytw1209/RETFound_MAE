@@ -23,8 +23,6 @@ SUBSETNUM=${10:-0} # 0, 500, 1000
 ADDCMD=${10:-""}
 ADDCMD2=${11:-""}
 
-NUM_K=0
-
 #sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_UFbenchmark_irb2024v5.sh DME_binary_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT 0 --add_mask --train_no_aug
 #sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_UFbenchmark_irb2024v5_init.sh DME_binary_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT 0 --add_mask --train_no_aug
 # Different additional commands to try
@@ -44,6 +42,6 @@ do
     #ADDCMD2="${ADDCMDS2[$j]}"
     # Submit the job to Slurm
     echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2"
-    bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2
+    #bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2
     #done
 done
