@@ -411,8 +411,8 @@ class RelevanceMetric():
         relevance_within_ground_truth = np.sum(pooled_heatmap * np.where(ground_truth, 1.0, 0.0).astype(dtype=np.float64))
         relevance_total = np.sum(pooled_heatmap)
         relevance_mass_accuracy = 1.0 * relevance_within_ground_truth / relevance_total
-        assert (0.0 <= relevance_mass_accuracy) and (relevance_mass_accuracy <= 1.0)
         print('In ground truth:', relevance_within_ground_truth, 'Total:', relevance_total, 'Mass acc:', relevance_mass_accuracy)
+        assert (0.0 <= relevance_mass_accuracy) and (relevance_mass_accuracy <= 1.0)
 
         # Step 3: Order pixels by relevance and count how many of the top-N fall in ground truth
         pixels_sorted_by_relevance = np.argsort(np.ravel(pooled_heatmap))[::-1]
