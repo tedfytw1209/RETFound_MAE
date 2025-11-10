@@ -430,8 +430,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         bs = images.shape[0]
         each_dict = {}
         #with torch.cuda.amp.autocast():
-        print(f'Input images shape: {images.shape}')
-        print(gt_mask.shape, gt_mask.min(), gt_mask.max())
+        print(f'Input images shape: {images.shape}', 'ground truth mask shape:', gt_mask.shape, 'target:', target)
         attention_map_bs = xai_method(images,targets=target)
         attention_map_bs = attention_map_bs - attention_map_bs.min(axis=(1, 2), keepdims=True) + 1e-9 # numpy shape: (B, img_size, img_size), add small value to avoid all-zero map
         print(f'Attention map shape: {attention_map_bs.shape}')

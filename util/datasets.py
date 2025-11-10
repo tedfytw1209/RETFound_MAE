@@ -493,7 +493,14 @@ def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_A
         csv_func = CSV_Dataset
     
     output_mask = False if not hasattr(args, 'output_mask') else args.output_mask
-    mask_transforms = build_transform_mask(args)
+    if transform is None:
+        mask_transforms = build_transform_mask(args)
+    else:
+        #tmp for timm model
+        mask_transforms = transforms.Compose([
+            transforms.Resize((380,380)),
+            transforms.ToTensor(),
+        ])
     if 'dual_input_cnn'  in args.model: #Dual model special dataset
         img_dir_oct = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
         img_dir_cfp = "/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"

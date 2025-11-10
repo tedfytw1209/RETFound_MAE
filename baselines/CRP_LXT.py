@@ -78,14 +78,16 @@ class CRP(torch.nn.Module):
         cam_max = heatmap.view(B, -1).max(dim=1)[0].view(B, 1, 1)
         cam = (heatmap - cam_min) / (cam_max - cam_min + 1e-8)
         return cam # (B, H, W)
-    def forward(self, image_tensor, target_class=None, **kwargs):
+    def forward(self, image_tensor, targets=None, **kwargs):
         image_tensor = to_tensor(image_tensor, device=self.device)
         """Generate CRP heatmap"""
-        if target_class is None:
+        if targets is None:
             # Get predicted class
             with torch.no_grad():
                 outputs = HuggingfaceToTensorModelWrapper(self.model)(image_tensor)
                 target_class = outputs.argmax(dim=1).item()
+        else:
+            target_class = targets
         heatmaps = self.generate_heatmap(image_tensor, target_class)
         return heatmaps.detach().cpu().numpy()
 
@@ -142,14 +144,16 @@ class LXT(torch.nn.Module):
         cam = (heatmap - cam_min) / (cam_max - cam_min + 1e-8)
         return cam # (B, H, W)
     
-    def forward(self, image_tensor, target_class=None, **kwargs):
+    def forward(self, image_tensor, targets=None, **kwargs):
         """Generate LXT heatmap"""
         image_tensor = to_tensor(image_tensor, device=self.device)
-        if target_class is None:
+        if targets is None:
             # Get predicted class
             with torch.no_grad():
                 outputs = HuggingfaceToTensorModelWrapper(self.model)(image_tensor)
                 target_class = outputs.argmax(dim=1).item()
+        else:
+            target_class = targets
         heatmaps = self.generate_heatmap(image_tensor, target_class)
         return heatmaps.detach().cpu().numpy()
 
