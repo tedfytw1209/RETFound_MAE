@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from sam2.build_sam import build_sam2
+from SAM2UNet.sam2.build_sam import build_sam2
 
 
 class DoubleConv(nn.Module):
