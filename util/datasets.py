@@ -124,7 +124,7 @@ def masking_image_pil(image, mask_slice, fill_color=(0, 0, 0)):
         image = Image.fromarray(np.asarray(image))
     image_rgb = image.convert("RGB")
     max_size = max(image_rgb.size)
-    add_bound = int(max_size * 0.05)
+    add_bound = int(max_size * 0.025)
     mask_img = _build_binary_mask(mask_slice, image_rgb.size, add_bound=add_bound)
     if mask_img is None:
         return image_rgb, None
