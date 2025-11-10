@@ -44,7 +44,7 @@ import wandb
 from pytorch_pretrained_vit import ViT
 
 from pytorch_grad_cam import GradCAM as GradCAMv2, ScoreCAM
-
+import matplotlib.pyplot as plt
 import warnings
 import faulthandler
 
@@ -147,6 +147,103 @@ def get_args_parser():
                         help='Output mask of the image based on thickness map')
 
     return parser
+
+def visualize_dataset_samples(dataset, args, num_samples=8, save_path=None):
+    """
+    Visualize sample images from the dataset along with their masks
+    
+    Args:
+        dataset: Dataset object
+        args: Arguments containing modality and other info
+        num_samples: Number of samples to visualize
+        save_path: Path to save the visualization (optional)
+    """
+    print(f"Visualizing {num_samples} sample images from {args.modality} dataset...")
+    
+    # Get class names
+    if hasattr(dataset, 'classes'):
+        class_names = dataset.classes
+    else:
+        class_names = [f"Class {i}" for i in range(args.nb_classes)]
+    
+    # Create figure - 4 rows x 4 columns to show 8 samples (each sample = image + mask)
+    rows = (num_samples + 1) // 2  # 2 samples per row
+    fig, axes = plt.subplots(rows, 4, figsize=(16, rows * 4))
+    if rows == 1:
+        axes = axes.reshape(1, -1)
+    axes = axes.flatten()
+    
+    # Sample random indices
+    indices = np.random.choice(len(dataset), min(num_samples, len(dataset)), replace=False)
+    
+    for i, idx in enumerate(indices):
+        if i >= num_samples:
+            break
+            
+        # Get sample
+        image, label, _, _, mask = dataset[idx]
+        img_tensor = image
+        
+        # Convert tensor to numpy for visualization
+        if isinstance(img_tensor, torch.Tensor):
+            # Denormalize if normalized
+            if img_tensor.min() < 0:  # Likely normalized
+                mean = np.array([0.485, 0.456, 0.406])
+                std = np.array([0.229, 0.224, 0.225])
+                img_np = img_tensor.permute(1, 2, 0).numpy()
+                img_np = img_np * std + mean
+                img_np = np.clip(img_np, 0, 1)
+            else:
+                img_np = img_tensor.permute(1, 2, 0).numpy()
+                img_np = np.clip(img_np, 0, 1)
+        else:
+            img_np = np.array(img_tensor)
+            if img_np.max() > 1:
+                img_np = img_np / 255.0
+        
+        # Handle different number of channels
+        if img_np.shape[-1] == 1:
+            img_np = np.repeat(img_np, 3, axis=-1)
+        elif img_np.shape[-1] > 3:
+            img_np = img_np[:, :, :3]
+        
+        # Process mask
+        if isinstance(mask, torch.Tensor):
+            mask_np = mask.numpy()
+        else:
+            mask_np = np.array(mask)
+        
+        # Ensure mask is 2D
+        if len(mask_np.shape) == 3:
+            mask_np = mask_np.squeeze()
+        
+        # Display image in column 0 or 2 (even positions)
+        ax_img_idx = (i // 2) * 4 + (i % 2) * 2
+        axes[ax_img_idx].imshow(img_np)
+        axes[ax_img_idx].set_title(f'{class_names[label]} (idx: {idx})', fontsize=10)
+        axes[ax_img_idx].axis('off')
+        
+        # Display mask in column 1 or 3 (odd positions)
+        ax_mask_idx = ax_img_idx + 1
+        axes[ax_mask_idx].imshow(mask_np, cmap='gray')
+        axes[ax_mask_idx].set_title(f'Mask (idx: {idx})', fontsize=10)
+        axes[ax_mask_idx].axis('off')
+    
+    # Hide unused subplots
+    total_plots = rows * 4
+    used_plots = len(indices) * 2
+    for i in range(used_plots, total_plots):
+        axes[i].axis('off')
+    
+    plt.suptitle(f'Sample Images and Masks from {args.modality} Dataset', fontsize=14)
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Visualization saved to: {save_path}")
+    else:
+        plt.show()
+    plt.close()
 
 def get_label_mappings(args):
     if 'ad_control' in args.task:
@@ -421,6 +518,16 @@ def main(args, criterion):
         pin_memory=args.pin_mem,
         drop_last=False
     )
+    #visualize some samples
+    if misc.is_main_process():
+        print("Generating dataset visualizations...")
+        # Create output directory for visualizations
+        vis_dir = os.path.join(args.output_dir, args.task, 'visualizations')
+        os.makedirs(vis_dir, exist_ok=True)
+        # Visualize test samples
+        test_vis_path = os.path.join(vis_dir, f'test_samples_{args.modality}.png')
+        visualize_dataset_samples(dataset_test, args, num_samples=8, save_path=test_vis_path)
+        print(f"Dataset visualizations saved to: {vis_dir}")
 
     # Load finetuned model if specified
     if args.resume and args.resume != '0':
