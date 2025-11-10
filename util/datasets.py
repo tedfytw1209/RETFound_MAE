@@ -480,7 +480,7 @@ def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_A
     if transform is None:
         transform = build_transform(is_train, args)
     print('Image transform: ', transform)
-    mask_transforms = build_transform_mask(transform)
+    mask_transforms = build_transform_mask(args)
     print('Mask transform: ', mask_transforms)
     #csv dataset
     if eval_mode:
@@ -547,14 +547,20 @@ def build_transform(is_train, args):
     t.append(transforms.Normalize(mean, std))
     return transforms.Compose(t)
 
-def build_transform_mask(transform):
-    if isinstance(transform, TransformWrapper):
-        transform = transform.transform
-    no_norm_transform = transforms.Compose([
-        t for t in transform.transforms
-        if not isinstance(t, transforms.Normalize)
-    ])
-    return no_norm_transform
+def build_transform_mask(args):
+     # eval transform
+    t = []
+    if args.input_size <= 224:
+        crop_pct = 224 / 256
+    else:
+        crop_pct = 1.0
+    size = int(args.input_size / crop_pct)
+    t.append(
+        transforms.Resize(size, interpolation=transforms.InterpolationMode.BICUBIC),
+    )
+    t.append(transforms.CenterCrop(args.input_size))
+    t.append(transforms.ToTensor())
+    return transforms.Compose(t)
 
 def build_transform_public(is_train, args):
     tfms = transforms.Compose([
