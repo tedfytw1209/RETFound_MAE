@@ -487,6 +487,7 @@ def main(args, criterion):
     print("{}".format(args).replace(', ', ',\n'))
 
     device = torch.device(args.device)
+    print(f'Using device: {device}')
 
     # fix the seed for reproducibility
     seed = args.seed + misc.get_rank()

@@ -20,7 +20,7 @@ class GAPClassifier(nn.Module):
 class SAM2UNetClassifier(nn.Module):
     def __init__(self, num_classes: int, seg_ckpt: str = None, freeze_backbone: bool = True):
         super().__init__()
-        self.backbone = SAM2UNet()
+        self.backbone = SAM2UNet().cpu()
         if seg_ckpt and os.path.exists(seg_ckpt):
             sd = torch.load(seg_ckpt, map_location="cpu")
             state = sd.get("model", sd)
