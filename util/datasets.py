@@ -104,11 +104,11 @@ def _build_binary_mask(mask_slice: np.ndarray, image_size, add_bound=0):
     rows = np.arange(H, dtype=np.int32)[:, None]   # (H,1)
     for i in range(L - 1):
         if i==0:
-            upper = max(y[i] - add_bound, 0)
+            upper = np.clip(y[i] - add_bound, 0, H - 1)
         else:
             upper = y[i]
         if i==L-2:
-            lower = min(y[i + 1] + add_bound, H - 1)
+            lower = np.clip(y[i + 1] + add_bound, 0, H - 1)
         else:
             lower = y[i + 1]
         ul = np.minimum(upper, lower)[None, :]
