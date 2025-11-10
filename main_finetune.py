@@ -416,7 +416,7 @@ def get_model(args):
     elif args.model.startswith('SAM2UNet'):
         model = SAM2UNetClassifier(num_classes=args.nb_classes,
                                seg_ckpt=args.finetune,
-                               freeze_backbone=args.fix_extractor)
+                               freeze_backbone=args.fix_extractor).cuda()
     else:
         model = models.__dict__[args.model](
             num_classes=args.nb_classes,
