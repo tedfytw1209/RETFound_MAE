@@ -304,7 +304,8 @@ def get_model(args):
             attention_probs_dropout_prob=args.drop_path, #Not in tianhao code, default 0.0
             id2label=id2label,
             label2id=label2id,
-            ignore_mismatched_sizes=True
+            ignore_mismatched_sizes=True,
+            attn_implementation="eager"
         )
         patch_size = 16
     elif 'pytorchvit' in args.model:
