@@ -80,7 +80,7 @@ def _resample_width(mask_slice: np.ndarray, W: int) -> np.ndarray:
         out[i] = np.interp(x_dst, x_src, row.astype(np.float32))
     return out
 
-def _build_binary_mask(mask_slice: np.ndarray, image_size):
+def _build_binary_mask(mask_slice: np.ndarray, image_size, add_bound=0):
     W, H = image_size
     if mask_slice is None:
         return None
@@ -103,8 +103,14 @@ def _build_binary_mask(mask_slice: np.ndarray, image_size):
 
     rows = np.arange(H, dtype=np.int32)[:, None]   # (H,1)
     for i in range(L - 1):
-        upper = y[i]
-        lower = y[i + 1]
+        if i==0:
+            upper = max(y[i] - add_bound, 0)
+        else:
+            upper = y[i]
+        if i==L-2:
+            lower = min(y[i + 1] + add_bound, H - 1)
+        else:
+            lower = y[i + 1]
         ul = np.minimum(upper, lower)[None, :]
         ll = np.maximum(upper, lower)[None, :]
         band = (rows >= ul) & (rows < ll)
@@ -117,8 +123,9 @@ def masking_image_pil(image, mask_slice, fill_color=(0, 0, 0)):
     if not isinstance(image, Image.Image):
         image = Image.fromarray(np.asarray(image))
     image_rgb = image.convert("RGB")
-
-    mask_img = _build_binary_mask(mask_slice, image_rgb.size)
+    max_size = max(image_rgb.size)
+    add_bound = int(max_size * 0.05)
+    mask_img = _build_binary_mask(mask_slice, image_rgb.size, add_bound=add_bound)
     if mask_img is None:
         return image_rgb, None
     bg = Image.new("RGB", image_rgb.size, fill_color)
