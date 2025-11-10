@@ -479,21 +479,6 @@ class DualCSV_Dataset(Dataset):
 def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, modality='OCT', patient_ids=None, pid_key='patient_id', select_layers=None,th_resize=True,th_heatmap=False, CV=False, eval_mode=False):
     if transform is None:
         transform = build_transform(is_train, args)
-    #subgroup patient ids or not, tmp disable
-    '''
-    if hasattr(args, 'subgroup_path') and args.subgroup_path != '' and os.path.exists(args.subgroup_path):
-        print('Using subgroup patient ids from: ', args.subgroup_path)
-        subgroup_df = pd.read_csv(args.subgroup_path)
-        patient_ids = subgroup_df['person_id'].values.tolist()
-    '''
-    #csv dataset
-    if eval_mode:
-        csv_func = CSV_Dataset_eval
-    else:
-        csv_func = CSV_Dataset
-    
-    output_mask = False if not hasattr(args, 'output_mask') else args.output_mask
-    if transform is None:
         mask_transforms = build_transform_mask(args)
     else:
         #tmp for timm model
@@ -501,6 +486,13 @@ def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_A
             transforms.Resize((380,380)),
             transforms.ToTensor(),
         ])
+    #csv dataset
+    if eval_mode:
+        csv_func = CSV_Dataset_eval
+    else:
+        csv_func = CSV_Dataset
+    
+    output_mask = False if not hasattr(args, 'output_mask') else args.output_mask
     if 'dual_input_cnn'  in args.model: #Dual model special dataset
         img_dir_oct = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
         img_dir_cfp = "/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
