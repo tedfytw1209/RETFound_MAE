@@ -593,9 +593,8 @@ def main(args, criterion):
         import quantus
         from util.evaluation_quantus import SufficiencyMetric, ConsistencyMetric, PointingGameMetric, ComplexityMetric, RandomLogitMetric
         metric_func_dict = {
-            #TODO: currently some issues with these metrics
-            # 'insertion': InsertionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
-            # 'deletion': DeletionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
+            'insertion': InsertionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
+            'deletion': DeletionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
             # 'sufficiency': SufficiencyMetric(model, device),
             # 'consistency': ConsistencyMetric(model, device, discretise_func=quantus.discretise_func.rank),
             'relevance_mass': RelevanceMetric(pooling_type='l2-norm', output_type='mass'),
