@@ -9,7 +9,7 @@ from torchvision import transforms
 from PIL import Image
 from sklearn.metrics import roc_auc_score, average_precision_score, f1_score, accuracy_score
 
-from SAM2UNet_classifier import SAM2UNetClassifier
+from SAM2UNet.SAM2UNet_classifier import SAM2UNetClassifier
 
 
 # -------------------- Dataset --------------------

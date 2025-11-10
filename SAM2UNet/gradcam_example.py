@@ -5,7 +5,7 @@ from torchvision import transforms
 from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
-from SAM2UNet_classifier import SAM2UNetClassifier
+from SAM2UNet.SAM2UNet_classifier import SAM2UNetClassifier
 
 
 class GradCAMOnDecFeat:
