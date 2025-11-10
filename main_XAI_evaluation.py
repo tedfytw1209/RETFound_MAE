@@ -267,7 +267,7 @@ def get_timm_model(args):
     else:
         print(f"Model {args.model} not supported in timm.")
         exit(1)
-    return model, processor
+    return model, processor, None
 
 def get_model(args):
     id2label, label2id = get_label_mappings(args)
