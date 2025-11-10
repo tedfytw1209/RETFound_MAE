@@ -315,7 +315,7 @@ def get_timm_model(args):
     if 'efficientnet-b4' in args.model:
         model = timm.create_model('efficientnet_b4', pretrained=True, num_classes=args.nb_classes)
         processor  = transforms.Compose([
-            transforms.Resize((380,380)),
+            transforms.Resize((args.input_size,args.input_size)),
             transforms.ToTensor(),
             transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225]),
         ])

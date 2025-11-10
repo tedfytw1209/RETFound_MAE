@@ -479,13 +479,9 @@ class DualCSV_Dataset(Dataset):
 def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, modality='OCT', patient_ids=None, pid_key='patient_id', select_layers=None,th_resize=True,th_heatmap=False, CV=False, eval_mode=False):
     if transform is None:
         transform = build_transform(is_train, args)
-        mask_transforms = build_transform_mask(args)
-    else:
-        #tmp for timm model
-        mask_transforms = transforms.Compose([
-            transforms.Resize((380,380)),
-            transforms.ToTensor(),
-        ])
+    mask_transforms = build_transform_mask(transform)
+    print('Image transform: ', transform)
+    print('Mask transform: ', mask_transforms)
     #csv dataset
     if eval_mode:
         csv_func = CSV_Dataset_eval
@@ -551,19 +547,12 @@ def build_transform(is_train, args):
     t.append(transforms.Normalize(mean, std))
     return transforms.Compose(t)
 
-def build_transform_mask(args):
-    t = []
-    if args.input_size <= 224:
-        crop_pct = 224 / 256
-    else:
-        crop_pct = 1.0
-    size = int(args.input_size / crop_pct)
-    t.append(
-        transforms.Resize(size, interpolation=transforms.InterpolationMode.BICUBIC),
-    )
-    t.append(transforms.CenterCrop(args.input_size))
-    t.append(transforms.ToTensor())
-    return transforms.Compose(t)
+def build_transform_mask(transform):
+    no_norm_transform = transforms.Compose([
+        t for t in transform.transforms
+        if not isinstance(t, transforms.Normalize)
+    ])
+    return no_norm_transform
 
 def build_transform_public(is_train, args):
     tfms = transforms.Compose([
