@@ -195,6 +195,7 @@ class CausalMetric():
                 start.cpu().numpy().reshape(1, 3, self.img_size*self.img_size)[0, :, coords] = finish.cpu().numpy().reshape(1, 3, self.img_size*self.img_size)[0, :, coords]
         return scores
 
+    @torch.no_grad()
     def evaluate(self, img_batch: torch.Tensor, exp_batch: np.ndarray, batch_size: int):
         r"""Efficiently evaluate big batch of images.
 
@@ -259,7 +260,7 @@ class CausalMetric():
                 scores[i, j*batch_size:(j+1)*batch_size] = probs
             # Change specified number of most salient pixels to substrate pixels
             coords = salient_order[:, self.step * i:self.step * (i + 1)]
-            start.cpu().numpy().reshape(n_samples, 3, self.img_size*self.img_size)[r, :, coords] = finish.cpu().numpy().reshape(n_samples, 3, self.img_size*self.img_size)[r, :, coords]
+            start.cpu().numpy().reshape(n_samples, 3, self.img_size*self.img_size)[r, :, coords] = finish.detach().cpu().numpy().reshape(n_samples, 3, self.img_size*self.img_size)[r, :, coords]
         print('AUC: {}'.format(auc(scores.mean(1))))
         return scores
     
