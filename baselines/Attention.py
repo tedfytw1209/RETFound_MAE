@@ -108,6 +108,10 @@ class Attention_Map(torch.nn.Module):
         if inputs is None:
             raise ValueError("inputs parameter is required")
         inputs = to_tensor(inputs, device=self.device)
+        # Ensure config cooperates
+        if hasattr(model, "config"):
+            model.config.output_attentions = True
+            model.config.return_dict = True
         model.eval()
         with torch.no_grad():
             if self.use_timm:
