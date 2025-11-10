@@ -479,8 +479,8 @@ class DualCSV_Dataset(Dataset):
 def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_AD/all_images/',transform=None, modality='OCT', patient_ids=None, pid_key='patient_id', select_layers=None,th_resize=True,th_heatmap=False, CV=False, eval_mode=False):
     if transform is None:
         transform = build_transform(is_train, args)
-    mask_transforms = build_transform_mask(transform)
     print('Image transform: ', transform)
+    mask_transforms = build_transform_mask(transform)
     print('Mask transform: ', mask_transforms)
     #csv dataset
     if eval_mode:
@@ -548,6 +548,8 @@ def build_transform(is_train, args):
     return transforms.Compose(t)
 
 def build_transform_mask(transform):
+    if isinstance(transform, TransformWrapper):
+        transform = transform.transform
     no_norm_transform = transforms.Compose([
         t for t in transform.transforms
         if not isinstance(t, transforms.Normalize)
