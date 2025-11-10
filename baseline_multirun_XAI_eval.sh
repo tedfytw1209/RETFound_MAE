@@ -19,8 +19,8 @@ MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
 #microsoft/resnet-50, timm_efficientnet-b4, google/vit-base-patch16-224-in21k, RETFound_mae_natureOCT
 #DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_binary_all_split Glaucoma_binary_all_split)  # List of datasets
 #CLASSES=(2 2 6 6 2 2)  # Number of classes for each dataset
-DATASETS=(DME_binary_all_split)  # List of datasets
-CLASSES=(2)  # Number of classes for each dataset
+DATASETS=(DME_binary_all_split AMD_binary_all_split)  # List of datasets
+CLASSES=(2 2)  # Number of classes for each dataset
 
 #sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh RETFound_mae RETFound_mae_natureOCT
 #XAI_METHODS=("attn" "gradcam")  # List of XAI methods
@@ -34,7 +34,7 @@ do
     for XAI in "${XAI_METHODS[@]}"
     do
         # Submit the job to Slurm
-        echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0---add_mask---train_no_aug/checkpoint-best.pth $NUM_CLASS $XAI"
-        bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0---add_mask---train_no_aug/checkpoint-best.pth $NUM_CLASS $XAI
+        echo "sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0---add_mask---train_no_aug/checkpoint-best.pth $NUM_CLASS $XAI"
+        sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0---add_mask---train_no_aug/checkpoint-best.pth $NUM_CLASS $XAI
     done
 done

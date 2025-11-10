@@ -560,7 +560,7 @@ def main(args, criterion):
     ###TODO: evaluate XAI baselines
     if args.xai == 'rise':
         print("Using RISE for XAI")
-        XAI_module = RISEBatch(model, input_size=(args.input_size, args.input_size), gpu_batch=64, device=device, n_class=args.nb_classes)
+        XAI_module = RISEBatch(model, input_size=(args.input_size, args.input_size), gpu_batch=100, N = 500, device=device, n_class=args.nb_classes)
     elif args.xai == 'attn':
         XAI_module = Attention_Map(model, args.model, input_size=args.input_size, N=11, use_rollout=args.use_rollout, print_layers=True, device=device)
     elif args.xai == 'gradcam':
