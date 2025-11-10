@@ -2,7 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from SAM2UNet import SAM2UNet
+from SAM2UNet.SAM2UNet import SAM2UNet
 
 class GAPClassifier(nn.Module):
     def __init__(self, in_channels: int, num_classes: int, hidden: int = 512, p: float = 0.1):
