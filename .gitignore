@@ -132,5 +132,4 @@ dmypy.json
 .pyre/
 
 IDRiD_data
-vis_notebook/*.csv
-/vis_notebook/output
+/vis_notebook
