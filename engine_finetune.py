@@ -207,8 +207,8 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_wr
             output = model(images)
             if hasattr(output, 'logits'):
                 output = output.logits
-            elif isinstance(outputs, dict) and 'logits' in outputs:
-                outputs = outputs['logits']
+            elif isinstance(output, dict) and 'logits' in output:
+                output = output['logits']
             else:
                 output = output
             loss = criterion(output, target)
