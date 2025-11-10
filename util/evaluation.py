@@ -250,6 +250,8 @@ class CausalMetric():
                 output = self.model(start[j*batch_size:(j+1)*batch_size].cuda())
                 if hasattr(output, 'logits'):
                     preds = output.logits
+                elif isinstance(output, dict) and 'logits' in output:
+                    preds = output['logits']
                 else:
                     preds = output
                 probs = torch.softmax(preds, dim=1)
