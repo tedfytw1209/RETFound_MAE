@@ -124,6 +124,8 @@ def train_one_epoch(
             outputs = model(**samples) if isinstance(samples, dict) else model(samples)
             if hasattr(outputs, 'logits'):
                 outputs = outputs.logits
+            elif isinstance(outputs, dict) and 'logits' in outputs:
+                outputs = outputs['logits']
             else:
                 outputs = outputs
             loss = criterion(outputs, targets)
@@ -205,6 +207,8 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_wr
             output = model(images)
             if hasattr(output, 'logits'):
                 output = output.logits
+            elif isinstance(outputs, dict) and 'logits' in outputs:
+                outputs = outputs['logits']
             else:
                 output = output
             loss = criterion(output, target)

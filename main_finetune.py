@@ -28,6 +28,7 @@ import models_vit as models
 import vig as vig_models
 import pyramid_vig as pvig_models
 from relaynet import ReLayNet, relynet_load_pretrained
+from SAM2UNet.SAM2UNet_classifier import SAM2UNetClassifier
 import util.lr_decay as lrd
 import util.misc as misc
 from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapper
@@ -412,6 +413,10 @@ def get_model(args):
             pretrained=True,
             num_classes=args.nb_classes,
         )
+    elif args.model.startswith('SAM2UNet'):
+        model = SAM2UNetClassifier(num_classes=args.nb_classes,
+                               seg_ckpt=args.finetune,
+                               freeze_backbone=args.fix_extractor)
     else:
         model = models.__dict__[args.model](
             num_classes=args.nb_classes,
@@ -801,7 +806,7 @@ def main(args, criterion):
     model.to(device)
     model_without_ddp = model
 
-    if args.fix_extractor:
+    if args.fix_extractor and not args.model.startswith('SAM2UNet'):
         print("Fixing the backbone parameters")
         # Hugging Face models with 'classifier' as the head
         hf_models_with_classifier = ['vit_base_patch16_224', 'efficientnet_b0', 'efficientnet_b4', 'resnet-50', 'dinov3']
