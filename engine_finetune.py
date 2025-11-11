@@ -128,6 +128,10 @@ def train_one_epoch(
                 outputs = outputs['logits']
             else:
                 outputs = outputs
+            if not torch.isfinite(outputs).all():
+                print(f"[Warning] NaN/Inf detected in outputs at step {data_iter_step}, skipping this batch.")
+                torch.cuda.empty_cache()
+                continue  # skip accumulation and metric logging for this batch
             loss = criterion(outputs, targets)
             
             # Add regularization loss if specified
