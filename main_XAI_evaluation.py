@@ -1,5 +1,6 @@
 import argparse
 import datetime
+from html import parser
 import json
 
 import numpy as np
@@ -146,6 +147,8 @@ def get_args_parser():
                         help='Add mask to the image based on thickness map')
     parser.add_argument('--output_mask', action='store_true', default=False,
                         help='Output mask of the image based on thickness map')
+    parser.add_argument('--no_amp', dest='use_amp', action='store_false', help='Disable AMP')
+    parser.set_defaults(use_amp=False)
 
     return parser
 

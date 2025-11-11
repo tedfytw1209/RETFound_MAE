@@ -219,6 +219,8 @@ def get_args_parser():
                         help='Subset ratio for sampling dataset. If > 0, sample subset_ratio * minor_class_numbers from train/val/test datasets with seed 42')
     parser.add_argument('--visualize_samples', action='store_true', default=False,
                         help='Visualize sample images from the dataset')
+    parser.add_argument('--no_amp', dest='use_amp', action='store_false', help='Disable AMP')
+    parser.set_defaults(use_amp=False)
     
     # Additional settings based on paper specifications
     parser.add_argument('--momentum', type=float, default=0.9,

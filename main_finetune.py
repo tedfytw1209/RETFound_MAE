@@ -205,6 +205,8 @@ def get_args_parser():
                         help='Visualize sample images from the dataset')
     parser.add_argument('--add_mask', action='store_true', default=False,
                         help='Add mask to the image based on thickness map')
+    parser.add_argument('--no_amp', dest='use_amp', action='store_false', help='Disable AMP')
+    parser.set_defaults(use_amp=False)
 
     return parser
 

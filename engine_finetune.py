@@ -103,6 +103,7 @@ def train_one_epoch(
     model.train(True)
     metric_logger = misc.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', misc.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    use_amp = getattr(args, "use_amp", True)  # default to True if not set
     print_freq, accum_iter = 20, args.accum_iter
     optimizer.zero_grad()
     all_labels, all_preds, all_probs = [], [], []
@@ -120,7 +121,7 @@ def train_one_epoch(
         if mixup_fn:
             samples, targets = mixup_fn(samples, targets)
         
-        with torch.cuda.amp.autocast():
+        with torch.cuda.amp.autocast(enabled=use_amp):
             outputs = model(**samples) if isinstance(samples, dict) else model(samples)
             if hasattr(outputs, 'logits'):
                 outputs = outputs.logits
@@ -199,7 +200,7 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_wr
     criterion = nn.CrossEntropyLoss()
     metric_logger = misc.MetricLogger(delimiter="  ")
     os.makedirs(os.path.join(args.output_dir, args.task), exist_ok=True)
-    
+    use_amp = getattr(args, "use_amp", True)  # default to True if not set
     model.eval()
     true_onehot, pred_onehot, true_labels, pred_labels, pred_softmax = [], [], [], [], []
     
@@ -207,7 +208,7 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_wr
         images, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True)
         target_onehot = F.one_hot(target.to(torch.int64), num_classes=num_class)
         
-        with torch.cuda.amp.autocast():
+        with torch.cuda.amp.autocast(enabled=use_amp):
             output = model(images)
             if hasattr(output, 'logits'):
                 output = output.logits
@@ -318,7 +319,7 @@ def evaluate_half3D(data_loader, model, device, task, epoch, mode, num_class, k,
         target = target.to(device, non_blocking=True)
         true_label=F.one_hot(target.to(torch.int64), num_classes=num_class)
         # compute output
-        with torch.cuda.amp.autocast():
+        with torch.cuda.amp.autocast(enabled=False):
             output = model(**images) if isinstance(images, dict) else model(images)
             if hasattr(output, 'logits'):
                 output = output.logits
@@ -386,6 +387,7 @@ def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, 
     criterion = nn.CrossEntropyLoss()
     metric_logger = misc.MetricLogger(delimiter="  ")
     os.makedirs(os.path.join(args.output_dir, args.task), exist_ok=True)
+    use_amp = getattr(args, "use_amp", True)  # default to True if not set
     
     model.eval()
     true_onehot, pred_onehot, true_labels, pred_labels, pred_softmax = [], [], [], [], []
@@ -394,8 +396,8 @@ def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, 
     for batch in metric_logger.log_every(data_loader, 10, f'{mode}:'):
         images, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True)
         target_onehot = F.one_hot(target.to(torch.int64), num_classes=num_class)
-        
-        with torch.cuda.amp.autocast():
+
+        with torch.cuda.amp.autocast(enabled=use_amp):
             output = model(images)
             if hasattr(output, 'logits'):
                 output = output.logits
@@ -603,6 +605,7 @@ def train_one_epoch_dual(
     metric_logger = misc.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', misc.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     print_freq, accum_iter = 20, args.accum_iter
+    use_amp = getattr(args, "use_amp", True)  # default to True if not set
     optimizer.zero_grad()
     all_labels, all_preds, all_probs = [], [], []
     true_onehot, pred_onehot= [], []
@@ -620,7 +623,7 @@ def train_one_epoch_dual(
         if mixup_fn:
             samples_oct, samples_cfp, targets = mixup_fn(samples_oct, samples_cfp, targets)
         
-        with torch.cuda.amp.autocast():
+        with torch.cuda.amp.autocast(enabled=use_amp):
             outputs = model(samples_oct, samples_cfp)
             if hasattr(outputs, 'logits'):
                 outputs = outputs.logits
@@ -728,6 +731,7 @@ def train_one_epoch_ducan(
     metric_logger.add_meter('oct_loss', misc.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     metric_logger.add_meter('multimodal_loss', misc.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     print_freq, accum_iter = 20, args.accum_iter
+    use_amp = getattr(args, "use_amp", True)  # default to True if not set
     optimizer.zero_grad()
     
     # Track predictions for all three classifiers
@@ -763,7 +767,7 @@ def train_one_epoch_ducan(
             # Note: mixup for dual inputs needs special handling
             samples_fundus, samples_oct, targets = mixup_fn(samples_fundus, samples_oct, targets)
         
-        with torch.cuda.amp.autocast():
+        with torch.cuda.amp.autocast(enabled=use_amp):
             # DuCAN forward pass returns dict with three predictions
             outputs = model(samples_fundus, samples_oct)
             
@@ -900,7 +904,7 @@ def evaluate_ducan(data_loader, model, device, args, epoch, mode, num_class, k, 
     criterion = nn.CrossEntropyLoss()
     metric_logger = misc.MetricLogger(delimiter="  ")
     os.makedirs(os.path.join(args.output_dir, args.task), exist_ok=True)
-    
+    use_amp = getattr(args, "use_amp", True)  # default to True if not set
     model.eval()
     
     # Track results for all three classifiers
@@ -914,8 +918,8 @@ def evaluate_ducan(data_loader, model, device, args, epoch, mode, num_class, k, 
         target = batch[2].to(device, non_blocking=True)
         
         target_onehot = F.one_hot(target.to(torch.int64), num_classes=num_class)
-        
-        with torch.cuda.amp.autocast():
+
+        with torch.cuda.amp.autocast(enabled=use_amp):
             outputs = model(fundus_images, oct_images)
             
             fundus_pred = outputs['fundus']
@@ -1019,7 +1023,7 @@ def evaluate_dual(data_loader_oct, data_loader_cfp, model, device, args, epoch, 
     criterion = nn.CrossEntropyLoss()
     metric_logger = misc.MetricLogger(delimiter="  ")
     os.makedirs(os.path.join(args.output_dir, args.task), exist_ok=True)
-    
+    use_amp = getattr(args, "use_amp", True)  # default to True if not set
     model.eval()
     true_onehot, pred_onehot, true_labels, pred_labels, pred_softmax = [], [], [], [], []
     total = len(data_loader_oct)
@@ -1031,8 +1035,8 @@ def evaluate_dual(data_loader_oct, data_loader_cfp, model, device, args, epoch, 
         oct_images, target = oct_batch[0].to(device, non_blocking=True), oct_batch[1].to(device, non_blocking=True)
         cfp_images, cfp_target = cfp_batch[0].to(device, non_blocking=True), cfp_batch[1].to(device, non_blocking=True)
         target_onehot = F.one_hot(target.to(torch.int64), num_classes=num_class)
-        
-        with torch.cuda.amp.autocast():
+
+        with torch.cuda.amp.autocast(enabled=use_amp):
             output = model(oct_images, cfp_images)
             if hasattr(output, 'logits'):
                 output = output.logits
@@ -1091,15 +1095,15 @@ def evaluate_dualv2(data_loader, model, device, args, epoch, mode, num_class, k,
     criterion = nn.CrossEntropyLoss()
     metric_logger = misc.MetricLogger(delimiter="  ")
     os.makedirs(os.path.join(args.output_dir, args.task), exist_ok=True)
-    
+    use_amp = getattr(args, "use_amp", True)  # default to True if not set
     model.eval()
     true_onehot, pred_onehot, true_labels, pred_labels, pred_softmax = [], [], [], [], []
     
     for batch in metric_logger.log_every(data_loader, 10, f'{mode}:'):
         images_oct, images_cfp, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True), batch[2].to(device, non_blocking=True)
         target_onehot = F.one_hot(target.to(torch.int64), num_classes=num_class)
-        
-        with torch.cuda.amp.autocast():
+
+        with torch.cuda.amp.autocast(enabled=use_amp):
             output = model(images_oct, images_cfp)
             if hasattr(output, 'logits'):
                 output = output.logits
