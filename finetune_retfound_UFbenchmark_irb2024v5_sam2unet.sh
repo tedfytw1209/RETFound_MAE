@@ -17,8 +17,8 @@ conda activate retfound_new
 # Go to home directory
 #cd $HOME
 STUDY=$1 #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_split 6, DR_binary_all_split 2, Glaucoma_binary_all_split 2
-MODEL=${2:-"RETFound_mae"}
-FINETUNED_MODEL=${3:-"RETFound_mae_natureOCT"}
+MODEL=${2:-"SAM2UNet"}
+FINETUNED_MODEL=${3:-"SAM2"}
 LR=${4:-"1e-3"}
 Num_CLASS=${5:-"2"}
 weight_decay=${6:-"5e-2"}
