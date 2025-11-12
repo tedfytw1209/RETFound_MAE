@@ -97,6 +97,7 @@ class SMPClassifier(nn.Module):
             with torch.no_grad():
                 dummy = torch.randn(1, in_channels, 64, 64)
                 enc_feats = self.encoder(dummy)
+                print(enc_feats)
                 dec_out = self.seg_model.decoder(*enc_feats)
                 if isinstance(dec_out, (list, tuple)):
                     dec_out = dec_out[-1]
