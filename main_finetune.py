@@ -445,7 +445,7 @@ def get_model(args):
         )
     #RETFound special case: load checkpoint
     if args.finetune and not args.eval:
-        if 'RETFound' in args.finetune: 
+        if 'RETFound' in args.model: 
             print(f"Downloading pre-trained weights from: {args.finetune}")
             checkpoint_path = hf_hub_download(
                 repo_id=f'YukunZhou/{args.finetune}',
