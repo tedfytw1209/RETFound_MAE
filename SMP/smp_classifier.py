@@ -97,8 +97,8 @@ class SMPClassifier(nn.Module):
             with torch.no_grad():
                 dummy = torch.randn(1, in_channels, 64, 64)
                 enc_feats = self.encoder(dummy)
-                print(enc_feats)
-                dec_out = self.seg_model.decoder(*enc_feats)
+                print(enc_feats) #encoder is each layers output [x, layer1, layer2, layer3, layer4...]
+                dec_out = self.seg_model.decoder(enc_feats)
                 if isinstance(dec_out, (list, tuple)):
                     dec_out = dec_out[-1]
                 self.dec_out_ch = dec_out.shape[1]
@@ -131,7 +131,7 @@ class SMPClassifier(nn.Module):
     
     def _get_dec_last(self, x):
         enc_feats = self.encoder(x)
-        dec = self.seg_model.decoder(*enc_feats)
+        dec = self.seg_model.decoder(enc_feats)
         # Handle different decoder output formats
         if isinstance(dec, (list, tuple)):
             return dec[-1]
@@ -141,7 +141,7 @@ class SMPClassifier(nn.Module):
         """Efficiently compute both encoder and decoder features with single encoder pass."""
         enc_feats = self.encoder(x)
         f_enc = enc_feats[-1]
-        dec = self.seg_model.decoder(*enc_feats)
+        dec = self.seg_model.decoder(enc_feats)
         f_dec = dec[-1] if isinstance(dec, (list, tuple)) else dec
         return f_enc, f_dec
 
