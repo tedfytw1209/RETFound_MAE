@@ -29,6 +29,8 @@ import vig as vig_models
 import pyramid_vig as pvig_models
 from relaynet import ReLayNet, relynet_load_pretrained
 from SAM2UNet.SAM2UNet_classifier import SAM2UNetClassifier
+from SMP.smp_classifier import SMPClassifier
+from SMP.train_classifier import Config as SMPConfig
 import util.lr_decay as lrd
 import util.misc as misc
 from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapper
@@ -65,6 +67,8 @@ def get_args_parser():
                         help='Drop path rate (default: 0.1)')
     parser.add_argument('--init_pretrained', action='store_true', default=False,
                         help='Initialize the pretrained model')
+    parser.add_argument('--SMPMode', type=str, default='dec',
+                        help='SMP mode (fuse, enc, dec)')
 
     # Optimizer parameters
     parser.add_argument('--optimizer', default='adamw', type=str, metavar='OPTIMIZER',
@@ -419,6 +423,20 @@ def get_model(args):
         model = SAM2UNetClassifier(num_classes=args.nb_classes,
                                seg_ckpt=args.finetune,
                                freeze_backbone=args.fix_extractor).cuda()
+    elif args.model.startswith('SMP'):
+        model = SMPClassifier(
+            seg_arch=SMPConfig.SEG_ARCH,
+            encoder_name=SMPConfig.ENCODER,
+            encoder_weights=SMPConfig.ENCODER_WEIGHTS,
+            in_channels=SMPConfig.IN_CHANNELS,
+            num_classes=args.nb_classes,
+            mode=args.SMPMode,
+            fuse_mode=SMPConfig.FUSE_MODE,
+            learnable_alpha=SMPConfig.LEARNABLE_ALPHA,
+            alpha=SMPConfig.ALPHA,
+            pretrained_seg_ckpt=args.finetune,
+            dropout=SMPConfig.DROPOUT,
+        )
     else:
         model = models.__dict__[args.model](
             num_classes=args.nb_classes,

@@ -17,10 +17,10 @@ from smp_classifier import SMPClassifier
 # Configuration
 class Config:
     # Paths
-    DATA_ROOT = "/data/tl28853/eye/"  # Root directory containing images
+    DATA_ROOT = "/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"  # Root directory containing images
     TRAIN_CSV = "/data/tl28853/eye/OCTDL/dme_train.csv"  # CSV with image and label columns
     VAL_CSV = "/data/tl28853/eye/OCTDL/dme_test.csv"  # CSV with image and label columns
-    CHECKPOINT_DIR = "/data/tl28853/eye/segmentation_models.pytorch/checkpoints_octdl_dme_dec"
+    CHECKPOINT_DIR = "/orange/ruogu.fang/tienyuchang/RETfound_results/checkpoints_octdl_dme_dec"
     
     # Model parameters
     SEG_ARCH = 'Unet'  # Unet, UnetPlusPlus, FPN, Linknet, PSPNet, MAnet, PAN, DeepLabV3, DeepLabV3Plus
@@ -90,7 +90,7 @@ def train_epoch(model, loader, optimizer, loss_fn, scaler, device):
         optimizer.zero_grad()
         
         with autocast(enabled=Config.USE_AMP):
-            outputs = model(images)
+            outputs = model(images, mode_dict=True)
             logits = outputs[Config.MODE]["logits"]
             loss = loss_fn(logits, targets)
         
@@ -128,7 +128,7 @@ def validate_epoch(model, loader, loss_fn, device):
             images = images.to(device)
             targets = targets.to(device)
             
-            outputs = model(images)
+            outputs = model(images, mode_dict=True)
             logits = outputs[Config.MODE]["logits"]
             loss = loss_fn(logits, targets)
             

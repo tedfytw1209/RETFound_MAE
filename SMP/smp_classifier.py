@@ -144,20 +144,26 @@ class SMPClassifier(nn.Module):
         f_dec = dec[-1] if isinstance(dec, (list, tuple)) else dec
         return f_enc, f_dec
 
-    def forward(self, x: torch.Tensor) -> Dict[str, Dict[str, torch.Tensor]]:
+    def forward(self, x: torch.Tensor, mode_dict=False) -> Dict[str, Dict[str, torch.Tensor]]:
         out: Dict[str, Dict[str, torch.Tensor]] = {}
 
         if self.mode == "enc":
             f = self._get_enc_last(x)
             logits, logits_map, cam = self.head(f)
-            out["enc"] = {"logits": logits, "logits_map": logits_map, "cam": cam}
-            return out
+            if mode_dict:
+                out["enc"] = {"logits": logits, "logits_map": logits_map, "cam": cam}
+                return out
+            else:
+                return logits
 
         if self.mode == "dec":
             f = self._get_dec_last(x)
             logits, logits_map, cam = self.head(f)
-            out["dec"] = {"logits": logits, "logits_map": logits_map, "cam": cam}
-            return out
+            if mode_dict:
+                out["dec"] = {"logits": logits, "logits_map": logits_map, "cam": cam}
+                return out
+            else:
+                return logits
 
         # --- fuse ---
         f_enc, f_dec = self._get_enc_and_dec(x)  # Use efficient single-pass method
@@ -175,5 +181,8 @@ class SMPClassifier(nn.Module):
             f = self.fuse_proj(torch.cat([f_enc, f_dec], dim=1))
 
         logits, logits_map, cam = self.head(f)
-        out["fuse"] = {"logits": logits, "logits_map": logits_map, "cam": cam}
-        return out
+        if mode_dict:
+            out["fuse"] = {"logits": logits, "logits_map": logits_map, "cam": cam}
+            return out
+        else:
+            return logits
