@@ -336,7 +336,8 @@ class CausalMetric():
             step_unit = max(1, self.step // (block_step * block_step))
             n_steps = (num_units + step_unit - 1) // step_unit
         else:
-            sort_order = np.argsort(exp_np.reshape(N, -1), axis=1)[:, ::-1]    # [N, H*W]
+            sort_order = np.argsort(exp_np.reshape(N, -1), axis=1)   # [N, H*W]
+            sort_order = np.flip(sort_order, axis=-1).copy()
             num_units = H * W
             step_unit = self.step
             n_steps = (num_units + step_unit - 1) // step_unit
