@@ -7,6 +7,37 @@ import segmentation_models_pytorch as smp
 
 __all__ = ["SimpleSMPClassifier"]
 
+# Configuration
+class Config:
+    # Paths
+    DATA_ROOT = "/data/tl28853/eye/"  # Root directory containing images
+    TRAIN_CSV = "/data/tl28853/eye/OCTDL/dme_train.csv"  # CSV with image and label columns
+    VAL_CSV = "/data/tl28853/eye/OCTDL/dme_test.csv"  # CSV with image and label columns
+    CHECKPOINT_DIR = "/data/tl28853/eye/segmentation_models.pytorch/checkpoints_octdl_dme_dec"
+    
+    # Model parameters
+    SEG_ARCH = 'Unet'  # Unet, UnetPlusPlus, FPN, Linknet, PSPNet, MAnet, PAN, DeepLabV3, DeepLabV3Plus
+    ENCODER = 'resnet50'
+    ENCODER_WEIGHTS = 'imagenet'
+    NUM_CLASSES = 2
+    IN_CHANNELS = 3
+    MODE = 'dec'  # enc, dec, fuse
+    FUSE_MODE = 'sum'  # sum, concat
+    LEARNABLE_ALPHA = False
+    ALPHA = 0.5
+    PRETRAINED_SEG_CKPT = '/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth'
+    DROPOUT = 0.0
+    
+    # Training parameters
+    DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+    EPOCHS = 20
+    BATCH_SIZE = 4
+    LEARNING_RATE = 1e-4
+    WEIGHT_DECAY = 1e-4
+    IMAGE_SIZE = 512
+    NUM_WORKERS = 4
+    USE_AMP = True
+
 _DEC_TOP_RULES = {
     "DeepLabV3": 256, "DeepLabV3Plus": 256,
     "Unet": "enc1", "UnetPlusPlus": "enc1", "FPN": "enc1",

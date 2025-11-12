@@ -25,6 +25,7 @@ import vig as vig_models
 import pyramid_vig as pvig_models
 from relaynet import ReLayNet, relynet_load_pretrained
 from SAM2UNet.SAM2UNet_classifier import SAM2UNetClassifier
+from SMP.smp_classifier import SMPClassifier, Config as SMPConfig
 import util.lr_decay as lrd
 import util.misc as misc
 from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapper
@@ -73,6 +74,8 @@ def get_args_parser():
                     help='Use rollout for attention map generation')
     parser.add_argument('--drop_path', type=float, default=0.2, metavar='PCT',
                         help='Drop path rate (default: 0.1)')
+    parser.add_argument('--SMPMode', type=str, default='dec',
+                        help='SMP mode (fuse, enc, dec)')
     
     # Metrics parameters
     parser.add_argument('--used_quantus', action='store_true', default=False,
@@ -373,6 +376,20 @@ def get_model(args):
         model = SAM2UNetClassifier(num_classes=args.nb_classes,
                                seg_ckpt=args.finetune,
                                freeze_backbone=args.fix_extractor)
+    elif args.model.startswith('SMP'):
+        model = SMPClassifier(
+            seg_arch=SMPConfig.SEG_ARCH,
+            encoder_name=SMPConfig.ENCODER,
+            encoder_weights=SMPConfig.ENCODER_WEIGHTS,
+            in_channels=SMPConfig.IN_CHANNELS,
+            num_classes=args.nb_classes,
+            mode=args.SMPMode,
+            fuse_mode=SMPConfig.FUSE_MODE,
+            learnable_alpha=SMPConfig.LEARNABLE_ALPHA,
+            alpha=SMPConfig.ALPHA,
+            pretrained_seg_ckpt=args.finetune,
+            dropout=SMPConfig.DROPOUT,
+        )
     else:
         model = models.__dict__[args.model](
             num_classes=args.nb_classes,
@@ -381,7 +398,7 @@ def get_model(args):
         )
     #RETFound special case: load checkpoint
     if args.finetune and not args.eval:
-        if 'RETFound' in args.finetune: 
+        if 'RETFound' in args.model: 
             print(f"Downloading pre-trained weights from: {args.finetune}")
             checkpoint_path = hf_hub_download(
                 repo_id=f'YukunZhou/{args.finetune}',

@@ -29,8 +29,7 @@ import vig as vig_models
 import pyramid_vig as pvig_models
 from relaynet import ReLayNet, relynet_load_pretrained
 from SAM2UNet.SAM2UNet_classifier import SAM2UNetClassifier
-from SMP.smp_classifier import SMPClassifier
-from SMP.train_classifier import Config as SMPConfig
+from SMP.smp_classifier import SMPClassifier, Config as SMPConfig
 import util.lr_decay as lrd
 import util.misc as misc
 from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapper
