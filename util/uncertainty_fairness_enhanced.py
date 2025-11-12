@@ -175,13 +175,13 @@ class UncertaintyQuantifier:
     def calibration_assessment(self, 
                              probabilities: np.ndarray,
                              true_labels: np.ndarray,
-                             n_bins: int = 10) -> Dict:
+                             n_bins: int = 20) -> Dict:
         """
         Assess model calibration.
         
         Args:
-            probabilities: Predicted probabilities
-            true_labels: True class labels
+            probabilities: Predicted probabilities (n_samples, n_classes)
+            true_labels: True class labels (n_samples,)
             n_bins: Number of bins for calibration
             
         Returns:
