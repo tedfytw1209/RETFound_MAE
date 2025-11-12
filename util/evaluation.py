@@ -9,6 +9,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from PIL import Image
 from typing import Optional
+import torch.nn.functional as F
 
 def _auc_trapz_update(prev_x, prev_y, x, y):
     return 0.5 * (y + prev_y) * (x - prev_x)
@@ -97,6 +98,19 @@ def gkern(klen, nsig):
     kern[1, 1] = k
     kern[2, 2] = k
     return torch.from_numpy(kern.astype('float32'))
+
+def _gaussian_blur_like(x: torch.Tensor, klen: int, ksig: float) -> torch.Tensor:
+    """
+    Blur x with a separable-ish Gaussian made to match x's device/dtype.
+    Works for NCHW; depthwise conv (groups=C).
+    """
+    # Build kernel to match x
+    base = gkern(klen, ksig).to(device=x.device, dtype=x.dtype)      # [1,1,k,k]
+    C = x.shape[1]
+    weight = base.expand(C, 1, klen, klen).contiguous()              # [C,1,k,k]
+    # Ensure memory format ok for conv2d
+    x_in = x.contiguous()
+    return F.conv2d(x_in, weight, padding=klen // 2, groups=C)
 
 def auc(arr):
     """Returns normalized Area Under Curve of the array."""
@@ -430,11 +444,13 @@ class InsertionMetric(CausalMetric):
             step (int): number of pixels modified per one iteration.
             substrate_fn (func): a mapping from old pixels to new pixels.
         """
-        kern = gkern(klen, ksig)
-        # Function that blurs input image
-        blur = lambda x: nn.functional.conv2d(x, kern, padding=klen//2)
-        #insertion = CausalMetric(model, 'ins', 224, substrate_fn=blur)
-        super().__init__(model, 'ins', step, blur, img_size=img_size, n_classes=n_classes)
+        self.klen = klen
+        self.ksig = ksig
+        super().__init__(
+            model, 'ins', step,
+            substrate_fn=lambda x: _gaussian_blur_like(x, klen, ksig),
+            img_size=img_size, n_classes=n_classes
+        )
         
     def __call__(self, img_batch: torch.Tensor, exp_batch: np.ndarray, batch_size: int, **kwargs):
         """Input batch images and explanations, return AUC of insertion metric.
