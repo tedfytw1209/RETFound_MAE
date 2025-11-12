@@ -104,6 +104,7 @@ def main():
     print(f"Saving masks to {Config.OUTPUT_DIR}")
     
     # Process images
+    i = 0
     for label, img_path in tqdm(image_files_names, desc="Processing images"):
         try:
             # Load and preprocess
@@ -116,10 +117,12 @@ def main():
             
             # Postprocess
             mask = postprocess_mask(output, original_size, Config.THRESHOLD)
-            
             # Save mask to .npy file
             mask_path = output_path / Path(img_path).name
-            np.save(mask_path.with_suffix('.npy'), mask)
+            np.save(str(mask_path.with_suffix('.npy')), mask)
+            if i<5:
+                cv2.imwrite(str(mask_path.with_suffix('.png')), mask)
+            i += 1
         except Exception as e:
             print(f"\nError processing {Path(img_path).name}: {str(e)}")
             continue
