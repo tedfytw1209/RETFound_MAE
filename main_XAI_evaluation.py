@@ -1,7 +1,5 @@
 import argparse
 import datetime
-from html import parser
-import json
 
 import numpy as np
 import os
@@ -12,8 +10,6 @@ import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
 from timm.models.layers import trunc_normal_
-from timm.data.mixup import Mixup
-from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 from transformers import (
     ViTImageProcessor, ViTForImageClassification,
     AutoImageProcessor, EfficientNetForImageClassification,

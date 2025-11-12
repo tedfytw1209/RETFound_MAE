@@ -8,7 +8,10 @@ from scipy.ndimage.filters import gaussian_filter
 import numpy as np
 from matplotlib import pyplot as plt
 from PIL import Image
+from typing import Optional
 
+def _auc_trapz_update(prev_x, prev_y, x, y):
+    return 0.5 * (y + prev_y) * (x - prev_x)
 '''
 From RISE (https://github.com/eclique/RISE)
 @inproceedings{Petsiuk2018rise,
@@ -195,19 +198,21 @@ class CausalMetric():
                 start.cpu().numpy().reshape(1, 3, self.img_size*self.img_size)[0, :, coords] = finish.cpu().numpy().reshape(1, 3, self.img_size*self.img_size)[0, :, coords]
         return scores
 
+
+    #old evaluate function for backward compatibility
     @torch.no_grad()
-    def evaluate(self, img_batch: torch.Tensor, exp_batch: np.ndarray, batch_size: int):
+    def evaluate_old(self, img_batch: torch.Tensor, exp_batch: np.ndarray, batch_size: int):
         r"""Efficiently evaluate big batch of images.
 
         Args:
-            img_batch (Tensor): batch of images.
-            exp_batch (np.ndarray): batch of explanations.
+            img_batch (Tensor): batch of images. [N, C, H, W]
+            exp_batch (np.ndarray): batch of explanations. [N, H, W]
             batch_size (int): number of images for one small batch.
 
         Returns:
             scores (nd.array): Array containing scores at every step for every image.
         """
-        
+        self.model.eval()
         n_samples = img_batch.shape[0]
         predictions = torch.FloatTensor(n_samples, self.n_classes)
         assert n_samples % batch_size == 0
@@ -263,6 +268,158 @@ class CausalMetric():
             start.cpu().numpy().reshape(n_samples, 3, self.img_size*self.img_size)[r, :, coords] = finish.detach().cpu().numpy().reshape(n_samples, 3, self.img_size*self.img_size)[r, :, coords]
         print('AUC: {}'.format(auc(scores.mean(1))))
         return scores
+
+    # new evaluate function for better memory efficiency (but need to be tested)
+    @torch.no_grad()
+    def evaluate(
+        self,
+        img_batch: torch.Tensor,         # [N,C,H,W] on CPU or GPU
+        exp_batch: np.ndarray,           # [N,H,W], numpy
+        batch_size: int,
+        use_amp: bool = True,
+        device: Optional[torch.device] = None,
+        channels_last: bool = True,
+        block_step: int = 1,             # >1 means step by blocks of (block_step x block_step) pixels
+    ) -> np.ndarray:
+        """
+        Memory-efficient evaluation of insertion/deletion AUC per sample.
+        - Streams AUC (no huge score tensor).
+        - Processes mini-batches only.
+        - Optional pixel-block stepping to reduce steps.
+        Returns:
+            auc_per_sample: float array of shape (N,)
+        """
+        if device is None:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model.eval()
+
+        N, C, H, W = img_batch.shape
+        exp_np = np.asarray(exp_batch, dtype=np.float32)
+
+        # Optional channels-last for better mem bandwidth
+        if channels_last:
+            img_batch = img_batch.to(memory_format=torch.channels_last)
+
+        # Build pixel order (descending saliency); allow block stepping
+        if block_step > 1:
+            # downsample explanation to blocks and rank blocks
+            hh, ww = H // block_step, W // block_step
+            exp_down = exp_np.reshape(N, hh, block_step, ww, block_step).mean(axis=(2,4))
+            sort_block = np.argsort(exp_down.reshape(N, -1), axis=1)[:, ::-1]  # [N, hh*ww]
+            # map blocks to pixel indices lazily per step
+            def block_indices_for(sample_idx, lo, hi):
+                # get blocks in [lo:hi) and expand to pixels
+                blk_ids = sort_block[sample_idx, lo:hi]          # [K]
+                by = blk_ids // ww
+                bx = blk_ids % ww
+                y0 = (by * block_step)[:, None] + np.arange(block_step)[None, :]
+                x0 = (bx * block_step)[:, None] + np.arange(block_step)[None, :]
+                yy = y0.reshape(-1)
+                xx = x0.reshape(-1)
+                return (yy[:, None] * W + xx[None, :]).reshape(-1)
+            num_units = (H // block_step) * (W // block_step)
+            step_unit = max(1, self.step // (block_step * block_step))
+            n_steps = (num_units + step_unit - 1) // step_unit
+        else:
+            sort_order = np.argsort(exp_np.reshape(N, -1), axis=1)[:, ::-1]    # [N, H*W]
+            num_units = H * W
+            step_unit = self.step
+            n_steps = (num_units + step_unit - 1) // step_unit
+
+        # Compute top class per sample in chunks
+        top_classes = np.empty((N,), dtype=np.int64)
+        with torch.inference_mode():
+            for s in range(0, N, batch_size):
+                e = min(s + batch_size, N)
+                x = img_batch[s:e].to(device, non_blocking=True)
+                with torch.cuda.amp.autocast(enabled=use_amp):
+                    out = self.model(x)
+                    if hasattr(out, 'logits'):
+                        logits = out.logits
+                    elif isinstance(out, dict) and 'logits' in out:
+                        logits = out['logits']
+                    else:
+                        logits = out
+                    probs = torch.softmax(logits, dim=1)
+                top_classes[s:e] = probs.argmax(dim=1).cpu().numpy()
+                del x, out, logits, probs
+            torch.cuda.empty_cache()
+
+        # AUC accumulators
+        auc_acc = np.zeros((N,), dtype=np.float64)
+        prev_x = np.zeros((N,), dtype=np.float64)
+        prev_y = np.zeros((N,), dtype=np.float64)
+
+        def eval_and_accumulate(start_cpu: torch.Tensor, s: int, e: int, step_idx: int):
+            x = start_cpu.to(device, non_blocking=True)
+            if channels_last:
+                x = x.to(memory_format=torch.channels_last)
+            with torch.inference_mode(), torch.cuda.amp.autocast(enabled=use_amp):
+                out = self.model(x)
+                if hasattr(out, 'logits'):
+                    logits = out.logits
+                elif isinstance(out, dict) and 'logits' in out:
+                    logits = out['logits']
+                else:
+                    logits = out
+                probs = torch.softmax(logits, dim=1)
+                idx = torch.from_numpy(top_classes[s:e]).to(device, dtype=torch.long)
+                y = probs.gather(1, idx.unsqueeze(1)).squeeze(1)
+            y_np = y.float().cpu().numpy().astype(np.float64)
+            frac = float(step_idx) / float(n_steps)
+            auc_acc[s:e] += 0.5 * (y_np + prev_y[s:e]) * (frac - prev_x[s:e])
+            prev_x[s:e] = frac
+            prev_y[s:e] = y_np
+            del x, out, logits, probs, idx, y
+            torch.cuda.empty_cache()
+
+        # process mini-batches, mutate start in-place
+        for s in range(0, N, batch_size):
+            e = min(s + batch_size, N)
+            B = e - s
+
+            start = img_batch[s:e].cpu().float().clone()
+            if callable(self.substrate_fn):
+                with torch.inference_mode():
+                    sub = self.substrate_fn(start.to(device))
+                finish = sub.detach().cpu().to(start.dtype)
+                del sub
+            elif isinstance(self.substrate_fn, torch.Tensor):
+                finish = self.substrate_fn.expand_as(start).clone()
+            else:
+                finish = torch.zeros_like(start)
+
+            # initial point (0%)
+            eval_and_accumulate(start, s, e, step_idx=0)
+
+            start_flat = start.view(B, C, -1)
+            finish_flat = finish.view(B, C, -1)
+
+            for i in range(n_steps):
+                lo = i * step_unit
+                hi = min((i + 1) * step_unit, num_units)
+                if lo >= hi:
+                    break
+
+                if block_step > 1:
+                    # update pixel blocks per sample
+                    for b in range(B):
+                        sel_flat = block_indices_for(s + b, lo, hi)
+                        sel = torch.from_numpy(sel_flat).long()
+                        start_flat[b, :, sel] = finish_flat[b, :, sel]
+                else:
+                    # update top pixels per sample
+                    idxs = sort_order[s:e, lo:hi]  # [B, K]
+                    for b in range(B):
+                        sel = torch.from_numpy(idxs[b]).long()
+                        start_flat[b, :, sel] = finish_flat[b, :, sel]
+
+                eval_and_accumulate(start, s, e, step_idx=i + 1)
+
+            del start, finish, start_flat, finish_flat
+            torch.cuda.empty_cache()
+
+        return np.clip(auc_acc, 0.0, 1.0)
     
 class InsertionMetric(CausalMetric):
     def __init__(self, model, step=224, klen=11, ksig=5, img_size=224, n_classes=2):
