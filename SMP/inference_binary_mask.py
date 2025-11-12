@@ -20,7 +20,7 @@ class Config:
     
     # Paths
     CHECKPOINT_PATH = "/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_binary.pth"
-    DATA_CSV = "/orange/ruogu.fang/tienyuchang/OCTDL/DME_test.csv"  # CSV with image and label columns
+    DATA_CSV = "/orange/ruogu.fang/tienyuchang/OCTDL/DME_all.csv"  # CSV with image and label columns
     INPUT_DIR = ""
     OUTPUT_DIR = "/orange/ruogu.fang/tienyuchang/OCTDL_masks"
     DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
