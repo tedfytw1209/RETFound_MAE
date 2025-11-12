@@ -4,9 +4,11 @@ import segmentation_models_pytorch as smp
 import torchvision.transforms.functional as TF
 import cv2
 import numpy as np
+import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
-
+from PIL import Image
+from torch.utils.data import DataLoader, Dataset
 
 class Config:
     # Model parameters (should match training)
@@ -18,8 +20,9 @@ class Config:
     
     # Paths
     CHECKPOINT_PATH = "/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_binary.pth"
-    INPUT_DIR = "/data/tl28853/eye/NR206/test_512"
-    OUTPUT_DIR = "/data/tl28853/eye/NR206/pred_binary"
+    DATA_CSV = "/orange/ruogu.fang/tienyuchang/OCTDL/DME_test.csv"  # CSV with image and label columns
+    INPUT_DIR = ""
+    OUTPUT_DIR = "/orange/ruogu.fang/tienyuchang/OCTDL_masks"
     DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
     THRESHOLD = 0.5
 
@@ -66,6 +69,22 @@ def postprocess_mask(mask_tensor, original_size, threshold=0.5):
     
     return mask
 
+class CSVImageDataset(Dataset):
+    def __init__(self, csv_path, img_dir, transform=None):
+        self.df = pd.read_csv(csv_path)
+        if "image" not in self.df.columns or "label" not in self.df.columns:
+            raise ValueError("CSV file should include 'image' and 'label' columns.")
+        self.img_dir = img_dir
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        row = self.df.iloc[idx]
+        img_path = os.path.join(self.img_dir, str(row["image"]))
+        label = int(row["label"])
+        return label, img_path
 
 def main():
     # Load model
@@ -78,17 +97,17 @@ def main():
     output_path.mkdir(parents=True, exist_ok=True)
     
     # Get all images
-    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff'}
-    image_files = [f for f in input_path.iterdir() if f.suffix.lower() in image_extensions]
-    
-    print(f"Found {len(image_files)} images in {Config.INPUT_DIR}")
+    all_datasets = CSVImageDataset(Config.DATA_CSV, Config.INPUT_DIR)
+    image_files_names = [n for n in all_datasets]
+
+    print(f"Found {len(image_files_names)} images in {Config.INPUT_DIR}")
     print(f"Saving masks to {Config.OUTPUT_DIR}")
     
     # Process images
-    for image_file in tqdm(image_files, desc="Processing images"):
+    for label, img_path in tqdm(image_files_names, desc="Processing images"):
         try:
             # Load and preprocess
-            image_tensor, original_size = preprocess_image(str(image_file), Config.IMAGE_SIZE)
+            image_tensor, original_size = preprocess_image(str(img_path), Config.IMAGE_SIZE)
             image_tensor = image_tensor.unsqueeze(0).to(Config.DEVICE)
             
             # Predict
@@ -98,14 +117,14 @@ def main():
             # Postprocess
             mask = postprocess_mask(output, original_size, Config.THRESHOLD)
             
-            # Save mask
-            mask_path = output_path / image_file.name
-            cv2.imwrite(str(mask_path), mask)
+            # Save mask to .npy file
+            mask_path = output_path / Path(img_path).name
+            np.save(mask_path.with_suffix('.npy'), mask)
         except Exception as e:
-            print(f"\nError processing {image_file.name}: {str(e)}")
+            print(f"\nError processing {Path(img_path).name}: {str(e)}")
             continue
-    
-    print(f"\nInference complete! {len(image_files)} masks saved to {Config.OUTPUT_DIR}")
+
+    print(f"\nInference complete! {len(image_files_names)} masks saved to {Config.OUTPUT_DIR}")
 
 
 if __name__ == '__main__':
