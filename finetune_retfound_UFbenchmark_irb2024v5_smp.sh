@@ -25,8 +25,9 @@ weight_decay=${6:-"1e-4"}
 Eval_score=${7:-"default"}
 Modality=${8:-"OCT"} # CFP, OCT, OCT_CFP
 SUBSETNUM=${9:-0} # 0, 500, 1000
-ADDCMD=${10:-""}
-ADDCMD2=${11:-""}
+SMPMode=${10:-"dec"} # dec, enc, fuse
+ADDCMD=${11:-""}
+ADDCMD2=${12:-""}
 
 NUM_K=0
 data_type="IRB2024_v5"
@@ -34,7 +35,6 @@ IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
 Epochs=20
 OPTIMIZER="adamw" # "adamw" or "sgd"
 BATCH_SIZE=4
-SMPMode="dec"
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
@@ -42,5 +42,5 @@ echo $SUBSTUDY
 echo $Num_CLASS
 
 # Modify the path to your singularity container 
-# sbatch finetune_retfound_UFbenchmark_irb2024v5_smp.sh DME_binary_all_split SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth 1e-4 2 1e-4 default OCT 0 --add_mask --train_no_aug
+# sbatch finetune_retfound_UFbenchmark_irb2024v5_smp.sh DME_binary_all_split SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth 1e-4 2 1e-4 default OCT 0 dec --add_mask --train_no_aug
 torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune.py --savemodel --global_pool --batch_size $BATCH_SIZE --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --optimizer $OPTIMIZER --layer_decay 0.65 --weight_decay $weight_decay --drop_path 0 --nb_classes $Num_CLASS --data_path /orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/${data_type}/split/tune5-eval5/${STUDY}.csv --task $STUDY-${data_type}-all-$FINETUNED_MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}opt${OPTIMIZER}-${Eval_score}eval-trsub${SUBSETNUM}-$ADDCMD-$ADDCMD2/ --img_dir $IMG_Path --log_dir /orange/ruogu.fang/tienyuchang/RETfound_results --output_dir /orange/ruogu.fang/tienyuchang/RETfound_results --finetune $FINETUNED_MODEL --num_workers 8 --input_size 512 --num_k $NUM_K --eval_score $Eval_score --modality $Modality --visualize_samples --new_subset_num $SUBSETNUM --SMPMode $SMPMode $ADDCMD $ADDCMD2
