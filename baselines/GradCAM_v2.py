@@ -16,6 +16,35 @@ from util.misc import to_tensor
 def _get(obj, name, default=None):
     return getattr(obj, name, default)
 def _resolve_target_layer(model, model_name=None):
+    # --- SMP Classifier (Segmentation Models PyTorch)
+    # Check for SMP model structure: has encoder and seg_model
+    encoder = _get(model, "encoder")
+    seg_model = _get(model, "seg_model")
+    mode = _get(model, "mode")
+    
+    if encoder is not None and seg_model is not None:
+        # This is an SMP-based model
+        if mode == "enc" or mode == "fuse":
+            # For encoder or fuse mode, target the last encoder layer
+            # SMP encoders typically have stages/layers
+            last_conv = None
+            for name, module in encoder.named_modules():
+                if isinstance(module, nn.Conv2d):
+                    last_conv = module
+            if last_conv is not None:
+                return last_conv
+        elif mode == "dec":
+            # For decoder mode, target the decoder output
+            # Get the last conv layer in the decoder
+            decoder = _get(seg_model, "decoder")
+            if decoder is not None:
+                last_conv = None
+                for name, module in decoder.named_modules():
+                    if isinstance(module, nn.Conv2d):
+                        last_conv = module
+                if last_conv is not None:
+                    return last_conv
+    
     # --- timm ViT 風格
     if _get(model, "blocks") is not None:
         blocks = model.blocks
@@ -182,10 +211,14 @@ class PytorchCAM(torch.nn.Module):
             self.target_layer = model.blocks[-1]
         else:
             self.target_layer = _resolve_target_layer(model, model_name)
-        #
+        
+        # Set reshape transform if needed
         if reshape_transform is None:
             if 'vit' in model_name.lower() or 'dino' in model_name.lower() or 'retfound' in model_name.lower():
                 reshape_transform = lambda x: reshape_transform_vit_huggingface(x, num_patches=img_size // patch_size)
+            elif 'smp' in model_name.lower():
+                # SMP models don't need reshape transform (CNN-based)
+                reshape_transform = None
             else:
                 reshape_transform = None
         self.method = method(model=HuggingfaceToTensorModelWrapper(model), target_layers=[self.target_layer], reshape_transform=reshape_transform)

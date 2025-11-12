@@ -52,13 +52,23 @@ class CRP(torch.nn.Module):
         self.patch_size = patch_size
         self.device = device
         self.cc = ChannelConcept()
-        self.composite = EpsilonPlusFlat([SequentialMergeBatchNorm()])
-        if _get(self.model, 'resnet', None) is not None:
+        
+        # Determine the hook point for attribution and choose appropriate composite
+        if _get(self.model, 'encoder', None) is not None and _get(self.model, 'seg_model', None) is not None:
+            # SMP-based model - use simpler composite without BatchNorm canonizer
+            # because SMP models have bias=False in some layers which causes issues
+            self.composite = EpsilonPlusFlat()
+            hook = self.model
+        elif _get(self.model, 'resnet', None) is not None:
+            self.composite = EpsilonPlusFlat([SequentialMergeBatchNorm()])
             hook = _get(self.model, 'resnet', None)
         elif _get(self.model, 'vit', None) is not None:
+            self.composite = EpsilonPlusFlat([SequentialMergeBatchNorm()])
             hook = _get(self.model, 'vit', None)
         else:
+            self.composite = EpsilonPlusFlat([SequentialMergeBatchNorm()])
             hook = self.model
+        
         self.attribution = CondAttribution(HuggingfaceToTensorModelWrapper(self.model), no_param_grad=True)
 
     def generate_heatmap(self, x, target_class=None):
@@ -106,7 +116,12 @@ class LXT(torch.nn.Module):
         self.conv_gamma = conv_gamma #[0.1, 0.25, 100]
         self.lin_gamma = lin_gamma #[0, 0.01, 0.05, 0.1, 1]
         self.device = device
-        if _get(self.model, 'resnet', None) is not None:
+        
+        # Determine the hook point for monkey patching
+        if _get(self.model, 'encoder', None) is not None and _get(self.model, 'seg_model', None) is not None:
+            # SMP-based model
+            hook = self.model
+        elif _get(self.model, 'resnet', None) is not None:
             hook = _get(self.model, 'resnet', None)
         elif _get(self.model, 'vit', None) is not None:
             hook = _get(self.model, 'vit', None)
@@ -169,6 +184,9 @@ class CRP_LXT(torch.nn.Module):
         if 'retfound' in model_name.lower() or 'vit' in model_name.lower() or 'dino' in model_name.lower():
             # timm or HuggingFace ViT
             self.mode = 'LXT'
+        elif 'smp' in model_name.lower():
+            # SMP-based models use CRP
+            self.mode = 'CRP'
         else:
             self.mode = 'CRP'
         #define LXT or CRP
