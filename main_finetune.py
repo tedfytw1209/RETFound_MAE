@@ -13,6 +13,7 @@ import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import Subset
 from torchvision import datasets, transforms
+os.environ.setdefault("TIMM_FUSED_ATTN", "0")  # ensure non-empty int
 from timm.models.layers import trunc_normal_
 from timm.data.mixup import Mixup
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
