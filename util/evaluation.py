@@ -84,33 +84,34 @@ class RangeSampler(Sampler):
 #HW = 224 * 224 # image area
 #n_classes = 1000
 
-def gkern(klen, nsig):
-    """Returns a Gaussian kernel array.
-    Convolution with it results in image blurring."""
-    # create nxn zeros
-    inp = np.zeros((klen, klen))
-    # set element at the middle to one, a dirac delta
-    inp[klen//2, klen//2] = 1
-    # gaussian-smooth the dirac, resulting in a gaussian filter mask
-    k = gaussian_filter(inp, nsig)
-    kern = np.zeros((3, 3, klen, klen))
-    kern[0, 0] = k
-    kern[1, 1] = k
-    kern[2, 2] = k
-    return torch.from_numpy(kern.astype('float32'))
+def _gaussian2d(klen: int, ksig: float, device, dtype):
+    ax = torch.arange(klen, device=device, dtype=dtype) - (klen - 1) / 2
+    g1 = torch.exp(-(ax**2) / (2 * ksig**2))
+    g1 = g1 / g1.sum()
+    g2 = torch.outer(g1, g1)
+    g2 = g2 / g2.sum()
+    return g2[None, None, :, :]  # [1,1,k,k]
+
+# cache by (device, dtype, klen, ksig, C)
+_BLUR_CACHE = {}
 
 def _gaussian_blur_like(x: torch.Tensor, klen: int, ksig: float) -> torch.Tensor:
     """
-    Blur x with a separable-ish Gaussian made to match x's device/dtype.
-    Works for NCHW; depthwise conv (groups=C).
+    Depthwise Gaussian blur matching x's device/dtype/channels.
+    Always builds weight of shape [C,1,k,k].
     """
-    # Build kernel to match x
-    base = gkern(klen, ksig).to(device=x.device, dtype=x.dtype)      # [1,1,k,k]
     C = x.shape[1]
-    weight = base.expand(C, 1, klen, klen).contiguous()              # [C,1,k,k]
-    # Ensure memory format ok for conv2d
-    x_in = x.contiguous()
-    return F.conv2d(x_in, weight, padding=klen // 2, groups=C)
+    key = (x.device, x.dtype, klen, ksig, C)
+    weight = _BLUR_CACHE.get(key)
+
+    if weight is None:
+        base = _gaussian2d(klen, ksig, x.device, x.dtype)  # [1,1,k,k]
+        # Ensure final shape [C,1,k,k]
+        weight = base.repeat(C, 1, 1, 1).contiguous()
+        _BLUR_CACHE[key] = weight
+
+    # conv2d supports channels-last input; make contiguous to be safe
+    return F.conv2d(x.contiguous(), weight, padding=klen // 2, groups=C)
 
 def auc(arr):
     """Returns normalized Area Under Curve of the array."""
