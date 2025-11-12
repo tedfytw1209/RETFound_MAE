@@ -36,7 +36,7 @@ class Config:
     DROPOUT = 0.0
     
     # Training parameters
-    DEVICE = 'cuda:7' if torch.cuda.is_available() else 'cpu'
+    DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
     EPOCHS = 20
     BATCH_SIZE = 4
     LEARNING_RATE = 1e-4
