@@ -470,9 +470,16 @@ class InsertionMetric(CausalMetric):
         h = insertion.evaluate(torch.from_numpy(images.astype('float32')), exp, 100)
         scores['ins'].append(auc(h.mean(1)))
         '''
-        h = self.evaluate(img_batch, exp_batch, batch_size)
-        return auc(h.mean(1))
-    
+        #h = self.evaluate(img_batch, exp_batch, batch_size)
+        #return auc(h.mean(1))
+        auc = self.evaluate(img_batch, exp_batch, batch_size)
+        if isinstance(auc, np.ndarray) and auc.ndim == 1:
+            return auc                 # average AUC across samples
+        elif isinstance(auc, np.ndarray) and auc.ndim == 2:
+            return auc(auc.mean(1))                  # old path: AUC over mean curve
+        else:
+            raise ValueError(f"Unexpected shape from evaluate: {None if not isinstance(auc, np.ndarray) else auc.shape}")
+
 class DeletionMetric(CausalMetric):
     def __init__(self, model, step=224, img_size=224, n_classes=2):
         r"""Create deletion metric instance.
@@ -500,8 +507,15 @@ class DeletionMetric(CausalMetric):
         h = deletion.evaluate(torch.from_numpy(images.astype('float32')), exp, 100)
         scores['del'].append(auc(h.mean(1)))
         '''
-        h = self.evaluate(img_batch, exp_batch, batch_size)
-        return auc(h.mean(1))
+        #h = self.evaluate(img_batch, exp_batch, batch_size)
+        #return auc(h.mean(1))
+        auc = self.evaluate(img_batch, exp_batch, batch_size)
+        if isinstance(auc, np.ndarray) and auc.ndim == 1:
+            return auc                 # average AUC across samples
+        elif isinstance(auc, np.ndarray) and auc.ndim == 2:
+            return auc(auc.mean(1))                  # old path: AUC over mean curve
+        else:
+            raise ValueError(f"Unexpected shape from evaluate: {None if not isinstance(auc, np.ndarray) else auc.shape}")
 
 class RelevanceMetric():
     
