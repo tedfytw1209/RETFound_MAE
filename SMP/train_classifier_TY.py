@@ -17,9 +17,9 @@ from SMP.smp_classifier import SMPClassifier
 # Configuration
 class Config:
     # Paths
-    DATA_ROOT = "/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"  # Root directory containing images
-    TRAIN_CSV = "/data/tl28853/eye/OCTDL/dme_train.csv"  # CSV with image and label columns
-    VAL_CSV = "/data/tl28853/eye/OCTDL/dme_test.csv"  # CSV with image and label columns
+    DATA_ROOT = "/orange/ruogu.fang/tienyuchang/OCTDL/"  # Root directory containing images
+    TRAIN_CSV = "/orange/ruogu.fang/tienyuchang/OCTDL/DME_train.csv"  # CSV with image and label columns
+    VAL_CSV = "/orange/ruogu.fang/tienyuchang/OCTDL/DME_test.csv"  # CSV with image and label columns
     CHECKPOINT_DIR = "/orange/ruogu.fang/tienyuchang/RETfound_results/checkpoints_octdl_dme_dec"
     
     # Model parameters
