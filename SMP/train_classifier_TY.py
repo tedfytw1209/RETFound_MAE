@@ -11,7 +11,7 @@ import torchvision.transforms as T
 from PIL import Image
 from tqdm import tqdm
 
-from .smp_classifier import SMPClassifier
+from smp_classifier import SMPClassifier
 
 
 # Configuration
