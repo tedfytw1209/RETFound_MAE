@@ -18,9 +18,7 @@ INPUT_SIZE=${4:-224}
 NUM_K=0
 MODEL_DIR="output_dir"
 #microsoft/resnet-50, timm_efficientnet-b4, google/vit-base-patch16-224-in21k, RETFound_mae_natureOCT
-#DATASETS=(AMD_all_split DR_binary_all_split DME_binary_all_split)  # List of datasets
-#CLASSES=(2 2 2)  # Number of classes for each dataset
-DATASETS=(DME_all_split)  # List of datasets
+DATASETS=(DME_all)  # List of datasets
 CLASSES=(2)  # Number of classes for each dataset
 
 #bash baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh RETFound_mae RETFound_mae_natureOCT 224
