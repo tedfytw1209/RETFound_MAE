@@ -40,15 +40,13 @@ do
     SCRIPT="${SCRIPTS[$s]}"
     PARAM="${PARAMS[$s]}"
     DATATYPE="${DATATYPE[$s]}"
+    
 for i in "${!DATASETS[@]}"
 do
     # Create a job name based on the variables
     DATASET="${DATASETS[$i]}"
     NUM_CLASS="${CLASSES[$i]}"
-#    for j in "${!MODELS[@]}"
-#    do
-#        MODEL="${MODELS[$j]}"
-#        FINETUNED_MODEL="${FINETUNED_MODELS[$j]}"
+
     for XAI in "${XAI_METHODS[@]}"
     do
         # Submit the job to Slurm
@@ -56,6 +54,5 @@ do
         echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-$DATATYPE-all-$FINETUNED_MODEL-$PARAM--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE"
         bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-$DATATYPE-all-$FINETUNED_MODEL-$PARAM--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE
         done
-#        done
     done
 done
