@@ -22,7 +22,7 @@ FINETUNED_MODEL=${3:-"RETFound_mae_natureOCT"}
 RESUME=${4:-"0"} # resume path
 Num_CLASS=${5:-"2"} # 2 for AMD, 5 for DR, 5 for Glaucoma, 2 for Cataract
 INPUT_SIZE=${6:-"224"}
-XAI=${7:-"attn"} # attn, rise, gradcam
+XAI=${7:-"crp"} # attn, rise, gradcam
 STEP_PIXELS=${8:-"224"}
 NUM_K="0"
 data_type="CellData"
@@ -32,15 +32,14 @@ MASK_DIR="/orange/ruogu.fang/tienyuchang/CellData_masks/"
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
-echo $SUBSTUDY
 echo $Num_CLASS
 
-# Modify the path to your singularity container 
-# sbatch finetune_retfound_Celldata_eval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth output_dir/DME_all-CellData-all-RETFound_mae_natureOCT-OCT-bs16ep3lr5e-4optadamw-defaulteval--/checkpoint-best.pth 2 224 attn
+
 # sbatch finetune_retfound_Celldata_eval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-enc--/checkpoint-best.pth 2 512 crp 1024
 
-XAI_METHODS=("gradcamv2" "scorecam" "crp")  # List of XAI methods
+#XAI_METHODS=("gradcamv2" "scorecam" "crp")  # List of XAI methods
 
-for XAI in "${XAI_METHODS[@]}"
-do
+#for XAI in "${XAI_METHODS[@]}"
+#do
 TIMM_FUSED_ATTN=0 python main_XAI_evaluation.py --batch_size 2     --model $MODEL     --nb_classes $Num_CLASS     --data_path /orange/ruogu.fang/tienyuchang/${data_type}/${Modality}/${STUDY}.csv     --task $STUDY-${data_type}-all-$FINETUNED_MODEL-XAI${XAI}-EVAL/ --img_dir $IMG_Path --thickness_dir $MASK_DIR --finetune $FINETUNED_MODEL --num_workers 8 --input_size $INPUT_SIZE --num_k $NUM_K --resume $RESUME --xai $XAI --step_pixels $STEP_PIXELS --output_mask
+#done
