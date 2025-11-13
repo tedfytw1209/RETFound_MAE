@@ -24,7 +24,7 @@ CLASSES=(2)  # Number of classes for each dataset
 #bash baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh RETFound_mae RETFound_mae_natureOCT 224
 #XAI_METHODS=("attn" "gradcam")  # List of XAI methods
 SCRIPTS=("finetune_retfound_Celldata_eval.sh" "finetune_retfound_OCTDL_eval.sh")
-PARAMS=("OCT-bs16ep50lr5e-4optadamw-defaulteval" "OCT-bs16ep50lr5e-4optadamw-defaulteval")
+PARAMS=("OCT-bs16ep3lr5e-4optadamw-defaulteval" "OCT-bs16ep50lr5e-4optadamw-defaulteval")
 DATATYPE=("CellData" "OCTDL")
 XAI_METHODS=("attn" "gradcamv2" "scorecam" "crp")  # List of XAI methods
 MODELS=(timm_efficientnet-b4 resnet-50 vit-base-patch16-224 RETFound_mae)  # List of models
