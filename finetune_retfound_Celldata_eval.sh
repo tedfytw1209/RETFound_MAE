@@ -24,6 +24,7 @@ Num_CLASS=${5:-"2"} # 2 for AMD, 5 for DR, 5 for Glaucoma, 2 for Cataract
 INPUT_SIZE=${6:-"224"}
 XAI=${7:-"crp"} # attn, rise, gradcam
 STEP_PIXELS=${8:-"224"}
+SMPMode=${9:-"dec"} # dec, enc, fuse
 NUM_K="0"
 data_type="CellData"
 Modality="OCT"
@@ -35,7 +36,7 @@ MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 echo $Num_CLASS
 
 
-# sbatch finetune_retfound_Celldata_eval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-enc--/checkpoint-best.pth 2 512 crp 1024
+# sbatch finetune_retfound_Celldata_eval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-enc--/checkpoint-best.pth 2 512 crp 1024 enc
 
 #XAI_METHODS=("gradcamv2" "scorecam" "crp")  # List of XAI methods
 
