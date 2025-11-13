@@ -15,6 +15,7 @@ from torch.utils.data import Dataset
 from PIL import Image
 import pydicom
 import matplotlib.pyplot as plt
+from pathlib import Path
 import math
 
 AD_LIST = ['control','mci','ad']
@@ -119,13 +120,16 @@ def _build_binary_mask(mask_slice: np.ndarray, image_size, add_bound=0):
 
     return Image.fromarray(binary_mask, mode="L")
 
-def masking_image_pil(image, mask_slice, fill_color=(0, 0, 0)):
+def masking_image_pil(image, mask_slice, fill_color=(0, 0, 0), transform_binary_mask=True):
     if not isinstance(image, Image.Image):
         image = Image.fromarray(np.asarray(image))
     image_rgb = image.convert("RGB")
     max_size = max(image_rgb.size)
     add_bound = int(max_size * 0.025)
-    mask_img = _build_binary_mask(mask_slice, image_rgb.size, add_bound=add_bound)
+    if transform_binary_mask:
+        mask_img = _build_binary_mask(mask_slice, image_rgb.size, add_bound=add_bound)
+    else:
+        mask_img = Image.fromarray(mask_slice, mode="L")
     if mask_img is None:
         return image_rgb, None
     bg = Image.new("RGB", image_rgb.size, fill_color)
@@ -150,7 +154,7 @@ Thickness_DIR = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 Thickness_CSV = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/thickness_map.csv"
 
 class CSV_Dataset(Dataset):
-    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=[], pid_key = 'patient_id', select_layers=None,th_resize=True,th_heatmap=False, use_ducan_preprocessing=False, add_mask=False, output_mask=False, mask_transforms=None, use_img_per_patient=False, CV=False):
+    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=[], pid_key = 'patient_id', select_layers=None,th_resize=True,th_heatmap=False, use_ducan_preprocessing=False, thickness_dir=Thickness_DIR, add_mask=False, output_mask=False, mask_transforms=None, use_img_per_patient=False, CV=False):
         #common args
         self.transfroms = transfroms
         self.root_dir = img_dir
@@ -193,11 +197,15 @@ class CSV_Dataset(Dataset):
         #add mask, filter out samples without mask
         self.add_mask = add_mask
         self.output_mask = output_mask
+        self.dataset_type = 'UF' if "IRB2024_v5" in csv_file else 'Public'
         if self.add_mask or self.output_mask:
-            masked_df = pd.read_csv(Thickness_CSV)
-            masked_df = masked_df.rename(columns={'OCT':'folder'}).dropna(subset=['Surface Name'])
-            self.annotations = self.annotations.merge(masked_df,on='folder',how='inner').reset_index(drop=True)
-            print('After adding mask, data len: ', self.annotations.shape[0])
+            #UF Dataset
+            if "IRB2024_v5" in csv_file:
+                masked_df = pd.read_csv(Thickness_CSV)
+                masked_df = masked_df.rename(columns={'OCT':'folder'}).dropna(subset=['Surface Name'])
+                self.annotations = self.annotations.merge(masked_df,on='folder',how='inner').reset_index(drop=True)
+                print('After adding mask, data len: ', self.annotations.shape[0])
+        self.thickness_dir = thickness_dir
         #assert index order control, mci, ad
         if not class_to_idx:
             self.class_to_idx = {}
@@ -366,11 +374,17 @@ class CSV_Dataset(Dataset):
             # mask processing
             output_mask = None
             if self.add_mask or self.output_mask:
-                mask_path = os.path.join(Thickness_DIR,sample[2])
-                mask = np.load(mask_path) # (Layer Interface, slice_num, W)
-                slice_index = int(os.path.basename(img_name).split("_")[-1].split(".")[0])
-                mask_slice = mask[:, slice_index, :]
-                image_masked, output_mask = masking_image_pil(image.copy(), mask_slice)
+                if self.dataset_type == 'UF':
+                    mask_path = os.path.join(self.thickness_dir, sample[2])
+                    mask = np.load(mask_path) # (Layer Interface, slice_num, W) 
+                    slice_index = int(os.path.basename(img_name).split("_")[-1].split(".")[0])
+                    mask_slice = mask[:, slice_index, :]
+                    image_masked, output_mask = masking_image_pil(image.copy(), mask_slice)
+                else:
+                    image_name = Path(img_name)
+                    mask_path = self.thickness_dir / image_name.name
+                    mask = np.load(str(mask_path.with_suffix('.npy'))) # (H, W)
+                    image_masked, output_mask = masking_image_pil(image.copy(), mask, transform_binary_mask=False)
                 image = image_masked
             
             # (H,W,C)
@@ -437,11 +451,17 @@ class CSV_Dataset_eval(CSV_Dataset):
             # mask processing
             output_mask = None
             if self.add_mask or self.output_mask:
-                mask_path = os.path.join(Thickness_DIR,sample[2])
-                mask = np.load(mask_path) # (Layer Interface, slice_num, W)
-                slice_index = int(os.path.basename(img_name).split("_")[-1].split(".")[0])
-                mask_slice = mask[:, slice_index, :]
-                image_masked, output_mask = masking_image_pil(image.copy(), mask_slice)
+                if self.dataset_type == 'UF':
+                    mask_path = os.path.join(self.thickness_dir, sample[2])
+                    mask = np.load(mask_path) # (Layer Interface, slice_num, W) 
+                    slice_index = int(os.path.basename(img_name).split("_")[-1].split(".")[0])
+                    mask_slice = mask[:, slice_index, :]
+                    image_masked, output_mask = masking_image_pil(image.copy(), mask_slice)
+                else:
+                    image_name = Path(img_name)
+                    mask_path = self.thickness_dir / image_name.name
+                    mask = np.load(str(mask_path.with_suffix('.npy'))) # (H, W)
+                    image_masked, output_mask = masking_image_pil(image.copy(), mask, transform_binary_mask=False)
                 if self.add_mask:
                     image = image_masked
             # (H,W,C)
@@ -501,7 +521,7 @@ def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_A
         dataset_fundus = csv_func(args.data_path, img_dir, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True, use_img_per_patient=args.use_img_per_patient, CV=CV)
         dataset = DualCSV_Dataset(dataset_fundus, dataset_oct)  # Note: fundus first, OCT second for DuCAN
     elif args.data_path.endswith('.csv'):
-        dataset = csv_func(args.data_path, img_dir, is_train, transform, k, modality=modality, patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, add_mask=args.add_mask, output_mask=output_mask, mask_transforms=mask_transforms, use_img_per_patient=args.use_img_per_patient, CV=CV)
+        dataset = csv_func(args.data_path, img_dir, is_train, transform, k, modality=modality, patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, thickness_dir=args.thickness_dir, add_mask=args.add_mask, output_mask=output_mask, mask_transforms=mask_transforms, use_img_per_patient=args.use_img_per_patient, CV=CV)
     else:
         root = os.path.join(args.data_path, is_train)
         dataset = datasets.ImageFolder(root, transform=transform)
