@@ -25,6 +25,7 @@ INPUT_SIZE=${6:-"224"}
 XAI=${7:-"attn"} # attn, rise, gradcam
 STEP_PIXELS=${8:-"224"}
 SMPMode=${9:-"dec"} # dec, enc, fuse
+Thickness_DIR=${10:-"/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"}
 NUM_K="0"
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
