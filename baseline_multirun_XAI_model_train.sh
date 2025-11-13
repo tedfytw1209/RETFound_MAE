@@ -29,8 +29,8 @@ ADDCMD2="--train_no_aug"
 #sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_Celldata.sh DME_all RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
 #sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_OCTDL.sh DME_all RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
 #sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_OCTIDdata.sh DR_all RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
-MODELS=(timm_efficientnet-b4 resnet-50 vit-base-patch16-224 RETFound_mae SAM2UNet)  # List of models
-FINETUNED_MODELS=(timm_efficientnet-b4 microsoft/resnet-50 google/vit-base-patch16-224-in21k RETFound_mae_natureOCT SAM2UNet)  # Number of classes for each dataset
+MODELS=(timm_efficientnet-b4 resnet-50 vit-base-patch16-224 RETFound_mae)  # List of models
+FINETUNED_MODELS=(timm_efficientnet-b4 microsoft/resnet-50 google/vit-base-patch16-224-in21k RETFound_mae_natureOCT)  # Number of classes for each dataset
 for i in "${!MODELS[@]}"
 do
     #for j in "${!ADDCMDS1[@]}"
