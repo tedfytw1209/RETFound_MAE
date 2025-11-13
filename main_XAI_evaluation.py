@@ -461,7 +461,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         attention_map_bs = attention_map_bs - attention_map_bs.min(axis=(1, 2), keepdims=True) + 1e-9 # numpy shape: (B, img_size, img_size), add small value to avoid all-zero map
         print(f'Attention map shape: {attention_map_bs.shape}')
         for k, v in metric_func_dict.items():
-            e_score_bs = v(images, attention_map_bs, gt_mask=gt_mask, batch_size=bs//2, y_batch=target, explain_func=xai_method, explain_func_kwargs={})
+            e_score_bs = v(images, attention_map_bs, gt_mask=gt_mask, batch_size=bs, y_batch=target, explain_func=xai_method, explain_func_kwargs={})
             e_score_bs_mean = np.mean(e_score_bs)
             overall_metrics_dict[k].append(e_score_bs_mean)
             each_dict[k] = float(e_score_bs_mean)
