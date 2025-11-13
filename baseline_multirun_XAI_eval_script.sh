@@ -21,7 +21,7 @@ MODEL_DIR="output_dir"
 DATASETS=(DME_all)  # List of datasets
 CLASSES=(2)  # Number of classes for each dataset
 
-#bash baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh RETFound_mae RETFound_mae_natureOCT 224
+#bash baseline_multirun_XAI_eval_script.sh finetune_retfound_UFbenchmark_v5_eval.sh RETFound_mae RETFound_mae_natureOCT 224
 #XAI_METHODS=("attn" "gradcam")  # List of XAI methods
 #SCRIPTS=("finetune_retfound_Celldata_eval.sh" "finetune_retfound_OCTDL_eval.sh")
 #PARAMS=("OCT-bs16ep3lr5e-4optadamw-defaulteval" "OCT-bs16ep50lr5e-4optadamw-defaulteval")
@@ -32,8 +32,8 @@ DATATYPE=("CellData")
 XAI_METHODS=("attn" "gradcamv2" "scorecam" "crp")  # List of XAI methods
 #MODELS=(timm_efficientnet-b4 resnet-50 vit-base-patch16-224 RETFound_mae)  # List of models
 #FINETUNED_MODELS=(timm_efficientnet-b4 microsoft/resnet-50 google/vit-base-patch16-224-in21k RETFound_mae_natureOCT)  # Number of classes for each dataset
-MODELS=(timm_efficientnet-b4)  # List of models
-FINETUNED_MODELS=(timm_efficientnet-b4)  # Number of classes for each dataset
+#MODELS=(timm_efficientnet-b4)  # List of models
+#FINETUNED_MODELS=(timm_efficientnet-b4)  # Number of classes for each dataset
 
 for s in "${!SCRIPTS[@]}"
 do
@@ -45,10 +45,10 @@ do
     # Create a job name based on the variables
     DATASET="${DATASETS[$i]}"
     NUM_CLASS="${CLASSES[$i]}"
-    for j in "${!MODELS[@]}"
-    do
-        MODEL="${MODELS[$j]}"
-        FINETUNED_MODEL="${FINETUNED_MODELS[$j]}"
+#    for j in "${!MODELS[@]}"
+#    do
+#        MODEL="${MODELS[$j]}"
+#        FINETUNED_MODEL="${FINETUNED_MODELS[$j]}"
     for XAI in "${XAI_METHODS[@]}"
     do
         # Submit the job to Slurm
@@ -56,6 +56,6 @@ do
         echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-$DATATYPE-all-$FINETUNED_MODEL-$PARAM--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI"
         #bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-$DATATYPE-all-$FINETUNED_MODEL-$PARAM--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI
         done
-        done
+#        done
     done
 done
