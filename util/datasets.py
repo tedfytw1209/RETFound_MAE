@@ -382,8 +382,9 @@ class CSV_Dataset(Dataset):
                     image_masked, output_mask = masking_image_pil(image.copy(), mask_slice)
                 else:
                     image_name = Path(img_name)
-                    mask_path = self.thickness_dir / image_name.name
-                    mask = np.load(str(mask_path.with_suffix('.npy'))) # (H, W)
+                    mask_path = os.path.join(self.thickness_dir, image_name.name + '.npy')
+                    print('Loading mask from: ', mask_path)
+                    mask = np.load(mask_path) # (H, W)
                     image_masked, output_mask = masking_image_pil(image.copy(), mask, transform_binary_mask=False)
                 image = image_masked
             
@@ -459,8 +460,9 @@ class CSV_Dataset_eval(CSV_Dataset):
                     image_masked, output_mask = masking_image_pil(image.copy(), mask_slice)
                 else:
                     image_name = Path(img_name)
-                    mask_path = self.thickness_dir / image_name.name
-                    mask = np.load(str(mask_path.with_suffix('.npy'))) # (H, W)
+                    mask_path = os.path.join(self.thickness_dir, image_name.name + '.npy')
+                    print('Loading mask from: ', mask_path)
+                    mask = np.load(mask_path) # (H, W)
                     image_masked, output_mask = masking_image_pil(image.copy(), mask, transform_binary_mask=False)
                 if self.add_mask:
                     image = image_masked
