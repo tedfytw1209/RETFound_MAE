@@ -14,6 +14,7 @@ SCRIPT=$1
 MODEL=${2:-"RETFound_mae"}
 FINETUNED_MODEL=${3:-"RETFound_mae_natureOCT"}
 INPUT_SIZE=${4:-224}
+SMPMode=${5:-"dec"} # dec, enc, fuse
 
 NUM_K=0
 MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
@@ -24,7 +25,7 @@ DATASETS=(DME_binary_all_split)  # List of datasets
 CLASSES=(2)  # Number of classes for each dataset
 STEP_PIXELS=1024
 
-#bash baseline_multirun_XAI_eval_smp.sh finetune_retfound_UFbenchmark_v5_eval.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth 512
+#bash baseline_multirun_XAI_eval_smp.sh finetune_retfound_UFbenchmark_v5_eval.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth 512 dec
 #XAI_METHODS=("attn" "gradcam")  # List of XAI methods
 XAI_METHODS=("gradcamv2" "scorecam" "crp")  # List of XAI methods
 for i in "${!DATASETS[@]}"
@@ -36,7 +37,7 @@ do
     for XAI in "${XAI_METHODS[@]}"
     do
         # Submit the job to Slurm
-        echo "sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS"
-        sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS
+        echo "sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-$SMPMode--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS"
+        sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-$SMPMode--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS
     done
 done
