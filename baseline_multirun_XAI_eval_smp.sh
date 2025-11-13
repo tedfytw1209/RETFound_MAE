@@ -27,8 +27,8 @@ STEP_PIXELS=1024
 
 #sbatch baseline_multirun_XAI_eval_smp.sh finetune_retfound_UFbenchmark_v5_eval_smp.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth 512 dec
 #XAI_METHODS=("attn" "gradcam")  # List of XAI methods
-#XAI_METHODS=("gradcamv2" "scorecam")  # List of XAI methods
-XAI_METHODS=("crp")  # List of XAI methods
+XAI_METHODS=("gradcamv2" "scorecam")  # List of XAI methods
+#XAI_METHODS=("crp")  # List of XAI methods
 for i in "${!DATASETS[@]}"
 do
     # Create a job name based on the variables
