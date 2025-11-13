@@ -76,6 +76,8 @@ def get_args_parser():
     # Metrics parameters
     parser.add_argument('--used_quantus', action='store_true', default=False,
                         help='Whether to use quantus library for some metrics')
+    parser.add_argument('--step_pixels', default=224, type=int,
+                        help='Step size in pixels for insertion/deletion metrics')
 
     # Dataset parameters
     parser.add_argument('--data_path', default='./data/', type=str,
@@ -600,16 +602,17 @@ def main(args, criterion):
         raise ValueError(f"Unknown XAI method: {args.xai}")
     XAI_module.to(device)
     #metric_func
-    metric_func_dict = {
-        'insertion': InsertionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
-        'deletion': DeletionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
-    }
+    #metric_func_dict = {
+    #    'insertion': InsertionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
+    #    'deletion': DeletionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
+    #}
 
-    if args.used_quantus:
-        import quantus
-        from util.evaluation_quantus import SufficiencyMetric, ConsistencyMetric, PointingGameMetric, ComplexityMetric, RandomLogitMetric
-        metric_func_dict = {
-            'insertion': InsertionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
+    #if args.used_quantus:
+    #    import quantus
+    #    from util.evaluation_quantus import SufficiencyMetric, ConsistencyMetric, PointingGameMetric, ComplexityMetric, RandomLogitMetric
+    step_pixels = args.step_pixels if hasattr(args, 'step_pixels') else 224
+    metric_func_dict = {
+            'insertion': InsertionMetric(model, img_size=args.input_size, step=step_pixels, n_classes=args.nb_classes),
             'deletion': DeletionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
             # 'sufficiency': SufficiencyMetric(model, device),
             # 'consistency': ConsistencyMetric(model, device, discretise_func=quantus.discretise_func.rank),
