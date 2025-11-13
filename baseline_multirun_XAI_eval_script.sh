@@ -27,8 +27,10 @@ SCRIPTS=("finetune_retfound_Celldata_eval.sh" "finetune_retfound_OCTDL_eval.sh")
 PARAMS=("OCT-bs16ep3lr5e-4optadamw-defaulteval" "OCT-bs16ep50lr5e-4optadamw-defaulteval")
 DATATYPE=("CellData" "OCTDL")
 XAI_METHODS=("attn" "gradcamv2" "scorecam" "crp")  # List of XAI methods
-MODELS=(timm_efficientnet-b4 resnet-50 vit-base-patch16-224 RETFound_mae)  # List of models
-FINETUNED_MODELS=(timm_efficientnet-b4 microsoft/resnet-50 google/vit-base-patch16-224-in21k RETFound_mae_natureOCT)  # Number of classes for each dataset
+#MODELS=(timm_efficientnet-b4 resnet-50 vit-base-patch16-224 RETFound_mae)  # List of models
+#FINETUNED_MODELS=(timm_efficientnet-b4 microsoft/resnet-50 google/vit-base-patch16-224-in21k RETFound_mae_natureOCT)  # Number of classes for each dataset
+MODELS=(timm_efficientnet-b4)  # List of models
+FINETUNED_MODELS=(timm_efficientnet-b4)  # Number of classes for each dataset
 
 for s in "${!SCRIPTS[@]}"
 do
@@ -49,7 +51,7 @@ do
         # Submit the job to Slurm
         #output_dir/DME_all-CellData-all-RETFound_mae_natureOCT-OCT-bs16ep3lr5e-4optadamw-defaulteval--/checkpoint-best.pth
         echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-$DATATYPE-all-$FINETUNED_MODEL-$PARAM--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI"
-        bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-$DATATYPE-all-$FINETUNED_MODEL-$PARAM--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI
+        #bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-$DATATYPE-all-$FINETUNED_MODEL-$PARAM--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI
         done
         done
     done
