@@ -456,10 +456,10 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         bs = images.shape[0]
         each_dict = {}
         #with torch.cuda.amp.autocast():
-        print(f'Input images shape: {images.shape}', 'ground truth mask shape:', gt_mask.shape, 'target:', target)
+        #print(f'Input images shape: {images.shape}', 'ground truth mask shape:', gt_mask.shape, 'target:', target)
         attention_map_bs = xai_method(images,targets=target)
         attention_map_bs = attention_map_bs - attention_map_bs.min(axis=(1, 2), keepdims=True) + 1e-9 # numpy shape: (B, img_size, img_size), add small value to avoid all-zero map
-        print(f'Attention map shape: {attention_map_bs.shape}')
+        #print(f'Attention map shape: {attention_map_bs.shape}')
         for k, v in metric_func_dict.items():
             e_score_bs = v(images, attention_map_bs, gt_mask=gt_mask, batch_size=bs, y_batch=target, explain_func=xai_method, explain_func_kwargs={})
             e_score_bs_mean = np.mean(e_score_bs)
@@ -470,7 +470,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         metric_logger.update(**each_dict)
     
     
-    print(f'XAI Metrics at epoch {epoch} ({mode}):')
+    #print(f'XAI Metrics at epoch {epoch} ({mode}):')
     for k, v in metric_logger.meters.items():
         score = v.global_avg
         print(f'{k}: {score:.4f}')
