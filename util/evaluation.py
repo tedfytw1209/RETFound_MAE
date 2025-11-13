@@ -334,13 +334,13 @@ class CausalMetric():
                 return (yy[:, None] * W + xx[None, :]).reshape(-1)
             num_units = (H // block_step) * (W // block_step)
             step_unit = max(1, self.step // (block_step * block_step))
-            n_steps = (num_units + step_unit - 1) // step_unit
+            n_steps = max(1, (num_units + step_unit - 1) // step_unit)
         else:
             sort_order = np.argsort(exp_np.reshape(N, -1), axis=1)   # [N, H*W]
             sort_order = np.flip(sort_order, axis=-1).copy()
             num_units = H * W
-            step_unit = self.step
-            n_steps = (num_units + step_unit - 1) // step_unit
+            step_unit = max(1, self.step)
+            n_steps = max(1, (num_units + step_unit - 1) // step_unit)
 
         # Compute top class per sample in chunks
         top_classes = np.empty((N,), dtype=np.int64)
@@ -378,7 +378,10 @@ class CausalMetric():
                     logits = out['logits']
                 else:
                     logits = out
+                logits = logits.float()
+                logits = torch.clamp(logits, -50.0, 50.0)
                 probs = torch.softmax(logits, dim=1)
+                probs = torch.nan_to_num(probs, nan=0.0, posinf=1.0, neginf=0.0)
                 idx = torch.from_numpy(top_classes[s:e]).to(device, dtype=torch.long)
                 y = probs.gather(1, idx.unsqueeze(1)).squeeze(1)
             y_np = y.float().cpu().numpy().astype(np.float64)
@@ -434,7 +437,8 @@ class CausalMetric():
 
             del start, finish, start_flat, finish_flat
             torch.cuda.empty_cache()
-
+        
+        auc_acc = np.nan_to_num(auc_acc, nan=0.0, posinf=1.0, neginf=0.0)
         return np.clip(auc_acc, 0.0, 1.0)
     
 class InsertionMetric(CausalMetric):
