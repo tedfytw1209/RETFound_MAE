@@ -37,7 +37,7 @@ do
     for XAI in "${XAI_METHODS[@]}"
     do
         # Submit the job to Slurm
-        echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-$SMPMode--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $SMPMode"
-        #bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-$SMPMode--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $SMPMode
+        echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0---add_mask---train_no_aug/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $SMPMode"
+        #bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0---add_mask---train_no_aug/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $SMPMode
     done
 done
