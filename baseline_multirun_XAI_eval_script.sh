@@ -52,7 +52,7 @@ do
         # Submit the job to Slurm
         #output_dir/DME_all-CellData-all-RETFound_mae_natureOCT-OCT-bs16ep3lr5e-4optadamw-defaulteval--/checkpoint-best.pth
         echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-$DATATYPE-all-$FINETUNED_MODEL-$PARAM--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE"
-        bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-$DATATYPE-all-$FINETUNED_MODEL-$PARAM--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE
+        #bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-$DATATYPE-all-$FINETUNED_MODEL-$PARAM--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE
         done
     done
 done
