@@ -37,6 +37,6 @@ do
     do
         # Submit the job to Slurm
         echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $ADD_WORDS"
-        bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $ADD_WORDS
+        #bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0--/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $ADD_WORDS
     done
 done
