@@ -309,6 +309,8 @@ class CausalMetric():
         self.model.eval()
 
         N, C, H, W = img_batch.shape
+        if batch_size < 0:
+            batch_size = N
         exp_np = np.asarray(exp_batch, dtype=np.float32)
 
         # Optional channels-last for better mem bandwidth
