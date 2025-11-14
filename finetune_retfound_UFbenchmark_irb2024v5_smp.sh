@@ -35,7 +35,7 @@ data_type="IRB2024_v5"
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
 Epochs=50
 OPTIMIZER="adamw" # "adamw" or "sgd"
-BATCH_SIZE=4
+BATCH_SIZE=8
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
