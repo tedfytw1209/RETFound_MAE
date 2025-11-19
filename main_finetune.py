@@ -572,6 +572,7 @@ def main(args, criterion):
         dataset_train = create_subset(dataset_train, 'Train')
         dataset_val = create_subset(dataset_val, 'Validation')
         dataset_test = create_subset(dataset_test, 'Test')
+        args.droplast = False  # Disable droplast when using subset_num
     
     # Apply subset sampling by absolute number if subset_num > 0
     if args.subset_num > 0:
@@ -804,7 +805,7 @@ def main(args, criterion):
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             pin_memory=args.pin_mem,
-            drop_last=args.droplast
+            drop_last=False
         )
 
     data_loader_test = torch.utils.data.DataLoader(
@@ -812,7 +813,7 @@ def main(args, criterion):
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
-        drop_last=args.droplast
+        drop_last=False
     )
 
     mixup_fn = None
