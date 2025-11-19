@@ -211,6 +211,8 @@ def get_args_parser():
     parser.add_argument('--add_mask', action='store_true', default=False,
                         help='Add mask to the image based on thickness map')
     parser.add_argument('--no_amp', dest='use_amp', action='store_false', help='Disable AMP')
+    parser.add_argument('--droplast', action='store_true', default=False,
+                        help='Drop the last incomplete batch, if the dataset size is not divisible by the batch size')
     parser.set_defaults(use_amp=False)
 
     return parser
@@ -610,6 +612,7 @@ def main(args, criterion):
             return subset_dataset
 
         dataset_train = create_subset_by_num(dataset_train, 'Train', int(args.subset_num))
+        args.droplast = False  # Disable droplast when using subset_num
 
     # Apply subset sampling by absolute number if new_subset_num > 0
     if args.new_subset_num > 0:
@@ -682,6 +685,7 @@ def main(args, criterion):
             # Create subsets separately
             train_subset = create_class_balanced_subset(train_dataset, 'Train', train_target_size)
             val_subset = create_class_balanced_subset(val_dataset, 'Validation', val_target_size)
+            args.droplast = False  # Disable droplast when using subset_num
             
             return train_subset, val_subset
 
@@ -790,7 +794,7 @@ def main(args, criterion):
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             pin_memory=args.pin_mem,
-            drop_last=False,
+            drop_last=args.droplast,
         )
 
         print(f'len of train_set: {len(data_loader_train) * args.batch_size}')
@@ -800,7 +804,7 @@ def main(args, criterion):
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             pin_memory=args.pin_mem,
-            drop_last=False
+            drop_last=args.droplast
         )
 
     data_loader_test = torch.utils.data.DataLoader(
@@ -808,7 +812,7 @@ def main(args, criterion):
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
-        drop_last=False
+        drop_last=args.droplast
     )
 
     mixup_fn = None
