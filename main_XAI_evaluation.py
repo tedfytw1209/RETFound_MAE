@@ -42,7 +42,7 @@ from torchvision import datasets, transforms
 import wandb
 from pytorch_pretrained_vit import ViT
 
-from pytorch_grad_cam import GradCAM as GradCAMv2, ScoreCAM
+from pytorch_grad_cam import GradCAM as GradCAMv2, ScoreCAM, HiResCAM, GradCAMPlusPlus
 import matplotlib.pyplot as plt
 import warnings
 import faulthandler
@@ -594,6 +594,10 @@ def main(args, criterion):
         XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=GradCAMv2, device=device)
     elif args.xai == 'scorecam':
         XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=ScoreCAM, device=device)
+    elif args.xai == 'hirescam':
+        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=HiResCAM, device=device)
+    elif args.xai == 'gradcam++':
+        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=GradCAMPlusPlus, device=device)
     elif args.xai == 'crp':
         from baselines.CRP_LXT import CRP
         XAI_module = CRP(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, device=device)
