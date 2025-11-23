@@ -172,50 +172,97 @@ class UncertaintyQuantifier:
             'n_test': n_test
         }
     
-    def calibration_assessment(self, 
-                             probabilities: np.ndarray,
-                             true_labels: np.ndarray,
-                             n_bins: int = 20) -> Dict:
+    def calibration_assessment(
+        self,
+        probabilities: np.ndarray,
+        true_labels: np.ndarray,
+        n_bins: int = 20
+    ) -> Dict:
         """
-        Assess model calibration.
-        
+        Evaluate model calibration, including:
+        - Overall (top-1) Expected Calibration Error (ECE)
+        - Class-wise ECE for each individual class
+
         Args:
-            probabilities: Predicted probabilities (n_samples, n_classes)
-            true_labels: True class labels (n_samples,)
-            n_bins: Number of bins for calibration
-            
+            probabilities: Predicted probabilities, shape (N, C)
+            true_labels: Ground-truth labels, shape (N,)
+            n_bins: Number of bins to compute calibration
+
         Returns:
-            Dictionary with calibration metrics
+            Dictionary containing calibration metrics.
         """
+
+        # ---------------------------------------------------------
+        # Overall / top-1 calibration
+        # ---------------------------------------------------------
         confidences = np.max(probabilities, axis=1)
         predictions = np.argmax(probabilities, axis=1)
         accuracies = (predictions == true_labels).astype(float)
-        
-        # Compute calibration curve
-        fraction_of_positives, mean_predicted_value = calibration_curve(
+
+        # Calibration curve (for plotting / diagnostics)
+        frac_pos, mean_pred = calibration_curve(
             accuracies, confidences, n_bins=n_bins
         )
-        
-        # Calculate Expected Calibration Error (ECE)
-        bin_boundaries = np.linspace(0, 1, n_bins + 1)
-        bin_lowers = bin_boundaries[:-1]
-        bin_uppers = bin_boundaries[1:]
-        
-        ece = 0
-        for bin_lower, bin_upper in zip(bin_lowers, bin_uppers):
-            in_bin = (confidences > bin_lower) & (confidences <= bin_upper)
-            prop_in_bin = in_bin.mean()
-            
-            if prop_in_bin > 0:
-                accuracy_in_bin = accuracies[in_bin].mean()
-                avg_confidence_in_bin = confidences[in_bin].mean()
-                ece += np.abs(avg_confidence_in_bin - accuracy_in_bin) * prop_in_bin
-        
+
+        # Generic ECE helper
+        def _compute_ece(probs: np.ndarray, labels: np.ndarray, n_bins: int = 20) -> float:
+            """
+            Compute Expected Calibration Error (ECE) for binary probs/labels.
+            """
+            bin_boundaries = np.linspace(0.0, 1.0, n_bins + 1)
+            bin_lowers = bin_boundaries[:-1]
+            bin_uppers = bin_boundaries[1:]
+
+            ece_val = 0.0
+            for bl, bu in zip(bin_lowers, bin_uppers):
+                in_bin = (probs > bl) & (probs <= bu)
+                if not np.any(in_bin):
+                    continue
+
+                bin_accuracy = labels[in_bin].mean()
+                bin_confidence = probs[in_bin].mean()
+                prop_in_bin = in_bin.mean()
+
+                ece_val += np.abs(bin_confidence - bin_accuracy) * prop_in_bin
+
+            return float(ece_val)
+
+        # Overall ECE
+        overall_ece = _compute_ece(confidences, accuracies, n_bins=n_bins)
+
+        # ---------------------------------------------------------
+        # Class-wise ECE
+        # ---------------------------------------------------------
+        num_classes = probabilities.shape[1]
+        classwise_ece = []
+
+        for k in range(num_classes):
+            class_probs = probabilities[:, k]
+            class_labels = (true_labels == k).astype(float)
+
+            # Avoid ECE issues if the model never outputs class k
+            if np.all(class_probs == 0):
+                class_ece = 0.0
+            else:
+                class_ece = _compute_ece(class_probs, class_labels, n_bins=n_bins)
+
+            classwise_ece.append(class_ece)
+
+        mean_classwise_ece = float(np.mean(classwise_ece)) if num_classes > 0 else 0.0
+
+        # ---------------------------------------------------------
+        # Return results
+        # ---------------------------------------------------------
         return {
-            'ECE': ece,
-            'mean_confidence': float(np.mean(confidences)),
-            'mean_accuracy': float(np.mean(accuracies)),
-            'fraction_positives': fraction_of_positives.tolist(),
-            'mean_predicted_values': mean_predicted_value.tolist(),
-            'confidence_distribution': confidences.tolist()
+            # Overall calibration
+            "ECE": overall_ece,
+            "mean_confidence": float(np.mean(confidences)),
+            "mean_accuracy": float(np.mean(accuracies)),
+            "fraction_positives": frac_pos.tolist(),
+            "mean_predicted_values": mean_pred.tolist(),
+            "confidence_distribution": confidences.tolist(),
+            # Class-wise calibration
+            "classwise_ECE": classwise_ece,        # list of length C
+            "mean_classwise_ECE": mean_classwise_ece,
+            "num_classes": num_classes,
         }
