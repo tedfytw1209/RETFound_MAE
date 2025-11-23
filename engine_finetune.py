@@ -486,12 +486,10 @@ def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, 
         roc_results = uncertainty_quantifier.reject_option_classification(
             eval_probs, eval_labels, strategy=roc_strategy
         )
-        
         # 2. Conformal Prediction
-        conformal_results = uncertainty_quantifier.conformal_prediction(
-            cal_probs, cal_labels, eval_probs, eval_labels
-        )
-        
+        #conformal_results = uncertainty_quantifier.conformal_prediction(
+        #    cal_probs, cal_labels, eval_probs, eval_labels
+        #)
         # 3. Calibration Assessment
         calibration_results = uncertainty_quantifier.calibration_assessment(
             eval_probs, eval_labels, n_bins=getattr(args, 'calibration_bins', 10)
@@ -503,12 +501,14 @@ def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, 
             'uncertainty_roc_coverage': roc_results['coverage'],
             'uncertainty_roc_accuracy': roc_results['accuracy'],
             'uncertainty_roc_rejection_rate': roc_results['rejection_rate'],
-            'uncertainty_conformal_coverage': conformal_results['empirical_coverage'],
-            'uncertainty_conformal_set_size': conformal_results['average_set_size'],
-            'uncertainty_conformal_singleton_rate': conformal_results['singleton_rate'],
+            #'uncertainty_conformal_coverage': conformal_results['empirical_coverage'],
+            #'uncertainty_conformal_set_size': conformal_results['average_set_size'],
+            #'uncertainty_conformal_singleton_rate': conformal_results['singleton_rate'],
             'uncertainty_calibration_ece': calibration_results['ECE'],
-            'uncertainty_mean_confidence': calibration_results['mean_confidence']
+            'uncertainty_mean_confidence': calibration_results['mean_confidence'],
+            'uncertainty_mean_ece': calibration_results['mean_classwise_ECE'],
         })
+        metric_dict.update({f'uncertainty_class{i}_ece': val for i, val in enumerate(calibration_results['classwise_ECE'])})
         
         # ===== FAIRNESS ANALYSIS WITH CONFIDENCE INTERVALS =====
         print("\n--- Fairness Analysis with Confidence Intervals ---")

@@ -264,5 +264,4 @@ class UncertaintyQuantifier:
             # Class-wise calibration
             "classwise_ECE": classwise_ece,        # list of length C
             "mean_classwise_ECE": mean_classwise_ece,
-            "num_classes": num_classes,
         }
