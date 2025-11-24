@@ -62,6 +62,10 @@ def get_args_parser():
                         help='images input size')
     parser.add_argument('--drop_path', type=float, default=0.2, metavar='PCT',
                         help='Drop path rate (default: 0.1)')
+    parser.add_argument('--init_pretrained', action='store_true', default=False,
+                        help='Initialize the pretrained model')
+    parser.add_argument('--SMPMode', type=str, default='dec',
+                        help='SMP mode (fuse, enc, dec)')
 
     # Optimizer parameters
     parser.add_argument('--optimizer', default='adamw', type=str, metavar='OPTIMIZER',
@@ -205,8 +209,13 @@ def get_args_parser():
                         help='Subset number for sampling dataset. If > 0, sample subset_num from train datasets with seed 42')
     parser.add_argument('--visualize_samples', action='store_true', default=False,
                         help='Visualize sample images from the dataset')
+    parser.add_argument('--thickness_dir', default='/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/', type=str,
+                        help='Directory containing thickness maps')
     parser.add_argument('--add_mask', action='store_true', default=False,
                         help='Add mask to the image based on thickness map')
+    parser.add_argument('--no_amp', dest='use_amp', action='store_false', help='Disable AMP')
+    parser.add_argument('--droplast', action='store_true', default=False,
+                        help='Drop the last incomplete batch, if the dataset size is not divisible by the batch size')
 
     return parser
 
