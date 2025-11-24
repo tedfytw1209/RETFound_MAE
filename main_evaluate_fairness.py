@@ -500,7 +500,7 @@ def main(args, criterion):
     print(model)
     
     #dataset selection
-    dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap, th_heatmap=args.th_heatmap, eval_mode=False)
+    dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=processor, select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap, eval_mode=False)
 
     print('Test:', pd.Series(dataset_test.targets).value_counts())
     # Visualize sample images if requested
