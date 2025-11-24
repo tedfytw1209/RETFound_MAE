@@ -541,10 +541,8 @@ def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, 
             # Save uncertainty results
             uncertainty_results = {
                 'reject_option_classification': roc_results,
-                'conformal_prediction': conformal_results,
                 'calibration_assessment': calibration_results,
                 'parameters': {
-                    'conformal_alpha': uncertainty_quantifier.alpha,
                     'roc_strategy': roc_strategy,
                     'calibration_bins': getattr(args, 'calibration_bins', 10)
                 }
