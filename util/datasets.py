@@ -471,7 +471,7 @@ class CSV_Dataset_eval(CSV_Dataset):
             if output_mask is not None:
                 output_mask_tensor = self.mask_transforms(output_mask)
             else:
-                output_mask_tensor = None
+                output_mask_tensor = torch.zeros(image.shape[0], image.shape[1]) #H,W
             image_len = 1
         #print(output_mask_tensor.shape,output_mask_tensor.min(), output_mask_tensor.max())
         label = int(sample[1])
