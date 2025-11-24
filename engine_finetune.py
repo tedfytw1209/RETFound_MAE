@@ -401,6 +401,8 @@ def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, 
             output = model(images)
             if hasattr(output, 'logits'):
                 output = output.logits
+            elif isinstance(output, dict) and 'logits' in output:
+                output = output['logits']
             else:
                 output = output
             loss = criterion(output, target)
