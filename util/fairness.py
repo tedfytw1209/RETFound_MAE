@@ -6,6 +6,39 @@ from sklearn.preprocessing import label_binarize
 from sklearn.calibration import calibration_curve
 from typing import Dict, Optional
 
+#save auroc
+def auc_ignore_unseen(y_onehot, y_probs):
+    """
+    Compute macro AUROC (OVR) ignoring classes that do not appear in GT.
+    y_onehot: shape (N, C)
+    y_probs:  shape (N, C)
+    """
+
+    # Convert one-hot to label index vector
+    y_true = np.argmax(y_onehot, axis=1)
+
+    # Find only classes that appear in GT
+    present_classes = np.unique(y_true)
+
+    # If only a single class appears → skip AUROC for missing classes
+    if len(present_classes) == 1:
+        c = present_classes[0]
+        # Use only that column for score (binary AUC degenerate)
+        # AUROC is undefined for one class → use accuracy instead or set 0.5 baseline
+        return 0
+
+    # Filter to present classes
+    y_onehot_filtered = y_onehot[:, present_classes]
+    y_probs_filtered = y_probs[:, present_classes]
+
+    # Compute AUROC on remaining classes only
+    return roc_auc_score(
+        y_onehot_filtered,
+        y_probs_filtered,
+        multi_class="ovr",
+        average="macro"
+    )
+
 # fairness metric
 def fariness_score(protected_ground_truth, privileged_ground_truth, protected_pred, privileged_pred, protected_probs=None, privileged_probs=None,protected_gt_onehot=None,privileged_gt_onehot=None):
     ## confusion matrix
@@ -92,19 +125,21 @@ def fariness_score(protected_ground_truth, privileged_ground_truth, protected_pr
     protected_AUROC = 0
     privileged_AUROC = 0
     
-    protected_AUROC = roc_auc_score(
-            protected_gt_onehot, 
-            protected_probs, 
-            multi_class='ovr', 
-            average='macro'
-        )
+    try:
+        protected_AUROC = auc_ignore_unseen(
+                protected_gt_onehot, 
+                protected_probs, 
+            )
+    except Exception as e:
+        protected_AUROC = 0
     
-    privileged_AUROC = roc_auc_score(
-            privileged_gt_onehot, 
-            privileged_probs, 
-            multi_class='ovr', 
-            average='macro'
-        )
+    try:
+            privileged_AUROC = auc_ignore_unseen(
+                    privileged_gt_onehot, 
+                    privileged_probs,
+                )
+    except Exception as e:
+        privileged_AUROC = 0
 
     return (round(protected_PPV, 4), round(privileged_PPV, 4), 
             round(protected_FPR, 4), round(privileged_FPR, 4), 
