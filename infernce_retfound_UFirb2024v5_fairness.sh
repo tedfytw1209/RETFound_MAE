@@ -29,6 +29,7 @@ SUBSETNUM=${10:-"500"} # 0, 500, 1000
 SUBGROUP_COL=${11:-"race_ethnicity"} # age_group, race_ethnicity, gender_source_value
 PROTECTED_VALUE=${12:-"NHB"}
 PRIVALENT_VALUE=${13:-"NHW"}
+MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
 # NHB-NHW, HISPANIC-NHW
 # FEMALE-MALE
 
@@ -45,5 +46,5 @@ echo $SUBSTUDY
 echo $Num_CLASS
 
 # Modify the path to your singularity container 
-# sbatch infernce_retfound_UFirb2024v5_fairness.sh AMD_all_split RETFound_mae RETFound_mae_natureOCT output_dir/AMD_all_split-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval--/checkpoint-best.pth 5e-4 2 0.05 auc OCT 0 race_ethnicity NHB NHW
-torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_evaluate_fairness.py --savemodel --global_pool --batch_size $BATCH_SIZE --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --optimizer $OPTIMIZER --layer_decay 0.65 --weight_decay $weight_decay --drop_path 0.2 --nb_classes $Num_CLASS --data_path /orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/${data_type}/split/tune5-eval5/${STUDY}.csv --task $STUDY-${data_type}-all-$FINETUNED_MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}opt${OPTIMIZER}-${Eval_score}eval-${SUBGROUP_COL}-${PROTECTED_VALUE}_${PRIVALENT_VALUE}-fairness/ --img_dir $IMG_Path --log_dir /orange/ruogu.fang/tienyuchang/RETfound_results --output_dir /orange/ruogu.fang/tienyuchang/RETfound_results --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k $NUM_K --eval_score $Eval_score --modality $Modality --resume $RESUME_MODEL --subgroup_path "/blue/ruogu.fang/tienyuchang/OCT_EDA/Subgroup_Ana/subgroup_oct" --subgroup_col $SUBGROUP_COL --protect_value $PROTECTED_VALUE --prevalent_value $PRIVALENT_VALUE --new_subset_num $SUBSETNUM
+# sbatch infernce_retfound_UFirb2024v5_fairness.sh AMD_all_split RETFound_mae RETFound_mae_natureOCT /orange/ruogu.fang/tienyuchang/RETfound_results/AMD_all_split-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-roc_auceval--/checkpoint-best.pth 5e-4 2 0.05 auc OCT 0 race_ethnicity NHB NHW
+torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_evaluate_fairness.py --savemodel --global_pool --batch_size $BATCH_SIZE --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --optimizer $OPTIMIZER --layer_decay 0.65 --weight_decay $weight_decay --drop_path 0.2 --nb_classes $Num_CLASS --data_path /orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/${data_type}/split/tune5-eval5/${STUDY}.csv --task $STUDY-${data_type}-all-$FINETUNED_MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}opt${OPTIMIZER}-${Eval_score}eval-${SUBGROUP_COL}-${PROTECTED_VALUE}_${PRIVALENT_VALUE}-fairness/ --img_dir $IMG_Path --log_dir $MODEL_DIR --output_dir $MODEL_DIR --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k $NUM_K --eval_score $Eval_score --modality $Modality --resume $RESUME_MODEL --subgroup_path "/blue/ruogu.fang/tienyuchang/OCT_EDA/Subgroup_Ana/subgroup_oct" --subgroup_col $SUBGROUP_COL --protect_value $PROTECTED_VALUE --prevalent_value $PRIVALENT_VALUE --new_subset_num $SUBSETNUM
