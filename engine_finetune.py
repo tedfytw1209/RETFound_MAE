@@ -527,6 +527,7 @@ def evaluate_fairness(data_loader, model, device, args, epoch, mode, num_class, 
         
         # Add fairness CI metrics to output
         for metric, diff_data in fairness_ci_results['fairness_differences'].items():
+            metric_dict[f'fairness_{metric}_absolute'] = diff_data['absolute']
             metric_dict[f'fairness_{metric}_original'] = diff_data['original']
             metric_dict[f'fairness_{metric}_ci_lower'] = diff_data['ci_lower']
             metric_dict[f'fairness_{metric}_ci_upper'] = diff_data['ci_upper']

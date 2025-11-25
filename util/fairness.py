@@ -291,6 +291,7 @@ class FairnessAnalyzerWithCI:
                 
                 results['fairness_differences'][key] = {
                     'original': original_diff,
+                    'absolute': abs(original_diff),
                     'mean': np.mean(values),
                     'std': np.std(values),
                     'ci_lower': compute_ci(values)[0],
