@@ -1,3 +1,4 @@
+import sys
 import torch
 import torch.nn as nn
 from torch.utils.data.sampler import Sampler
@@ -645,7 +646,7 @@ class RelevanceMetric():
         mass_scores = np.zeros(n_samples)
         rank_scores = np.zeros(n_samples)
         
-        for i in tqdm(range(n_samples), desc='Evaluating relevance'):
+        for i in tqdm(range(n_samples), desc='Evaluating relevance',disable=not sys.stdout.isatty()):
             result = self.single_run(heatmaps[i], ground_truths[i])
             mass_scores[i] = result['mass']
             rank_scores[i] = result['rank']
