@@ -15,12 +15,19 @@ from torch.utils.data import DataLoader, Dataset
 sys.path.append(str(Path(__file__).parent.parent))
 
 from baselines.SegCAM import SegCAM
-from SMP.smp_classifier import SMPClassifier, Config as ModelConfig
+import segmentation_models_pytorch as smp
 
 
 class VisualizationConfig:
     # Model parameters (should match training)
-    CHECKPOINT_PATH = "/data/tl28853/eye/segmentation_models.pytorch/checkpoints_octdl_dme_dec/best_model.pth"
+    ENCODER = 'resnet50'
+    ENCODER_WEIGHTS = 'imagenet'
+    CLASSES = 1
+    ACTIVATION = 'sigmoid'
+    IMAGE_SIZE = 512
+    
+    # Model parameters (should match training)
+    CHECKPOINT_PATH = "/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_binary.pth"
     
     # Paths
     DATA_CSV = "/orange/ruogu.fang/tienyuchang/CellData/OCT/DME_all.csv"  # CSV with image and label columns
@@ -31,7 +38,7 @@ class VisualizationConfig:
     IMAGE_SIZE = 512
     
     # SegCAM parameters
-    CAM_TYPE = "gradcam"  # "gradcam" or "hirescam"
+    CAM_TYPE = "hirescam"  # "gradcam" or "hirescam"
     PIXEL_SET = "class"  # "image", "class", "point", or "zero"
     NORMALIZE_CAM = True
     
@@ -43,36 +50,21 @@ class VisualizationConfig:
     
     # Device
     DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+    THRESHOLD = 0.5
 
 
 def load_model(checkpoint_path, device):
-    """Load trained SMP classifier from checkpoint"""
-    # Create model with same config as training
-    model = SMPClassifier(
-        seg_arch=ModelConfig.SEG_ARCH,
-        encoder_name=ModelConfig.ENCODER,
+    """Load trained model from checkpoint"""
+    model = smp.Unet(
+        encoder_name=VisualizationConfig.ENCODER,
         encoder_weights=None,
-        in_channels=ModelConfig.IN_CHANNELS,
-        num_classes=ModelConfig.NUM_CLASSES,
-        mode=ModelConfig.MODE,
-        fuse_mode=ModelConfig.FUSE_MODE,
-        learnable_alpha=ModelConfig.LEARNABLE_ALPHA,
-        alpha=ModelConfig.ALPHA,
-        pretrained_seg_ckpt=None,
-        dropout=ModelConfig.DROPOUT,
+        classes=VisualizationConfig.CLASSES,
+        activation=VisualizationConfig.ACTIVATION,
     )
     
-    # Load checkpoint
     checkpoint = torch.load(checkpoint_path, map_location=device)
-    if 'model_state_dict' in checkpoint:
-        model.load_state_dict(checkpoint['model_state_dict'])
-    elif 'state_dict' in checkpoint:
-        model.load_state_dict(checkpoint['state_dict'])
-    else:
-        model.load_state_dict(checkpoint)
-    
+    model.load_state_dict(checkpoint['model_state_dict'])
     model = model.to(device)
-    model.eval()
     
     print(f"Model loaded from {checkpoint_path}")
     if 'epoch' in checkpoint:
@@ -322,7 +314,7 @@ def main():
         img_size=config.IMAGE_SIZE,
         cam_type=config.CAM_TYPE,
         pixel_set=config.PIXEL_SET,
-        n_classes=ModelConfig.NUM_CLASSES,
+        n_classes=VisualizationConfig.CLASSES,
         device=config.DEVICE,
         normalize_cam=config.NORMALIZE_CAM
     )
@@ -400,7 +392,7 @@ def visualize_single_sample(image_path, checkpoint_path, save_path=None):
         img_size=config.IMAGE_SIZE,
         cam_type=config.CAM_TYPE,
         pixel_set=config.PIXEL_SET,
-        n_classes=ModelConfig.NUM_CLASSES,
+        n_classes=VisualizationConfig.CLASSES,
         device=config.DEVICE,
         normalize_cam=config.NORMALIZE_CAM
     )
