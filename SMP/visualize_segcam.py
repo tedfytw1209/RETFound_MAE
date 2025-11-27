@@ -41,6 +41,9 @@ class VisualizationConfig:
     CAM_TYPE = "hirescam"  # "gradcam" or "hirescam"
     PIXEL_SET = "class"  # "image", "class", "point", or "zero"
     NORMALIZE_CAM = True
+    # Target layer options: None/'auto', 'encoder_last', 'encoder_0', 'decoder_last', 'decoder_0', etc.
+    # Examples: 'decoder_0' for first decoder block, 'encoder_last' for bottleneck
+    TARGET_LAYER = None  # None for auto-detect (uses last decoder layer)
     
     # Visualization parameters
     ALPHA = 0.4  # Blending factor for heatmap overlay
@@ -51,6 +54,97 @@ class VisualizationConfig:
     # Device
     DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
     THRESHOLD = 0.5
+
+
+def get_target_layer(model, target_layer_option=None):
+    """Get target layer for SegCAM based on model architecture.
+    
+    Args:
+        model: SMP model (e.g., Unet)
+        target_layer_option: String specifying which layer to target:
+            - None or 'auto': automatic selection (last decoder layer)
+            - 'encoder_last': last encoder layer
+            - 'encoder_0', 'encoder_1', etc.: specific encoder level
+            - 'bottleneck': bottleneck layer (between encoder and decoder)
+            - 'decoder_last': last decoder layer (default)
+            - 'decoder_0', 'decoder_1', etc.: specific decoder level
+    
+    Returns:
+        Target layer module
+    """
+    import torch.nn as nn
+    
+    if target_layer_option is None or target_layer_option == 'auto' or target_layer_option == 'decoder_last':
+        # Default: last decoder layer
+        last_conv = None
+        for name, module in model.decoder.named_modules():
+            if isinstance(module, nn.Conv2d):
+                last_conv = module
+        if last_conv is not None:
+            return last_conv
+            
+    elif target_layer_option == 'encoder_last':
+        # Last encoder layer
+        last_conv = None
+        for name, module in model.encoder.named_modules():
+            if isinstance(module, nn.Conv2d):
+                last_conv = module
+        if last_conv is not None:
+            return last_conv
+            
+    elif target_layer_option.startswith('encoder_'):
+        # Specific encoder level
+        try:
+            level = int(target_layer_option.split('_')[1])
+            encoder_layers = []
+            for name, module in model.encoder.named_children():
+                if hasattr(module, 'conv1') or isinstance(module, nn.Sequential):
+                    encoder_layers.append(module)
+            if level < len(encoder_layers):
+                # Get last conv in this layer
+                last_conv = None
+                for name, module in encoder_layers[level].named_modules():
+                    if isinstance(module, nn.Conv2d):
+                        last_conv = module
+                if last_conv is not None:
+                    return last_conv
+        except (ValueError, IndexError):
+            pass
+            
+    elif target_layer_option == 'bottleneck':
+        # Bottleneck (last encoder layer before decoder)
+        last_conv = None
+        for name, module in model.encoder.named_modules():
+            if isinstance(module, nn.Conv2d):
+                last_conv = module
+        if last_conv is not None:
+            return last_conv
+            
+    elif target_layer_option.startswith('decoder_'):
+        # Specific decoder level
+        try:
+            level = int(target_layer_option.split('_')[1])
+            decoder_blocks = list(model.decoder.children())
+            if level < len(decoder_blocks):
+                # Get last conv in this block
+                last_conv = None
+                for name, module in decoder_blocks[level].named_modules():
+                    if isinstance(module, nn.Conv2d):
+                        last_conv = module
+                if last_conv is not None:
+                    return last_conv
+        except (ValueError, IndexError):
+            pass
+    
+    # Fallback: return last decoder layer
+    last_conv = None
+    for name, module in model.decoder.named_modules():
+        if isinstance(module, nn.Conv2d):
+            last_conv = module
+    if last_conv is not None:
+        return last_conv
+    
+    raise ValueError(f"Could not find target layer for option: {target_layer_option}")
 
 
 def load_model(checkpoint_path, device):
@@ -156,13 +250,18 @@ def visualize_single_image(image_path, model, segcam, config, save_dir=None):
         save_dir: Directory to save visualizations
         
     Returns:
-        Dictionary with original image, CAM, overlay, and prediction info
+        Dictionary with original image, mask, CAM, overlay, and prediction info
     """
     # Load and preprocess
     image_tensor, original_image, original_size = preprocess_image(
         image_path, config.IMAGE_SIZE
     )
     image_tensor_batch = image_tensor.unsqueeze(0).to(config.DEVICE)
+    
+    # Get predicted mask from model
+    with torch.no_grad():
+        pred_mask = model(image_tensor_batch)
+        pred_mask_binary = (pred_mask.squeeze().cpu().numpy() > config.THRESHOLD).astype(np.uint8)
     
     # Generate SegCAM for segmentation
     # For segmentation, targets=None uses the predicted mask
@@ -191,7 +290,7 @@ def visualize_single_image(image_path, model, segcam, config, save_dir=None):
         colormap=config.COLORMAP
     )
     
-    # Create visualization
+    # Create visualization with 3 panels: image, mask, heatmap overlay
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     
     # Original image
@@ -199,15 +298,14 @@ def visualize_single_image(image_path, model, segcam, config, save_dir=None):
     axes[0].set_title('Original Image')
     axes[0].axis('off')
     
-    # CAM heatmap
-    im = axes[1].imshow(cam, cmap='jet')
-    axes[1].set_title(f'SegCAM Heatmap\n({config.CAM_TYPE})')
+    # Predicted mask
+    axes[1].imshow(pred_mask_binary, cmap='gray')
+    axes[1].set_title('Predicted Mask')
     axes[1].axis('off')
-    plt.colorbar(im, ax=axes[1], fraction=0.046, pad=0.04)
     
-    # Overlay
+    # SegCAM overlay
     axes[2].imshow(overlay)
-    axes[2].set_title(f'Overlay')
+    axes[2].set_title(f'{config.CAM_TYPE.upper()} Overlay')
     axes[2].axis('off')
     
     plt.tight_layout()
@@ -216,12 +314,13 @@ def visualize_single_image(image_path, model, segcam, config, save_dir=None):
     if save_dir and config.SAVE_INDIVIDUAL:
         save_path = Path(save_dir) / f"{Path(image_path).stem}_segcam.png"
         plt.savefig(save_path, bbox_inches='tight', dpi=150)
-        print(f"Saved visualization to {save_path}")
+        # print(f"Saved visualization to {save_path}")
     
     plt.close()
     
     return {
         'image': vis_image,
+        'mask': pred_mask_binary,
         'cam': cam,
         'overlay': overlay,
         'image_path': image_path
@@ -275,7 +374,12 @@ class CSVImageDataset(Dataset):
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
         img_path = os.path.join(self.img_dir, str(row["image"]))
-        label = int(row["label"])
+        # For segmentation, label might not be needed or could be mask path
+        try:
+            label = int(row["label"])
+        except (ValueError, TypeError) as e:
+            # If conversion fails, default to 0 (segmentation doesn't need label)
+            label = 0
         return label, img_path
 
 def main():
@@ -305,8 +409,15 @@ def main():
     model = load_model(config.CHECKPOINT_PATH, config.DEVICE)
     print(model)
     
-    # Initialize SegCAM
+    # Initialize SegCAM with optional target layer
     print("\nInitializing SegCAM...")
+    
+    # Get target layer if specified
+    target_layer = None
+    if config.TARGET_LAYER is not None:
+        target_layer = get_target_layer(model, config.TARGET_LAYER)
+        print(f"Using specified target layer: {config.TARGET_LAYER}")
+    
     segcam = SegCAM(
         model=model,
         model_name="SMP_dec",
@@ -315,7 +426,8 @@ def main():
         pixel_set=config.PIXEL_SET,
         n_classes=VisualizationConfig.CLASSES,
         device=config.DEVICE,
-        normalize_cam=config.NORMALIZE_CAM
+        normalize_cam=config.NORMALIZE_CAM,
+        target_layer=target_layer
     )
     
     print(f"SegCAM initialized with:")
@@ -353,31 +465,40 @@ def main():
     print("\nDone!")
 
 
-def visualize_single_sample(image_path, checkpoint_path, save_path=None):
+def visualize_single_sample(image_path, checkpoint_path, save_path=None, target_layer_option=None):
     """Convenience function to visualize a single image.
     
     Args:
         image_path: Path to image file
         checkpoint_path: Path to model checkpoint
         save_path: Optional path to save visualization
+        target_layer_option: Optional target layer specification (e.g., 'encoder_last', 'decoder_0')
     """
     config = VisualizationConfig()
     config.CHECKPOINT_PATH = checkpoint_path
     config.SAVE_INDIVIDUAL = save_path is not None
+    if target_layer_option is not None:
+        config.TARGET_LAYER = target_layer_option
     
     # Load model
     model = load_model(checkpoint_path, config.DEVICE)
     
+    # Get target layer if specified
+    target_layer = None
+    if config.TARGET_LAYER is not None:
+        target_layer = get_target_layer(model, config.TARGET_LAYER)
+    
     # Initialize SegCAM
     segcam = SegCAM(
         model=model,
-        model_name="SMP_Classifier",
+        model_name="SMP_dec",
         img_size=config.IMAGE_SIZE,
         cam_type=config.CAM_TYPE,
         pixel_set=config.PIXEL_SET,
         n_classes=VisualizationConfig.CLASSES,
         device=config.DEVICE,
-        normalize_cam=config.NORMALIZE_CAM
+        normalize_cam=config.NORMALIZE_CAM,
+        target_layer=target_layer
     )
     
     # Visualize
