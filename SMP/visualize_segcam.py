@@ -164,20 +164,21 @@ def visualize_single_image(image_path, model, segcam, config, save_dir=None):
     )
     image_tensor_batch = image_tensor.unsqueeze(0).to(config.DEVICE)
     
-    # Get prediction
-    with torch.no_grad():
-        outputs = model(image_tensor_batch)
-        probs = torch.softmax(outputs, dim=1)
-        pred_class = torch.argmax(probs, dim=1).item()
-        pred_prob = probs[0, pred_class].item()
-    
-    # Generate SegCAM
+    # Generate SegCAM for segmentation
+    # For segmentation, targets=None uses the predicted mask
     cam = segcam(
         inputs=image_tensor_batch,
-        targets=pred_class,
+        targets=None,  # Let SegCAM use predicted segmentation mask
         model=model
     )
-    cam = cam[0]  # Get first image from batch
+    
+    # Handle different output formats
+    if isinstance(cam, torch.Tensor):
+        cam = cam.cpu().numpy()
+    if len(cam.shape) > 2:
+        cam = cam[0]  # Get first image from batch if needed
+    if len(cam.shape) > 2:
+        cam = cam.squeeze()  # Remove any extra dimensions
     
     # Resize original image to match processed size for visualization
     vis_image = cv2.resize(original_image, (config.IMAGE_SIZE, config.IMAGE_SIZE))
@@ -206,7 +207,7 @@ def visualize_single_image(image_path, model, segcam, config, save_dir=None):
     
     # Overlay
     axes[2].imshow(overlay)
-    axes[2].set_title(f'Overlay\nPred: Class {pred_class} ({pred_prob:.3f})')
+    axes[2].set_title(f'Overlay')
     axes[2].axis('off')
     
     plt.tight_layout()
@@ -223,8 +224,6 @@ def visualize_single_image(image_path, model, segcam, config, save_dir=None):
         'image': vis_image,
         'cam': cam,
         'overlay': overlay,
-        'pred_class': pred_class,
-        'pred_prob': pred_prob,
         'image_path': image_path
     }
 
@@ -248,8 +247,7 @@ def create_summary_grid(results, save_path, max_images=16):
         result = results[idx]
         axes[idx].imshow(result['overlay'])
         axes[idx].set_title(
-            f"{Path(result['image_path']).stem}\n"
-            f"Class {result['pred_class']} ({result['pred_prob']:.3f})",
+            f"{Path(result['image_path']).stem}",
             fontsize=8
         )
         axes[idx].axis('off')
@@ -349,18 +347,6 @@ def main():
     print("Visualization Complete!")
     print("="*60)
     print(f"Total images processed: {len(results)}")
-    
-    if results:
-        # Count predictions per class
-        from collections import Counter
-        class_counts = Counter([r['pred_class'] for r in results])
-        print("\nPrediction distribution:")
-        for cls, count in sorted(class_counts.items()):
-            print(f"  Class {cls}: {count} images ({count/len(results)*100:.1f}%)")
-        
-        # Average confidence
-        avg_conf = np.mean([r['pred_prob'] for r in results])
-        print(f"\nAverage prediction confidence: {avg_conf:.3f}")
     
     # Cleanup
     segcam.cleanup()
