@@ -305,6 +305,7 @@ def main():
     # Load model
     print("\nLoading model...")
     model = load_model(config.CHECKPOINT_PATH, config.DEVICE)
+    print(model)
     
     # Initialize SegCAM
     print("\nInitializing SegCAM...")
