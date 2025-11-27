@@ -106,22 +106,26 @@ def main():
     # Process images
     i = 0
     for label, img_path in tqdm(image_files_names, desc="Processing images"):
-        # Load and preprocess
-        image_tensor, original_size = preprocess_image(str(img_path), Config.IMAGE_SIZE)
-        image_tensor = image_tensor.unsqueeze(0).to(Config.DEVICE)
-        
-        # Predict
-        with torch.no_grad():
-            output = model(image_tensor)
-        
-        # Postprocess
-        mask = postprocess_mask(output, original_size, Config.THRESHOLD)
-        # Save mask to .npy file
-        mask_path = output_path / Path(img_path).name
-        np.save(str(mask_path.with_suffix('.npy')), mask)
-        if i<5:
-            cv2.imwrite(str(mask_path.with_suffix('.png')), mask)
-        i += 1
+        try:
+            # Load and preprocess
+            image_tensor, original_size = preprocess_image(str(img_path), Config.IMAGE_SIZE)
+            image_tensor = image_tensor.unsqueeze(0).to(Config.DEVICE)
+            
+            # Predict
+            with torch.no_grad():
+                output = model(image_tensor)
+            
+            # Postprocess
+            mask = postprocess_mask(output, original_size, Config.THRESHOLD)
+            # Save mask to .npy file
+            mask_path = output_path / Path(img_path).name
+            np.save(str(mask_path.with_suffix('.npy')), mask)
+            if i<5:
+                cv2.imwrite(str(mask_path.with_suffix('.png')), mask)
+            i += 1
+        except Exception as e:
+            print(f"\nError processing {Path(img_path).name}: {str(e)}")
+            continue
 
     print(f"\nInference complete! {len(image_files_names)} masks saved to {Config.OUTPUT_DIR}")
 
