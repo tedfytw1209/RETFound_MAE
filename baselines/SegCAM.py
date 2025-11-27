@@ -41,6 +41,27 @@ def _resolve_target_layer(model, model_name=None):
                         last_conv = module
                 if last_conv is not None:
                     return last_conv
+    # --- SMP Segmentation model
+    if 'smp' in model_name.lower():
+        if 'enc' in model_name.lower() or 'fuse' in model_name.lower():
+            # For encoder or fuse mode, target the last encoder layer
+            last_conv = None
+            for name, module in model.encoder.named_modules():
+                if isinstance(module, nn.Conv2d):
+                    last_conv = module
+            if last_conv is not None:
+                return last_conv
+        elif 'dec' in model_name.lower():
+            decoder = _get(seg_model, "decoder")
+            if decoder is not None:
+                last_conv = None
+                for name, module in decoder.named_modules():
+                    if isinstance(module, nn.Conv2d):
+                        last_conv = module
+                if last_conv is not None:
+                    return last_conv
+        else:
+            raise ValueError("Cannot resolve target layer for SMP model without mode info.")
     
     # --- timm ViT style
     if _get(model, "blocks") is not None:

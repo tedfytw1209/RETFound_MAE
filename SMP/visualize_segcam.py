@@ -32,7 +32,7 @@ class VisualizationConfig:
     # Paths
     DATA_CSV = "/orange/ruogu.fang/tienyuchang/CellData/OCT/DME_all.csv"  # CSV with image and label columns
     INPUT_DIR = "/orange/ruogu.fang/tienyuchang/CellData"
-    OUTPUT_DIR = "/orange/ruogu.fang/tienyuchang/CellData_masks"
+    OUTPUT_DIR = "/orange/ruogu.fang/tienyuchang/SegCAM_visualizations_celldata"
     
     # Image processing
     IMAGE_SIZE = 512
@@ -310,7 +310,7 @@ def main():
     print("\nInitializing SegCAM...")
     segcam = SegCAM(
         model=model,
-        model_name="SMP_Classifier",
+        model_name="SMP_dec",
         img_size=config.IMAGE_SIZE,
         cam_type=config.CAM_TYPE,
         pixel_set=config.PIXEL_SET,
