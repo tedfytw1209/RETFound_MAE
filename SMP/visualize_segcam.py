@@ -329,18 +329,14 @@ def main():
     results = []
     print("\nProcessing images...")
     for label, image_file_name in tqdm(image_files_names, desc="Generating SegCAMs"):
-        try:
-            result = visualize_single_image(
-                image_file_name, 
-                model, 
-                segcam, 
-                config,
-                save_dir=output_path if config.SAVE_INDIVIDUAL else None
-            )
-            results.append(result)
-        except Exception as e:
-            print(f"\nError processing {image_file_name}: {str(e)}")
-            continue
+        result = visualize_single_image(
+            image_file_name, 
+            model, 
+            segcam, 
+            config,
+            save_dir=output_path if config.SAVE_INDIVIDUAL else None
+        )
+        results.append(result)
     
     # Create summary grid
     if results and config.SAVE_COMBINED:
