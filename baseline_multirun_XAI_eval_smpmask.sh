@@ -27,7 +27,7 @@ STEP_PIXELS=1024
 Thickness_DIR="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 ADD_WORDS="--add_mask"
 
-#bash baseline_multirun_XAI_eval_smp.sh finetune_retfound_UFbenchmark_v5_eval_smp.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth 512 dec
+#bash baseline_multirun_XAI_eval_smpmask.sh finetune_retfound_UFbenchmark_v5_eval_smp.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth 512 enc
 XAI_METHODS=("gradcamv2" "scorecam" "crp")  # List of XAI methods
 #XAI_METHODS=("hirescam" "gradcam++")  # List of XAI methods
 #XAI_METHODS=("crp")  # List of XAI methods
