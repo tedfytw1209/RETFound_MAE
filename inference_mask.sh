@@ -20,4 +20,4 @@ DATASET=$1
 STUDY=$2
 MAX_IMAGES=$3
 
-python SMP/inference_general.py --dataset $DATASET --study $STUDY --max-images $MAX_IMAGES
+python inference_general.py --dataset $DATASET --study $STUDY --max-images $MAX_IMAGES
