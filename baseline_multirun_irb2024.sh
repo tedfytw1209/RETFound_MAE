@@ -17,9 +17,9 @@ NUM_K=0
 #bash baseline_multirun_irb2024.sh finetune_retfound_UFbenchmark_irb2024v5.sh RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 roc_auc OCT
 #bash baseline_multirun_irb2024.sh finetune_retfound_UFbenchmark_pytorchvit.sh pytorchvit B_16_imagenet1k 5e-3 2 1e-6 mcc OCT
 #bash baseline_multirun_irb2024.sh finetune_retfound_UFbenchmark_irb2024v3.sh RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 mcc OCT --testval
-#DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_binary_all_split Glaucoma_binary_all_split DR_filtered DR_fbinary Glaucoma_filtered Glaucoma_fbinary)  # List of datasets
+#DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_binary_all_split Glaucoma_binary_all_split DR_filtered_all_split DR_fbinary_all_split Glaucoma_filtered_all_split Glaucoma_fbinary_all_split)  # List of datasets
 #CLASSES=(2 2 6 6 2 2 5 2 4 2)  # Number of classes for each dataset
-DATASETS=(DR_filtered DR_fbinary Glaucoma_filtered Glaucoma_fbinary)  # List of datasets
+DATASETS=(DR_filtered_all_split DR_fbinary_all_split Glaucoma_filtered_all_split Glaucoma_fbinary_all_split)  # List of datasets
 CLASSES=(5 2 4 2)  # Number of classes for each dataset
 for i in "${!DATASETS[@]}"
 do
