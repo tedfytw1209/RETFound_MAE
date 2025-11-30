@@ -18,6 +18,7 @@ conda activate retfound_new
 #cd $HOME
 DATASET=$1
 STUDY=$2
-MAX_IMAGES=$3
+CLASS_MODE=$3
+MAX_IMAGES=$4
 
-python inference_general.py --dataset $DATASET --study $STUDY --max-images $MAX_IMAGES
+python inference_general.py --dataset $DATASET --study $STUDY --class-mode $CLASS_MODE --max-images $MAX_IMAGES
