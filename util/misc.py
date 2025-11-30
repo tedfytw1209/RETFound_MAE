@@ -364,7 +364,7 @@ def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler, mo
             to_save = {
                 'model': model_without_ddp.state_dict(),
                 'epoch': epoch, }
-            torch.save(to_save, os.path.join(args.output_dir, args.task, "checkpoint-best.pth"))
+            torch.save(to_save, os.path.join(args.output_dir, args.task, add_dir, "checkpoint-best.pth"))
         else:
             if epoch == args.epochs - 1:
                 to_save = {
@@ -376,7 +376,7 @@ def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler, mo
                     'epoch': epoch,
                     'args': args,
                 }
-            torch.save(to_save, os.path.join(args.output_dir, args.task, "checkpoint-latest.pth"))
+            torch.save(to_save, os.path.join(args.output_dir, args.task, add_dir, "checkpoint-latest.pth"))
 
 
 def load_model(args, model_without_ddp, optimizer, loss_scaler):

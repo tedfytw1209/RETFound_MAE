@@ -158,7 +158,7 @@ def get_args_parser():
                         help='path where to tensorboard log')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
-    parser.add_argument('--seed', default=0, type=int)
+    parser.add_argument('--seed', default=42, type=int)
     parser.add_argument('--resume', default='',
                         help='resume from checkpoint')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
@@ -213,6 +213,8 @@ def get_args_parser():
     parser.add_argument('--no_amp', dest='use_amp', action='store_false', help='Disable AMP')
     parser.add_argument('--droplast', action='store_true', default=False,
                         help='Drop the last incomplete batch, if the dataset size is not divisible by the batch size')
+    parser.add_argument('--bootstrap_runs', action='store_true', default=False, help="Doing bootstrap sampling for training dataset")
+    
     parser.set_defaults(use_amp=False)
 
     return parser
@@ -499,10 +501,18 @@ def get_model(args):
 def main(args, criterion):
 
     misc.init_distributed_mode(args)
-    
+    if args.bootstrap_runs:
+        project_name = "RETFound_MAE_bootstrap"
+        group_name = f"{args.task}_bootstrap_group"
+        model_add_dir = "seed_" + str(args.seed)
+    else:
+        project_name = "RETFound_MAE"
+        group_name = None
+        model_add_dir = ""
     wandb.init(
-        project="RETFound_MAE",
+        project=project_name,
         name=args.task,
+        group=group_name,
         config=args,
         dir=os.path.join(args.log_dir,args.task),
     )
@@ -636,7 +646,7 @@ def main(args, criterion):
                 print(f'{split_name} target subset size: {target_size}')
                 
                 # Separate samples by class and permute
-                rng = np.random.RandomState(42)
+                rng = np.random.RandomState(args.seed)
                 selected_indices = []
                 
                 for class_idx in unique_classes:
@@ -946,7 +956,7 @@ def main(args, criterion):
             if args.output_dir and args.savemodel:
                 misc.save_model(
                     args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
-                    loss_scaler=loss_scaler, epoch=epoch, mode='best')
+                    loss_scaler=loss_scaler, epoch=epoch, mode='best', add_dir=model_add_dir)
         print("Best epoch = %d, Best score = %.4f" % (best_epoch, max_score))
 
 
