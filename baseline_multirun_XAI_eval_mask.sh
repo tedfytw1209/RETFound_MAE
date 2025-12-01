@@ -27,7 +27,8 @@ ADD_WORDS="--add_mask"
 
 #sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh RETFound_mae RETFound_mae_natureOCT 224 224
 #XAI_METHODS=("hirescam" "gradcam++")  # List of XAI methods
-XAI_METHODS=("attn" "gradcamv2" "scorecam" "crp")  # List of XAI methods
+#XAI_METHODS=("attn" "gradcamv2" "scorecam" "crp")  # List of XAI methods
+XAI_METHODS=("scorecam" "crp")  # List of XAI methods
 for i in "${!DATASETS[@]}"
 do
     # Create a job name based on the variables
