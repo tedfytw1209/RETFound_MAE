@@ -488,9 +488,10 @@ def main():
             output = model(image_tensor)
 
         mask = postprocess(output, original_size, args)
-        save_mask(mask, record, cfg, args.export_formats)
         if args.save_composite:
             save_composite_image(original_image, mask, record, cfg, args)
+        else:
+            save_mask(mask, record, cfg, args.export_formats)
         processed += 1
 
     print(f"Inference complete! Processed {processed} images.")
