@@ -21,4 +21,6 @@ STUDY=$2
 CLASS_MODE=$3
 MAX_IMAGES=$4
 
-python inference_general.py --dataset $DATASET --study $STUDY --class-mode $CLASS_MODE --max-images $MAX_IMAGES --save-composite
+# sbatch inference_mask.sh uf DME_all_split binary 500
+# sbatch inference_mask.sh uf DME_all_split multiclass 500
+python inference_general.py --dataset $DATASET --study $STUDY --class-mode $CLASS_MODE --max-images $MAX_IMAGES --save-composite --checkpoint /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_${CLASS_MODE}.pth
