@@ -5,6 +5,9 @@ from pathlib import Path
 from typing import List, Optional, Sequence
 
 import cv2
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
@@ -161,6 +164,11 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Stop after processing this many images (useful for smoke tests).",
+    )
+    parser.add_argument(
+        "--save-composite",
+        action="store_true",
+        help="If set, save a side-by-side original+overlay visualization for each mask.",
     )
     return parser.parse_args()
 
@@ -356,31 +364,35 @@ def _ensure_rgb(array: np.ndarray) -> np.ndarray:
     return array
 
 
-def load_image_as_tensor(image_path: Path, image_size: int) -> tuple[torch.Tensor, tuple[int, int]]:
+def _prepare_rgb_image(image: np.ndarray) -> np.ndarray:
+    if image.dtype != np.uint8:
+        if image.max() <= 1.0:
+            image = np.clip(image, 0.0, 1.0) * 255.0
+        image = np.clip(image, 0.0, 255.0).astype(np.uint8)
+    return image
+
+
+def load_image_as_tensor(image_path: Path, image_size: int) -> tuple[torch.Tensor, np.ndarray]:
     if image_path.suffix.lower() == ".npy":
         image = np.load(image_path)
         image = _ensure_rgb(image)
-        image = image.astype(np.float32)
-        if image.max() > 1.0:
-            image = image / 255.0
-        else:
-            image = np.clip(image, 0.0, 1.0)
-        image = (image * 255.0).astype(np.float32)
+        image_rgb = _prepare_rgb_image(image)
     else:
         image = cv2.imread(str(image_path), cv2.IMREAD_UNCHANGED)
         if image is None:
             raise FileNotFoundError(f"Unable to read {image_path}")
         if image.ndim == 2:
-            image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
         else:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = image.astype(np.float32)
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-    original_size = image.shape[:2]
-    image_tensor = torch.from_numpy(image).permute(2, 0, 1) / 255.0
+    original_image = image_rgb.copy()
+    image_float = image_rgb.astype(np.float32)
+
+    image_tensor = torch.from_numpy(image_float).permute(2, 0, 1) / 255.0
     image_tensor = TF.resize(image_tensor, [image_size, image_size])
     image_tensor = TF.normalize(image_tensor, mean=IMAGENET_MEAN, std=IMAGENET_STD)
-    return image_tensor, original_size
+    return image_tensor, original_image
 
 
 def postprocess(output: torch.Tensor, original_size: Sequence[int], args: argparse.Namespace) -> np.ndarray:
@@ -412,6 +424,42 @@ def save_mask(mask: np.ndarray, record: ImageRecord, cfg: RuntimeConfig, export_
             np.save(str(target), mask)
 
 
+def _colorize_mask(mask: np.ndarray, num_classes: int) -> np.ndarray:
+    if num_classes <= 1:
+        mask_binary = (mask > 0).astype(np.uint8) * 255
+        mask_color = np.zeros((*mask_binary.shape, 3), dtype=np.uint8)
+        mask_color[..., 0] = mask_binary  # Red channel
+    else:
+        max_class = max(num_classes - 1, 1)
+        mask_scaled = (mask.astype(np.float32) / max_class * 255).astype(np.uint8)
+        mask_color_bgr = cv2.applyColorMap(mask_scaled, cv2.COLORMAP_JET)
+        mask_color = cv2.cvtColor(mask_color_bgr, cv2.COLOR_BGR2RGB)
+    return mask_color
+
+
+def save_composite_image(
+    original_image: np.ndarray,
+    mask: np.ndarray,
+    record: ImageRecord,
+    cfg: RuntimeConfig,
+    args: argparse.Namespace,
+) -> None:
+    mask_color = _colorize_mask(mask, args.num_classes)
+    mask_color = cv2.resize(mask_color, (original_image.shape[1], original_image.shape[0]), interpolation=cv2.INTER_NEAREST)
+
+    target = cfg.output_dir / f"{record.output_stem}_vis.png"
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    axes[0].imshow(original_image)
+    axes[0].set_title("Original")
+    axes[1].imshow(mask_color)
+    axes[1].set_title("Mask")
+    for ax in axes:
+        ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(str(target), dpi=200)
+    plt.close(fig)
+
+
 def main():
     args = parse_args()
     cfg = resolve_runtime_config(args)
@@ -432,7 +480,8 @@ def main():
         if args.skip_existing and should_skip_outputs(record, cfg, args.export_formats):
             continue
 
-        image_tensor, original_size = load_image_as_tensor(record.path, args.image_size)
+        image_tensor, original_image = load_image_as_tensor(record.path, args.image_size)
+        original_size = original_image.shape[:2]
         image_tensor = image_tensor.unsqueeze(0).to(args.device)
 
         with torch.inference_mode():
@@ -440,6 +489,8 @@ def main():
 
         mask = postprocess(output, original_size, args)
         save_mask(mask, record, cfg, args.export_formats)
+        if args.save_composite:
+            save_composite_image(original_image, mask, record, cfg, args)
         processed += 1
 
     print(f"Inference complete! Processed {processed} images.")
