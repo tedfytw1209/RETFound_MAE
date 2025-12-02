@@ -446,9 +446,10 @@ class GeneralFusionHead(nn.Module):
             if dec_channels <= 0:
                 raise ValueError("dec_channels must be > 0 for channel_multiply.")
             if self.channel_multiply_ignore_background:
-                if dec_channels <= 1:
-                    raise ValueError("channel_multiply with ignore_background=True requires dec_channels >= 2.")
-                effective_layers = dec_channels - 1
+                if dec_channels == 1:
+                    effective_layers = 1
+                else:
+                    effective_layers = dec_channels - 1
             else:
                 effective_layers = dec_channels
             self.channel_multiply_layers = effective_layers
