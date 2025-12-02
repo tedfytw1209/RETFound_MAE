@@ -2,10 +2,10 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem-per-cpu=8gb
+#SBATCH --mem-per-cpu=12gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
-#SBATCH --time=48:00:00
+#SBATCH --time=72:00:00
 #SBATCH --output=%x.%j.out
 #SBATCH --account=ruogu.fang
 #SBATCH --qos=ruogu.fang
@@ -34,5 +34,5 @@ do
     echo "Running dataset: $DATASET with subset_seed=$SUBSETSEED"
     # Submit the job to Slurm
     echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $SUBSETSEED $ADDCMD $ADDCMD2"
-    #bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $SUBSETSEED $ADDCMD $ADDCMD2
+    bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $SUBSETSEED $ADDCMD $ADDCMD2
 done
