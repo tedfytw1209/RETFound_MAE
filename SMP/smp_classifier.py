@@ -92,7 +92,6 @@ class SMPClassifier(nn.Module):
         mode: str = "enc",
         decoder_out_ch: Optional[int] = None,
         fuse_mode: str = "sum",
-        fuse_dim: Optional[int] = None,
 
         learnable_alpha: bool = True,
         alpha: float = 0.5,
@@ -101,6 +100,7 @@ class SMPClassifier(nn.Module):
         dropout: float = 0.0,
         size_match: str = "decoder_to_encoder",
         use_mask: bool = False,
+        fusion_dim: Optional[int] = None,
     ):
         super().__init__()
         assert mode in ("enc", "dec", "fuse"), f"mode must be 'enc', 'dec', or 'fuse', got {mode}"
@@ -176,7 +176,7 @@ class SMPClassifier(nn.Module):
                 num_classes=num_classes,
                 merge_method=self.fuse_mode,
                 pooling="gap",
-                fusion_dim=fuse_dim,
+                fusion_dim=fusion_dim,
                 learnable_alpha=self.learnable_alpha,
                 alpha_init=alpha,
                 decoder_softmax=True,
