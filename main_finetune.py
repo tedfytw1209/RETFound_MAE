@@ -503,7 +503,7 @@ def main(args, criterion):
     misc.init_distributed_mode(args)
     if args.bootstrap_runs:
         project_name = "RETFound_MAE_bootstrap"
-        group_name = f"{args.task}_bootstrap_group"
+        group_name = args.task[:120]  # Wandb group name max length is 128
         name = "seed_" + str(args.subsetseed)
         model_add_dir = "seed_" + str(args.subsetseed)
     else:
