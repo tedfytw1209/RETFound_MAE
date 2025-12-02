@@ -10,12 +10,12 @@
 #SBATCH --account=ruogu.fang
 #SBATCH --qos=ruogu.fang
 
-SCRIPT=$1 #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_split 6, DR_binary_all_split 2, Glaucoma_binary_all_split 2
-DATASET=${2: -"AMD_all_split"}
+SCRIPT=$1 
+DATASET=${2: -"AMD_all_split"} #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_split 6, DR_binary_all_split 2, Glaucoma_binary_all_split 2
 MODEL=${3:-"RETFound_mae"}
 FINETUNED_MODEL=${4:-"RETFound_mae_natureOCT"}
 LR=${5:-"5e-4"}
-Num_CLASS=${6:-"2"}
+NUM_CLASS=${6:-"2"}
 weight_decay=${7:-"0.05"}
 Eval_score=${8:-"default"}
 Modality=${9:-"OCT"} # CFP, OCT, OCT_CFP
