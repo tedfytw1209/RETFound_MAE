@@ -158,7 +158,7 @@ def get_args_parser():
                         help='path where to tensorboard log')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
-    parser.add_argument('--seed', default=42, type=int)
+    parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--resume', default='',
                         help='resume from checkpoint')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
@@ -197,7 +197,7 @@ def get_args_parser():
                         help='Save model')
     parser.add_argument('--norm', default='IMAGENET', type=str, help='Normalization method')
     parser.add_argument('--enhance', action='store_true', default=False, help='Use enhanced data')
-    parser.add_argument('--datasets_seed', default=2026, type=int)
+    parser.add_argument('--subsetseed', default=42, type=int)
     parser.add_argument('--subset_ratio', default=0, type=float,
                         help='Subset ratio for sampling dataset. If > 0, sample subset_ratio * minor_class_numbers from train/val/test datasets with seed 42')
     parser.add_argument('--subset_num', default=0, type=int,
@@ -504,14 +504,16 @@ def main(args, criterion):
     if args.bootstrap_runs:
         project_name = "RETFound_MAE_bootstrap"
         group_name = f"{args.task}_bootstrap_group"
-        model_add_dir = "seed_" + str(args.seed)
+        name = "seed_" + str(args.subsetseed)
+        model_add_dir = "seed_" + str(args.subsetseed)
     else:
         project_name = "RETFound_MAE"
+        name = args.task
         group_name = None
         model_add_dir = ""
     wandb.init(
         project=project_name,
-        name=args.task,
+        name=name,
         group=group_name,
         config=args,
         dir=os.path.join(args.log_dir,args.task),
@@ -562,7 +564,7 @@ def main(args, criterion):
                 class_indices = np.where(targets == class_idx)[0]
                 if len(class_indices) >= subset_size:
                     # Randomly sample subset_size samples from this class
-                    rng = np.random.RandomState(args.seed)
+                    rng = np.random.RandomState(args.subsetseed)
                     sampled_indices = rng.choice(class_indices, subset_size, replace=False)
                 else:
                     # If class has fewer samples than subset_size, use all samples
@@ -599,7 +601,7 @@ def main(args, criterion):
             if subset_num < n_classes:
                 # Too small to guarantee at least one per class → fall back to plain random sample
                 print(f'Warning: subset_num ({subset_num}) < number of classes ({n_classes}), using random sampling')
-                rng = np.random.RandomState(args.seed)
+                rng = np.random.RandomState(args.subsetseed)
                 subset_indices = rng.choice(len(dataset), min(subset_num, len(dataset)), replace=False)
             else:
                 # Use stratified sampling to maintain class distribution
@@ -608,7 +610,7 @@ def main(args, criterion):
                     print(f'Warning: subset_num ({subset_num}) >= dataset size ({len(dataset)}), using full dataset')
                     subset_indices = list(range(len(dataset)))
                 else:
-                    sss = StratifiedShuffleSplit(n_splits=1, train_size=subset_num, random_state=args.seed)
+                    sss = StratifiedShuffleSplit(n_splits=1, train_size=subset_num, random_state=args.subsetseed)
                     subset_indices = next(sss.split(range(len(dataset)), targets))[0]
             
             # Create subset dataset
@@ -646,7 +648,7 @@ def main(args, criterion):
                 print(f'{split_name} target subset size: {target_size}')
                 
                 # Separate samples by class and permute
-                rng = np.random.RandomState(args.seed)
+                rng = np.random.RandomState(args.subsetseed)
                 selected_indices = []
                 
                 for class_idx in unique_classes:
