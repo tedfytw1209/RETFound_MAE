@@ -657,12 +657,15 @@ class GeneralFusionHead(nn.Module):
             decoder_logits: optional decoder segmentation logits (e.g. 8 layers)
         """
         enc_feats, dec_feats = self._match_spatial(enc_feats, dec_feats)
+        print("After size match: enc_feats:", enc_feats.shape, "dec_feats:", dec_feats.shape)
         if self.merge_method == "channel_multiply":
             fused = self._channel_multiply(enc_feats, dec_feats)
         else:
             dec_feats = self._apply_decoder_mask(dec_feats, decoder_logits)
             fused = self._merge(enc_feats, dec_feats)
+        print("Fused feature shape:", fused.shape)
         pooled = self._pool(fused)
+        print("Pooled feature shape:", pooled.shape)
         logits = self.classifier(pooled)
         if return_fused_feature:
             return logits, fused

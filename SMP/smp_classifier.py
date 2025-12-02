@@ -238,7 +238,7 @@ class SMPClassifier(nn.Module):
             # --- fuse ---
             # Use GeneralFusionHead to combine encoder & decoder features.
             f_enc, f_dec = self._get_enc_and_dec(x)
-            print("Encoder features shape:", f_enc.shape, "Decoder features shape:", f_dec.shape)
+            
             logits = self.head(
                 enc_feats=f_enc,
                 dec_feats=f_dec,
