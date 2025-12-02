@@ -27,6 +27,7 @@ class Config:
     LEARNABLE_ALPHA = False
     ALPHA = 0.5
     PRETRAINED_SEG_CKPT = '/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth'
+    SEG_CLASSES = 9  # number of segmentation classes
     DROPOUT = 0.0
     
     # Training parameters
@@ -86,6 +87,7 @@ class SMPClassifier(nn.Module):
         encoder_weights: Optional[str] = None,
         in_channels: int = 3,
         num_classes: int = 2,
+        seg_classes: int = 1,
 
         mode: str = "enc",
         decoder_out_ch: Optional[int] = None,
@@ -98,6 +100,7 @@ class SMPClassifier(nn.Module):
         pretrained_seg_ckpt: Optional[str] = None,
         dropout: float = 0.0,
         size_match: str = "decoder_to_encoder",
+        use_mask: bool = False,
     ):
         super().__init__()
         assert mode in ("enc", "dec", "fuse"), f"mode must be 'enc', 'dec', or 'fuse', got {mode}"
@@ -108,28 +111,35 @@ class SMPClassifier(nn.Module):
         
         self.mode, self.fuse_mode = mode, fuse_mode
         self.seg_arch, self.learnable_alpha = seg_arch, learnable_alpha
+        self.use_mask = use_mask
 
         SegCls = getattr(smp, seg_arch)
         self.seg_model = SegCls(
             encoder_name=encoder_name,
             encoder_weights=encoder_weights,
             in_channels=in_channels,
-            classes=1,
+            classes=seg_classes,
         )
         if pretrained_seg_ckpt is not None:
             sd = torch.load(pretrained_seg_ckpt, map_location="cpu")
             sd = sd.get("state_dict", sd)
-            self.seg_model.load_state_dict(sd, strict=False)
+            result = self.seg_model.load_state_dict(sd, strict=False)
+            print("\n=== MISSING KEYS ===")
+            print(result.missing_keys)
+            print("\n=== UNEXPECTED KEYS ===")
+            print(result.unexpected_keys)
 
-        self.encoder = self.seg_model.encoder
-        enc_chs = list(self.encoder.out_channels)
+        #self.encoder = self.seg_model.encoder
+        enc_chs = list(self.seg_model.encoder.out_channels)
         self.enc_last_ch = int(enc_chs[-1])
         
         # Infer decoder output channels by running a dummy forward pass
-        if decoder_out_ch is None:
+        if use_mask:
+            self.dec_out_ch = seg_classes
+        elif decoder_out_ch is None:
             with torch.no_grad():
                 dummy = torch.randn(1, in_channels, 64, 64)
-                enc_feats = self.encoder(dummy)
+                enc_feats = self.seg_model.encoder(dummy)
                 #encoder is each layers output [x, layer1, layer2, layer3, layer4...]
                 dec_out = self.seg_model.decoder(enc_feats)
                 if isinstance(dec_out, (list, tuple)):
@@ -180,22 +190,26 @@ class SMPClassifier(nn.Module):
         
 
     def _get_enc_last(self, x): 
-        return self.encoder(x)[-1]
+        return self.seg_model.encoder(x)[-1]
     
     def _get_dec_last(self, x):
-        enc_feats = self.encoder(x)
+        enc_feats = self.seg_model.encoder(x)
         dec = self.seg_model.decoder(enc_feats)
         # Handle different decoder output formats
         if isinstance(dec, (list, tuple)):
             return dec[-1]
+        if self.use_mask:
+            dec = self.seg_model.segmentation_head(dec)
         return dec
     
     def _get_enc_and_dec(self, x):
         """Efficiently compute both encoder and decoder features with single encoder pass."""
-        enc_feats = self.encoder(x)
+        enc_feats = self.seg_model.encoder(x)
         final_enc = enc_feats[-1]
         dec = self.seg_model.decoder(enc_feats)
         final_dec = dec[-1] if isinstance(dec, (list, tuple)) else dec
+        if self.use_mask:
+            final_dec = self.seg_model.segmentation_head(final_dec)
         return final_enc, final_dec
 
     def forward(self, x: torch.Tensor, mode_dict=False) -> Dict[str, Dict[str, torch.Tensor]]:
@@ -209,8 +223,7 @@ class SMPClassifier(nn.Module):
                 return out
             else:
                 return logits
-
-        if self.mode == "dec":
+        elif self.mode == "dec":
             f = self._get_dec_last(x)
             logits, logits_map, cam = self.head(f)
             if mode_dict:
@@ -218,19 +231,20 @@ class SMPClassifier(nn.Module):
                 return out
             else:
                 return logits
-
-        # --- fuse ---
-        # Use GeneralFusionHead to combine encoder & decoder features.
-        f_enc, f_dec = self._get_enc_and_dec(x)
-        logits = self.head(
-            enc_feats=f_enc,
-            dec_feats=f_dec,
-            decoder_logits=None,
-            return_fused_feature=False,
-        )
-
-        if mode_dict:
-            out["fuse"] = {"logits": logits}
-            return out
         else:
-            return logits
+            # --- fuse ---
+            # Use GeneralFusionHead to combine encoder & decoder features.
+            f_enc, f_dec = self._get_enc_and_dec(x)
+            print("Encoder features shape:", f_enc.shape, "Decoder features shape:", f_dec.shape)
+            logits = self.head(
+                enc_feats=f_enc,
+                dec_feats=f_dec,
+                decoder_logits=None,
+                return_fused_feature=False,
+            )
+
+            if mode_dict:
+                out["fuse"] = {"logits": logits}
+                return out
+            else:
+                return logits

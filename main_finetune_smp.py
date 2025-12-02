@@ -226,6 +226,10 @@ def get_args_parser():
     parser.add_argument('--smp_size_match', type=str, default='decoder_to_encoder',
                         choices=["decoder_to_encoder", "encoder_to_decoder"],
                         help='SMP size match (decoder_to_encoder, encoder_to_decoder) (default: "decoder_to_encoder")')
+    parser.add_argument('--seg_mask', action='store_true', default=False,
+                        help='Use segmentation mask output from SMP model')
+    parser.add_argument('--fusion_dim', type=int, default=0,
+                        help='Fusion dimension for SMP model (default: 0 means no projection)')
 
     return parser
 
@@ -445,13 +449,16 @@ def get_model(args):
             encoder_weights=SMPConfig.ENCODER_WEIGHTS,
             in_channels=SMPConfig.IN_CHANNELS,
             num_classes=args.nb_classes,
+            seg_classes=SMPConfig.SEG_CLASSES,
             mode=args.SMPMode,
             fuse_mode=args.smp_fuse_mode,
+            fusion_dim= None if args.fusion_dim==0 else args.fusion_dim,
             learnable_alpha=args.smp_learnable_alpha,
             alpha=args.smp_alpha,
             pretrained_seg_ckpt=args.finetune,
             dropout=SMPConfig.DROPOUT,
             size_match=args.smp_size_match,
+            use_mask=args.seg_mask,
         )
     else:
         model = models.__dict__[args.model](

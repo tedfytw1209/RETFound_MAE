@@ -330,6 +330,33 @@ class ObjectDecomposedClassifierHead(nn.Module):
         else:
             return logits
 
+#tmp code from smp
+class Activation(nn.Module):
+    def __init__(self, name, **params):
+        super().__init__()
+
+        if name is None or name == "identity":
+            self.activation = nn.Identity(**params)
+        elif name == "sigmoid":
+            self.activation = nn.Sigmoid()
+        elif name == "softmax2d":
+            self.activation = nn.Softmax(dim=1, **params)
+        elif name == "softmax":
+            self.activation = nn.Softmax(**params)
+        elif name == "logsoftmax":
+            self.activation = nn.LogSoftmax(**params)
+        elif name == "tanh":
+            self.activation = nn.Tanh()
+        elif callable(name):
+            self.activation = name(**params)
+        else:
+            raise ValueError(
+                f"Activation should be callable/sigmoid/softmax/logsoftmax/tanh/"
+                f"argmax/argmax2d/clamp/None; got {name}"
+            )
+
+    def forward(self, x):
+        return self.activation(x)
 
 class GeneralFusionHead(nn.Module):
     """
@@ -345,6 +372,7 @@ class GeneralFusionHead(nn.Module):
     _SIZE_MATCH = (
         "upsample_both",       # both -> max(H, W)
         "downsample_both",     # both -> min(H, W)
+        "fixed",               # fixed size H, W assigned
         "encoder_to_decoder",  # upsample encoder to decoder spatial size
         "decoder_to_encoder",  # downsample decoder to encoder spatial size
     )
@@ -366,6 +394,7 @@ class GeneralFusionHead(nn.Module):
         channel_multiply_ignore_background: bool = True,
         classifier_dropout: float = 0.0,
         classifier_bias: bool = False,
+        fixed_size: Optional[Tuple[int, int]] = None
     ):
         super().__init__()
         merge_method = merge_method.lower()
@@ -392,13 +421,15 @@ class GeneralFusionHead(nn.Module):
         self.resize_backend = resize_backend
         self.channel_multiply_ignore_background = channel_multiply_ignore_background
         self.channel_multiply_layers: Optional[int] = None
+        self.fixed_size = fixed_size
         if resize_backend == "conv":
             self._upsample_layers = nn.ModuleDict()
             self._downsample_layers = nn.ModuleDict()
         else:
             self._upsample_layers = None
             self._downsample_layers = None
-
+        print(f"GeneralFusionHead: merge_method={merge_method}, size_match={size_match}, fusion_dim={fusion_dim}")
+        print("Encoder channels:", enc_channels, "Decoder channels:", dec_channels)
         if merge_method in ("weighted_sum", "add", "multiply"):
             target_dim = fusion_dim if fusion_dim is not None else max(enc_channels, dec_channels)
             self.enc_align = self._make_align_layer(enc_channels, target_dim)
@@ -426,6 +457,7 @@ class GeneralFusionHead(nn.Module):
             final_dim = enc_channels * effective_layers
             self.enc_align = nn.Identity()
             self.dec_align = nn.Identity()
+        print("Final fused feature dim:", final_dim)
 
         if merge_method == "weighted_sum":
             init_logit = math.log(alpha_init) - math.log(1 - alpha_init)
@@ -445,7 +477,10 @@ class GeneralFusionHead(nn.Module):
     def _pool(self, x: torch.Tensor) -> torch.Tensor:
         if self.pooling == "gap":
             return x.mean(dim=(2, 3))
-        return x.amax(dim=(2, 3))
+        elif self.pooling == "gmp":
+            return x.amax(dim=(2, 3))
+        else:
+            raise ValueError(f"Unsupported pooling type: {self.pooling}")
 
     def _match_spatial(self, enc_feats: torch.Tensor, dec_feats: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -471,21 +506,33 @@ class GeneralFusionHead(nn.Module):
         elif self.size_match == "encoder_to_decoder":
             target = (h_dec, w_dec)
             enc_feats = self._resize(enc_feats, target, "upsample")
-        else:  # decoder_to_encoder
+        elif self.size_match == "decoder_to_encoder":
             target = (h_enc, w_enc)
             dec_feats = self._resize(dec_feats, target, "downsample")
+        elif self.size_match == "fixed":
+            if self.fixed_size is None:
+                raise ValueError("fixed_size must be provided when size_match is 'fixed'.")
+            target = self.fixed_size
+            enc_feats = self._resize(enc_feats, target, "resize")
+            dec_feats = self._resize(dec_feats, target, "resize")
         return enc_feats, dec_feats
 
     def _resize(self, feat: torch.Tensor, target_spatial: Tuple[int, int], mode: str) -> torch.Tensor:
         if feat.shape[-2:] == target_spatial:
             return feat
+        if mode == "resize":
+            return F.interpolate(feat, size=target_spatial, mode="bilinear", align_corners=False)
+        
         if self.resize_backend == "interpolate":
             if mode == "upsample":
                 return F.interpolate(feat, size=target_spatial, mode="bilinear", align_corners=False)
-            return F.adaptive_avg_pool2d(feat, output_size=target_spatial)
-        if mode == "upsample":
-            return self._resize_with_deconv(feat, target_spatial)
-        return self._resize_with_conv(feat, target_spatial)
+            elif mode == "downsample":
+                return F.adaptive_avg_pool2d(feat, output_size=target_spatial)
+        else:  # conv backend, not true
+            if mode == "upsample":
+                return self._resize_with_deconv(feat, target_spatial)
+            elif mode == "downsample":
+                return self._resize_with_conv(feat, target_spatial)
 
     def _get_or_create_deconv(self, channels: int) -> nn.ConvTranspose2d:
         key = str(channels)
