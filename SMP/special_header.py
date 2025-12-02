@@ -346,12 +346,12 @@ class GeneralFusionHead(nn.Module):
     General header that fuses encoder and decoder features before pooling.
 
     The design targets ablations requested in the header selection study:
-        1. Merge method: weighted sum, element-wise add, channel merge, or element-wise multiply.
+        1. Merge method: weighted sum, element-wise add, channel merge, channel-wise mask multiply, or element-wise multiply.
         2. Optional segmentation-driven gating on decoder features (SoftMax vs raw).
         3. Size matching policy between encoder/decoder maps.
     """
 
-    _MERGE_METHODS = ("weighted_sum", "add", "channel_merge", "multiply")
+    _MERGE_METHODS = ("weighted_sum", "add", "channel_merge", "channel_multiply", "multiply")
     _SIZE_MATCH = (
         "upsample_both",       # both -> max(H, W)
         "downsample_both",     # both -> min(H, W)
@@ -372,6 +372,8 @@ class GeneralFusionHead(nn.Module):
         alpha_init: float = 0.5,
         decoder_softmax: bool = True,
         size_match: str = "encoder_to_decoder",
+        resize_backend: str = "interpolate",
+        channel_multiply_ignore_background: bool = True,
     ):
         super().__init__()
         merge_method = merge_method.lower()
@@ -380,9 +382,12 @@ class GeneralFusionHead(nn.Module):
             raise ValueError(f"merge_method must be one of {self._MERGE_METHODS}, got {merge_method}")
         if size_match not in self._SIZE_MATCH:
             raise ValueError(f"size_match must be in {self._SIZE_MATCH}, got {size_match}")
+        resize_backend = resize_backend.lower()
         assert pooling in ("gap", "gmp")
         if merge_method == "weighted_sum" and not (0.0 < alpha_init < 1.0):
             raise ValueError(f"alpha_init should be in (0, 1), got {alpha_init}")
+        if resize_backend not in ("interpolate", "conv"):
+            raise ValueError("resize_backend must be 'interpolate' or 'conv'")
 
         self.enc_channels = enc_channels
         self.dec_channels = dec_channels
@@ -392,19 +397,41 @@ class GeneralFusionHead(nn.Module):
         self.decoder_softmax = decoder_softmax
         self.size_match = size_match
         self.learnable_alpha = learnable_alpha and merge_method == "weighted_sum"
+        self.resize_backend = resize_backend
+        self.channel_multiply_ignore_background = channel_multiply_ignore_background
+        self.channel_multiply_layers: Optional[int] = None
+        if resize_backend == "conv":
+            self._upsample_layers = nn.ModuleDict()
+            self._downsample_layers = nn.ModuleDict()
+        else:
+            self._upsample_layers = None
+            self._downsample_layers = None
 
         if merge_method in ("weighted_sum", "add", "multiply"):
-            target_dim = fusion_dim or max(enc_channels, dec_channels)
+            target_dim = fusion_dim if fusion_dim is not None else max(enc_channels, dec_channels)
             self.enc_align = self._make_align_layer(enc_channels, target_dim)
             self.dec_align = self._make_align_layer(dec_channels, target_dim)
             final_dim = target_dim
-        else:  # channel merge
+        elif merge_method == "channel_merge":
             merged_dim = enc_channels + dec_channels
-            final_dim = fusion_dim or merged_dim
+            final_dim = fusion_dim if fusion_dim is not None else merged_dim
             if final_dim != merged_dim:
                 self.channel_reduce = nn.Conv2d(merged_dim, final_dim, kernel_size=1, bias=False)
             else:
                 self.channel_reduce = nn.Identity()
+            self.enc_align = nn.Identity()
+            self.dec_align = nn.Identity()
+        else:  # channel_multiply
+            if dec_channels <= 0:
+                raise ValueError("dec_channels must be > 0 for channel_multiply.")
+            if self.channel_multiply_ignore_background:
+                if dec_channels <= 1:
+                    raise ValueError("channel_multiply with ignore_background=True requires dec_channels >= 2.")
+                effective_layers = dec_channels - 1
+            else:
+                effective_layers = dec_channels
+            self.channel_multiply_layers = effective_layers
+            final_dim = enc_channels * effective_layers
             self.enc_align = nn.Identity()
             self.dec_align = nn.Identity()
 
@@ -427,6 +454,16 @@ class GeneralFusionHead(nn.Module):
         return x.amax(dim=(2, 3))
 
     def _match_spatial(self, enc_feats: torch.Tensor, dec_feats: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Match the spatial dimensions of the encoder and decoder features.
+
+        Args:
+            enc_feats (torch.Tensor): Encoder features. (B, C, H_1, W_1)
+            dec_feats (torch.Tensor): Decoder features. (B, C, H_2, W_2)
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: Aligned encoder and decoder features. (B, C, H_f, W_f)
+        """
         h_enc, w_enc = enc_feats.shape[-2:]
         h_dec, w_dec = dec_feats.shape[-2:]
         if self.size_match == "upsample_both":
@@ -445,13 +482,60 @@ class GeneralFusionHead(nn.Module):
             dec_feats = self._resize(dec_feats, target, "downsample")
         return enc_feats, dec_feats
 
-    @staticmethod
-    def _resize(feat: torch.Tensor, target_spatial: Tuple[int, int], mode: str) -> torch.Tensor:
+    def _resize(self, feat: torch.Tensor, target_spatial: Tuple[int, int], mode: str) -> torch.Tensor:
         if feat.shape[-2:] == target_spatial:
             return feat
+        if self.resize_backend == "interpolate":
+            if mode == "upsample":
+                return F.interpolate(feat, size=target_spatial, mode="bilinear", align_corners=False)
+            return F.adaptive_avg_pool2d(feat, output_size=target_spatial)
         if mode == "upsample":
-            return F.interpolate(feat, size=target_spatial, mode="bilinear", align_corners=False)
-        return F.adaptive_avg_pool2d(feat, output_size=target_spatial)
+            return self._resize_with_deconv(feat, target_spatial)
+        return self._resize_with_conv(feat, target_spatial)
+
+    def _get_or_create_deconv(self, channels: int) -> nn.ConvTranspose2d:
+        key = str(channels)
+        if key not in self._upsample_layers:
+            self._upsample_layers[key] = nn.ConvTranspose2d(
+                channels, channels, kernel_size=2, stride=2, padding=0
+            )
+        return self._upsample_layers[key]
+
+    def _get_or_create_downsample(self, channels: int) -> nn.Conv2d:
+        key = str(channels)
+        if key not in self._downsample_layers:
+            self._downsample_layers[key] = nn.Conv2d(
+                channels, channels, kernel_size=3, stride=2, padding=1, bias=False
+            )
+        return self._downsample_layers[key]
+
+    def _resize_with_deconv(self, feat: torch.Tensor, target_spatial: Tuple[int, int]) -> torch.Tensor:
+        target_h, target_w = target_spatial
+        deconv = self._get_or_create_deconv(feat.shape[1])
+        h, w = feat.shape[-2:]
+        while (h < target_h) or (w < target_w):
+            feat = deconv(feat)
+            h, w = feat.shape[-2:]
+            if h == target_h and w == target_w:
+                return feat
+            if h > target_h or w > target_w:
+                return F.interpolate(feat, size=target_spatial, mode="bilinear", align_corners=False)
+        return feat
+
+    def _resize_with_conv(self, feat: torch.Tensor, target_spatial: Tuple[int, int]) -> torch.Tensor:
+        target_h, target_w = target_spatial
+        conv = self._get_or_create_downsample(feat.shape[1])
+        h, w = feat.shape[-2:]
+        while (h > target_h) or (w > target_w):
+            feat = conv(feat)
+            h, w = feat.shape[-2:]
+            if h == target_h and w == target_w:
+                return feat
+            if h < target_h or w < target_w:
+                return F.adaptive_avg_pool2d(feat, output_size=target_spatial)
+        if (h, w) != target_spatial:
+            feat = F.adaptive_avg_pool2d(feat, output_size=target_spatial)
+        return feat
 
     def _apply_decoder_mask(self, dec_feats: torch.Tensor, decoder_logits: Optional[torch.Tensor]) -> torch.Tensor:
         if decoder_logits is None:
@@ -490,6 +574,33 @@ class GeneralFusionHead(nn.Module):
             return enc_aligned * dec_aligned
         raise RuntimeError(f"Unsupported merge_method {self.merge_method}")
 
+    def _channel_multiply(self, enc_feats: torch.Tensor, dec_feats: torch.Tensor) -> torch.Tensor:
+        if dec_feats is None:
+            raise ValueError("dec_feats must be provided for channel_multiply mode.")
+        if self.decoder_softmax:
+            masks = F.softmax(dec_feats, dim=1)
+        else:
+            masks = dec_feats
+        if self.channel_multiply_ignore_background:
+            if masks.shape[1] <= 1:
+                raise ValueError("Decoder output must have background channel to ignore.")
+            masks = masks[:, 1:, :, :]
+        if masks.shape[1] != self.channel_multiply_layers:
+            raise ValueError(
+                f"Expected {self.channel_multiply_layers} decoder channels after processing, got {masks.shape[1]}"
+            )
+        # [B, C_enc, H, W] -> unsqueeze(1) -> [B, 1, C_enc, H, W]
+        # [B, M, H, W] -> unsqueeze(2) -> [B, M, 1, H, W]
+        # [B, 1, C_enc, H, W] * [B, M, 1, H, W] -> [B, M, C_enc, H, W]
+        # -> reshape(B, M*C_enc, H, W) -> [B, M*C_enc, H, W]
+        fused = (enc_feats.unsqueeze(1) * masks.unsqueeze(2)).reshape(
+            enc_feats.shape[0],
+            self.channel_multiply_layers * enc_feats.shape[1],
+            enc_feats.shape[2],
+            enc_feats.shape[3],
+        )
+        return fused
+
     def forward(
         self,
         enc_feats: torch.Tensor,
@@ -505,8 +616,11 @@ class GeneralFusionHead(nn.Module):
             decoder_logits: optional decoder segmentation logits (e.g. 8 layers)
         """
         enc_feats, dec_feats = self._match_spatial(enc_feats, dec_feats)
-        dec_feats = self._apply_decoder_mask(dec_feats, decoder_logits)
-        fused = self._merge(enc_feats, dec_feats)
+        if self.merge_method == "channel_multiply":
+            fused = self._channel_multiply(enc_feats, dec_feats)
+        else:
+            dec_feats = self._apply_decoder_mask(dec_feats, decoder_logits)
+            fused = self._merge(enc_feats, dec_feats)
         pooled = self._pool(fused)
         logits = self.classifier(pooled)
         if return_fused_feature:
