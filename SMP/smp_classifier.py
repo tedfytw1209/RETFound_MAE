@@ -193,10 +193,10 @@ class SMPClassifier(nn.Module):
     def _get_enc_and_dec(self, x):
         """Efficiently compute both encoder and decoder features with single encoder pass."""
         enc_feats = self.encoder(x)
-        f_enc = enc_feats[-1]
+        final_enc = enc_feats[-1]
         dec = self.seg_model.decoder(enc_feats)
-        f_dec = dec[-1] if isinstance(dec, (list, tuple)) else dec
-        return f_enc, f_dec
+        final_dec = dec[-1] if isinstance(dec, (list, tuple)) else dec
+        return final_enc, final_dec
 
     def forward(self, x: torch.Tensor, mode_dict=False) -> Dict[str, Dict[str, torch.Tensor]]:
         out: Dict[str, Dict[str, torch.Tensor]] = {}
@@ -220,23 +220,17 @@ class SMPClassifier(nn.Module):
                 return logits
 
         # --- fuse ---
-        f_enc, f_dec = self._get_enc_and_dec(x)  # Use efficient single-pass method
-        H, W = max(f_enc.shape[-2], f_dec.shape[-2]), max(f_enc.shape[-1], f_dec.shape[-1])
-        if f_enc.shape[-2:] != (H, W): 
-            f_enc = F.interpolate(f_enc, (H, W), mode="bilinear", align_corners=False)
-        if f_dec.shape[-2:] != (H, W): 
-            f_dec = F.interpolate(f_dec, (H, W), mode="bilinear", align_corners=False)
+        # Use GeneralFusionHead to combine encoder & decoder features.
+        f_enc, f_dec = self._get_enc_and_dec(x)
+        logits = self.head(
+            enc_feats=f_enc,
+            dec_feats=f_dec,
+            decoder_logits=None,
+            return_fused_feature=False,
+        )
 
-        if self.fuse_mode == "sum":
-            f_dec_aligned = self.dec_align(f_dec)
-            alpha = torch.sigmoid(self.alpha_logit) if self.learnable_alpha else self.alpha
-            f = alpha * f_enc + (1 - alpha) * f_dec_aligned
-        else:
-            f = self.fuse_proj(torch.cat([f_enc, f_dec], dim=1))
-
-        logits, logits_map, cam = self.head(f)
         if mode_dict:
-            out["fuse"] = {"logits": logits, "logits_map": logits_map, "cam": cam}
+            out["fuse"] = {"logits": logits}
             return out
         else:
             return logits
