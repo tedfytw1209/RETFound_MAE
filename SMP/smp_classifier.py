@@ -28,6 +28,7 @@ class Config:
     ALPHA = 0.5
     PRETRAINED_SEG_CKPT = '/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth'
     SEG_CLASSES = 9  # number of segmentation classes
+    ACTIVATION = 'softmax'  # softmax for multiclass, sigmoid for binary
     DROPOUT = 0.0
     
     # Training parameters
@@ -88,6 +89,7 @@ class SMPClassifier(nn.Module):
         in_channels: int = 3,
         num_classes: int = 2,
         seg_classes: int = 1,
+        seg_activation: Optional[str] = None,
 
         mode: str = "enc",
         decoder_out_ch: Optional[int] = None,
@@ -119,6 +121,7 @@ class SMPClassifier(nn.Module):
             encoder_weights=encoder_weights,
             in_channels=in_channels,
             classes=seg_classes,
+            activation=seg_activation,
         )
         if pretrained_seg_ckpt is not None:
             sd = torch.load(pretrained_seg_ckpt, map_location="cpu")

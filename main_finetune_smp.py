@@ -450,6 +450,7 @@ def get_model(args):
             in_channels=SMPConfig.IN_CHANNELS,
             num_classes=args.nb_classes,
             seg_classes=SMPConfig.SEG_CLASSES,
+            seg_activation=SMPConfig.ACTIVATION,
             mode=args.SMPMode,
             fuse_mode=args.smp_fuse_mode,
             fusion_dim= None if args.fusion_dim==0 else args.fusion_dim,
