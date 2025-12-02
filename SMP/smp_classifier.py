@@ -241,7 +241,6 @@ class SMPClassifier(nn.Module):
             logits = self.head(
                 enc_feats=f_enc,
                 dec_feats=f_dec,
-                decoder_logits=None,
                 return_fused_feature=False,
             )
 
