@@ -123,10 +123,6 @@ class SMPClassifier(nn.Module):
         if pretrained_seg_ckpt is not None:
             sd = torch.load(pretrained_seg_ckpt, map_location="cpu")
             sd = sd.get("model_state_dict", sd)
-            print("=== LOADING PRETRAINED SEGMENTATION CHECKPOINT ===")
-            print([n for n in sd.keys()])
-            print("Model's segmentation model state dict keys:")
-            print([n for n in self.seg_model.state_dict().keys()])
             result = self.seg_model.load_state_dict(sd, strict=False)
             print("\n=== MISSING KEYS ===")
             print(result.missing_keys)
