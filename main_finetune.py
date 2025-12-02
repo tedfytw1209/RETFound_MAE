@@ -503,7 +503,8 @@ def main(args, criterion):
     misc.init_distributed_mode(args)
     if args.bootstrap_runs:
         project_name = "RETFound_MAE_bootstrap"
-        group_name = args.task[:120]  # Wandb group name max length is 128
+        args.task = args.task[:120]  # Wandb group name max length is 128
+        group_name = args.task
         name = "seed_" + str(args.subsetseed)
         model_add_dir = "seed_" + str(args.subsetseed)
     else:
@@ -516,7 +517,7 @@ def main(args, criterion):
         name=name,
         group=group_name,
         config=args,
-        dir=os.path.join(args.log_dir,args.task),
+        dir=os.path.join(args.log_dir,args.task, model_add_dir),
     )
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
@@ -796,8 +797,8 @@ def main(args, criterion):
             sampler_test = torch.utils.data.SequentialSampler(dataset_test)
     
     if global_rank == 0 and args.log_dir is not None and not args.eval:
-        os.makedirs(args.log_dir, exist_ok=True)
-        log_writer = SummaryWriter(log_dir=os.path.join(args.log_dir,args.task))
+        os.makedirs(os.path.join(args.log_dir,args.task, model_add_dir), exist_ok=True)
+        log_writer = SummaryWriter(log_dir=os.path.join(args.log_dir,args.task, model_add_dir))
     else:
         log_writer = None
 
@@ -963,7 +964,7 @@ def main(args, criterion):
 
 
         if epoch == (args.epochs - 1):
-            checkpoint = torch.load(os.path.join(args.output_dir, args.task, 'checkpoint-best.pth'), map_location='cpu')
+            checkpoint = torch.load(os.path.join(args.output_dir, args.task, model_add_dir, 'checkpoint-best.pth'), map_location='cpu')
             model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
             model.to(device)
             print("Validation with the best model, epoch = %d:" % checkpoint['epoch'])
@@ -983,13 +984,13 @@ def main(args, criterion):
         if args.output_dir and misc.is_main_process():
             if log_writer is not None:
                 log_writer.flush()
-            with open(os.path.join(args.output_dir, args.task, "log.txt"), mode="a", encoding="utf-8") as f:
+            with open(os.path.join(args.output_dir, args.task, model_add_dir, "log.txt"), mode="a", encoding="utf-8") as f:
                 f.write(json.dumps(log_stats) + "\n")
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
-    state_dict_best = torch.load(os.path.join(args.output_dir,args.task,'checkpoint-best.pth'), map_location='cpu')
+    state_dict_best = torch.load(os.path.join(args.output_dir,args.task, model_add_dir, 'checkpoint-best.pth'), map_location='cpu')
     model_without_ddp.load_state_dict(state_dict_best['model'])
     print("Test with the best model, epoch = %d:" % state_dict_best['epoch'])
     test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
