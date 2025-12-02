@@ -388,7 +388,6 @@ class GeneralFusionHead(nn.Module):
         fusion_dim: Optional[int] = None,
         learnable_alpha: bool = True,
         alpha_init: float = 0.5,
-        decoder_softmax: bool = True,
         size_match: str = "encoder_to_decoder",
         resize_backend: str = "interpolate",
         channel_multiply_ignore_background: bool = True,
@@ -415,7 +414,6 @@ class GeneralFusionHead(nn.Module):
         self.num_classes = num_classes
         self.merge_method = merge_method
         self.pooling = pooling
-        self.decoder_softmax = decoder_softmax
         self.size_match = size_match
         self.learnable_alpha = learnable_alpha and merge_method == "weighted_sum"
         self.resize_backend = resize_backend
@@ -578,22 +576,14 @@ class GeneralFusionHead(nn.Module):
             feat = F.adaptive_avg_pool2d(feat, output_size=target_spatial)
         return feat
 
-    def _apply_decoder_mask(self, dec_feats: torch.Tensor, decoder_logits: Optional[torch.Tensor]) -> torch.Tensor:
-        if decoder_logits is None:
-            return dec_feats
-        logits = decoder_logits
-        if logits.shape[2:] != dec_feats.shape[2:]:
-            logits = F.interpolate(logits, size=dec_feats.shape[2:], mode="bilinear", align_corners=False)
-        if self.decoder_softmax:
-            probs = F.softmax(logits, dim=1)
-        else:
-            probs = logits
+    def _apply_decoder_mask(self, feats: torch.Tensor, logits: Optional[torch.Tensor]) -> torch.Tensor:
+        probs = logits # softmax already done in segmentation header
         if probs.shape[1] == 1:
             mask = probs
         else:
             # Treat channel 0 as background when available (typical 8-layer decoder output)
             mask = 1.0 - probs[:, 0:1]
-        return dec_feats * mask
+        return feats * mask
 
     def _merge(self, enc_feats: torch.Tensor, dec_feats: torch.Tensor) -> torch.Tensor:
         if self.merge_method == "channel_merge":
@@ -618,10 +608,7 @@ class GeneralFusionHead(nn.Module):
     def _channel_multiply(self, enc_feats: torch.Tensor, dec_feats: torch.Tensor) -> torch.Tensor:
         if dec_feats is None:
             raise ValueError("dec_feats must be provided for channel_multiply mode.")
-        if self.decoder_softmax:
-            masks = F.softmax(dec_feats, dim=1)
-        else:
-            masks = dec_feats
+        masks = dec_feats # softmax already done in segmentation header
         if self.channel_multiply_ignore_background:
             if masks.shape[1] <= 1:
                 raise ValueError("Decoder output must have background channel to ignore.")
@@ -647,7 +634,6 @@ class GeneralFusionHead(nn.Module):
         enc_feats: torch.Tensor,
         dec_feats: torch.Tensor,
         *,
-        decoder_logits: Optional[torch.Tensor] = None,
         return_fused_feature: bool = False,
     ):
         """
@@ -661,7 +647,6 @@ class GeneralFusionHead(nn.Module):
         if self.merge_method == "channel_multiply":
             fused = self._channel_multiply(enc_feats, dec_feats)
         else:
-            dec_feats = self._apply_decoder_mask(dec_feats, decoder_logits)
             fused = self._merge(enc_feats, dec_feats)
         print("Fused feature shape:", fused.shape)
         pooled = self._pool(fused)

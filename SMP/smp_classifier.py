@@ -182,7 +182,6 @@ class SMPClassifier(nn.Module):
                 fusion_dim=fusion_dim,
                 learnable_alpha=self.learnable_alpha,
                 alpha_init=alpha,
-                decoder_softmax=True,
                 size_match=size_match,
                 resize_backend="interpolate",
                 channel_multiply_ignore_background=True,
@@ -238,7 +237,7 @@ class SMPClassifier(nn.Module):
             # --- fuse ---
             # Use GeneralFusionHead to combine encoder & decoder features.
             f_enc, f_dec = self._get_enc_and_dec(x)
-            
+
             logits = self.head(
                 enc_feats=f_enc,
                 dec_feats=f_dec,
