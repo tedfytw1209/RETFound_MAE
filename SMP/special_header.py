@@ -5,16 +5,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-__all__ = [
-    "SegGatedClassifierHead",
-    "ObjectDecomposedClassifierHead",
-    "GeneralFusionHead",
-    "SPECIAL_HEADER_REGISTRY",
-    "register_special_head",
-    "build_special_head",
-]
-
-
 class SegGatedClassifierHead(nn.Module):
     r"""
         SegGatedClassifierHead (Architecture A)
@@ -374,6 +364,8 @@ class GeneralFusionHead(nn.Module):
         size_match: str = "encoder_to_decoder",
         resize_backend: str = "interpolate",
         channel_multiply_ignore_background: bool = True,
+        classifier_dropout: float = 0.0,
+        classifier_bias: bool = False,
     ):
         super().__init__()
         merge_method = merge_method.lower()
@@ -442,7 +434,9 @@ class GeneralFusionHead(nn.Module):
             else:
                 self.register_buffer("alpha_fixed", torch.tensor(alpha_init, dtype=torch.float32))
 
-        self.classifier = nn.Linear(final_dim, num_classes)
+        # Classifier (Linear)
+        self.dropout = nn.Dropout2d(classifier_dropout) if classifier_dropout and classifier_dropout > 0 else nn.Identity()
+        self.classifier = nn.Linear(final_dim, num_classes, bias=classifier_bias)
 
     @staticmethod
     def _make_align_layer(in_ch: int, out_ch: int) -> nn.Module:
@@ -626,36 +620,3 @@ class GeneralFusionHead(nn.Module):
         if return_fused_feature:
             return logits, fused
         return logits
-
-
-# Backwards-compatible alias
-EncoderDecoderFusionHead = GeneralFusionHead
-
-
-SPECIAL_HEADER_REGISTRY: Dict[str, Type[nn.Module]] = {
-    "seg_gated": SegGatedClassifierHead,
-    "object_decomposed": ObjectDecomposedClassifierHead,
-    "general_fusion": GeneralFusionHead,
-    "encoder_decoder_fusion": GeneralFusionHead,
-}
-
-
-def register_special_head(name: str, cls: Type[nn.Module]) -> None:
-    """
-    Register a custom classifier head so experiments can select it by name.
-    """
-    if not name:
-        raise ValueError("name must be a non-empty string")
-    if not issubclass(cls, nn.Module):
-        raise TypeError("cls must be an nn.Module subclass")
-    SPECIAL_HEADER_REGISTRY[name.lower()] = cls
-
-
-def build_special_head(name: str, **kwargs) -> nn.Module:
-    """
-    Factory helper used by training scripts to instantiate the requested header.
-    """
-    key = name.lower()
-    if key not in SPECIAL_HEADER_REGISTRY:
-        raise KeyError(f"Unknown header '{name}'. Available: {list(SPECIAL_HEADER_REGISTRY.keys())}")
-    return SPECIAL_HEADER_REGISTRY[key](**kwargs)

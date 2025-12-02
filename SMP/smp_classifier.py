@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import segmentation_models_pytorch as smp
+from special_header import GeneralFusionHead
 
 __all__ = ["SimpleSMPClassifier"]
 
@@ -60,6 +61,7 @@ class ConvGAPHead(nn.Module):
         x = x - x.amin(dim=(-2, -1), keepdim=True)
         return x / x.amax(dim=(-2, -1), keepdim=True).clamp_min(1e-6)
     
+    # Why first classify in conv2d?
     def forward(self, fmap: torch.Tensor):
         x = self.dropout(fmap)
         logits_map = self.cls(x)
@@ -95,10 +97,10 @@ class SMPClassifier(nn.Module):
 
         pretrained_seg_ckpt: Optional[str] = None,
         dropout: float = 0.0,
+        size_match: str = "decoder_to_encoder",
     ):
         super().__init__()
         assert mode in ("enc", "dec", "fuse"), f"mode must be 'enc', 'dec', or 'fuse', got {mode}"
-        assert fuse_mode in ("sum", "concat"), f"fuse_mode must be 'sum' or 'concat', got {fuse_mode}"
         if not (0.0 < alpha < 1.0):
             raise ValueError(f"alpha should be in (0, 1), got {alpha}")
         if seg_arch not in _DEC_TOP_RULES:
@@ -139,9 +141,12 @@ class SMPClassifier(nn.Module):
         # Determine final feature channels based on mode
         if self.mode == "enc":
             final_ch = self.enc_last_ch
+            self.head = ConvGAPHead(final_ch, num_classes, bias=False, dropout=dropout)
         elif self.mode == "dec":
             final_ch = self.dec_out_ch
+            self.head = ConvGAPHead(final_ch, num_classes, bias=False, dropout=dropout)
         else:  # fuse
+            '''
             if self.fuse_mode == "concat":
                 final_ch = int(fuse_dim) if fuse_dim is not None else self.enc_last_ch
                 # Input to fuse_proj is enc_last_ch + dec_out_ch
@@ -154,8 +159,25 @@ class SMPClassifier(nn.Module):
                     self.alpha_logit = nn.Parameter(torch.tensor([init_logit], dtype=torch.float32))
                 else:
                     self.alpha = alpha
+            '''
+            self.head = GeneralFusionHead(
+                enc_channels=self.enc_last_ch,
+                dec_channels=self.dec_out_ch,
+                num_classes=num_classes,
+                merge_method=self.fuse_mode,
+                pooling="gap",
+                fusion_dim=fuse_dim,
+                learnable_alpha=self.learnable_alpha,
+                alpha_init=alpha,
+                decoder_softmax=True,
+                size_match=size_match,
+                resize_backend="interpolate",
+                channel_multiply_ignore_background=True,
+                classifier_dropout=dropout,
+                classifier_bias=False,
+            )
 
-        self.head = ConvGAPHead(final_ch, num_classes, bias=False, dropout=dropout)
+        
 
     def _get_enc_last(self, x): 
         return self.encoder(x)[-1]
