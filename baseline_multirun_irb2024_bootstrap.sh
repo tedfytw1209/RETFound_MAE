@@ -11,7 +11,7 @@
 #SBATCH --qos=ruogu.fang
 
 SCRIPT=$1 
-DATASET=${2: -"AMD_all_split"} #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_split 6, DR_binary_all_split 2, Glaucoma_binary_all_split 2
+DATASET=${2:-"AMD_all_split"} #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_split 6, DR_binary_all_split 2, Glaucoma_binary_all_split 2
 MODEL=${3:-"RETFound_mae"}
 FINETUNED_MODEL=${4:-"RETFound_mae_natureOCT"}
 LR=${5:-"5e-4"}
@@ -34,5 +34,5 @@ do
     echo "Running dataset: $DATASET with subset_seed=$SUBSETSEED"
     # Submit the job to Slurm
     echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $SUBSETSEED $ADDCMD $ADDCMD2"
-    bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $SUBSETSEED $ADDCMD $ADDCMD2
+    #bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $SUBSETSEED $ADDCMD $ADDCMD2
 done
