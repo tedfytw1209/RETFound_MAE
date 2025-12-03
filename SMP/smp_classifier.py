@@ -93,7 +93,7 @@ class SMPClassifier(nn.Module):
 
         mode: str = "enc",
         decoder_out_ch: Optional[int] = None,
-        fuse_mode: str = "sum",
+        fuse_mode: str = "weighted_sum",
 
         learnable_alpha: bool = True,
         alpha: float = 0.5,
