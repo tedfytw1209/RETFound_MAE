@@ -47,11 +47,20 @@ def _resolve_target_layer(model, model_name=None):
                     return last_conv
         elif mode == "fuse": #get general classifier layer, tmporary solution
             last_conv = None
-            for name, module in encoder.named_modules():
-                if isinstance(module, nn.Conv2d):
-                    last_conv = module
-            if last_conv is not None:
-                return last_conv
+            encoder = _get(seg_model, "encoder")
+            decoder = _get(seg_model, "decoder")
+            if encoder is not None:
+                for name, module in encoder.named_modules():
+                    if isinstance(module, nn.Conv2d):
+                        last_conv = module
+                if last_conv is not None:
+                    return last_conv
+            if decoder is not None:
+                for name, module in decoder.named_modules():
+                    if isinstance(module, nn.Conv2d):
+                        last_conv = module
+                if last_conv is not None:
+                    return last_conv
         else:
             raise ValueError(f"Unsupported SMP mode: {mode}")
     
