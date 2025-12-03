@@ -18,21 +18,22 @@ def _get(obj, name, default=None):
 def _resolve_target_layer(model, model_name=None):
     # --- SMP Classifier (Segmentation Models PyTorch)
     # Check for SMP model structure: has encoder and seg_model
-    encoder = _get(model, "encoder")
     seg_model = _get(model, "seg_model")
     mode = _get(model, "mode")
     
-    if encoder is not None and seg_model is not None:
+    if seg_model is not None:
         # This is an SMP-based model
         if mode == "enc":
             # For encoder or fuse mode, target the last encoder layer
             # SMP encoders typically have stages/layers
-            last_conv = None
-            for name, module in encoder.named_modules():
-                if isinstance(module, nn.Conv2d):
-                    last_conv = module
-            if last_conv is not None:
-                return last_conv
+            encoder = _get(seg_model, "encoder")
+            if encoder is not None:
+                last_conv = None
+                for name, module in encoder.named_modules():
+                    if isinstance(module, nn.Conv2d):
+                        last_conv = module
+                if last_conv is not None:
+                    return last_conv
         elif mode == "dec":
             # For decoder mode, target the decoder output
             # Get the last conv layer in the decoder
