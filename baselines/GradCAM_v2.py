@@ -124,6 +124,8 @@ def _resolve_target_layer(model, model_name=None):
         if isinstance(seq, (nn.Sequential, nn.ModuleList, list)) and len(seq) > 0:
             return seq[-1]
 
+    print(model_name)
+    print(model)
     raise ValueError("Unsupported model for GradCAM: cannot resolve target layer automatically.")
 
 def reshape_transform_vit_huggingface(x, num_patches=14):
