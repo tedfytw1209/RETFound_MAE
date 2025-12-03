@@ -61,7 +61,7 @@ DATASET_PRESETS: dict[str, DatasetPreset] = {
     "celldata": DatasetPreset(
         input_dir="/orange/ruogu.fang/tienyuchang/CellData",
         csv_template="/orange/ruogu.fang/tienyuchang/CellData/OCT/{study}.csv",
-        output_dir="/orange/ruogu.fang/tienyuchang/CellData_masks",
+        output_dir="/orange/ruogu.fang/tienyuchang/CellData_masks_{class_mode}",
         image_column="image",
         description="Mendeley CellData OCT classification splits (see util/datasets.py).",
         category="public",
@@ -69,7 +69,7 @@ DATASET_PRESETS: dict[str, DatasetPreset] = {
     "octdl": DatasetPreset(
         input_dir="/orange/ruogu.fang/tienyuchang/OCTDL",
         csv_template="/orange/ruogu.fang/tienyuchang/OCTDL/{study}.csv",
-        output_dir="/orange/ruogu.fang/tienyuchang/OCTDL_masks",
+        output_dir="/orange/ruogu.fang/tienyuchang/OCTDL_masks_{class_mode}",
         image_column="image",
         description="Kaggle OCTDL (see finetune_retfound_OCTDL_*.sh).",
         category="public",
@@ -77,7 +77,7 @@ DATASET_PRESETS: dict[str, DatasetPreset] = {
     "uf": DatasetPreset(
         input_dir="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired",
         csv_template="/orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/IRB2024_v5/split/tune5-eval5/{study}.csv",
-        output_dir="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired_masks",
+        output_dir="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired_masks_{class_mode}",
         image_column="OCT",
         description="UF benchmark IRB2024_v5 splits (see util/datasets.py).",
         category="uf",
@@ -181,7 +181,7 @@ def resolve_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
 
     csv_path = args.data_csv
     input_dir = args.input_dir or (preset.input_dir if preset else None)
-    output_dir = args.output_dir or (preset.output_dir if preset else None)
+    output_dir = args.output_dir or (preset.output_dir.format(class_mode=args.class_mode) if preset and preset.output_dir else None)
     image_column = args.image_column or (preset.image_column if preset else "image")
     category = args.dataset_category or (preset.category if preset else "public")
     modality = preset.modality if preset else args.uf_modality
