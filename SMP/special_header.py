@@ -428,20 +428,23 @@ class GeneralFusionHead(nn.Module):
             self._downsample_layers = None
         print(f"GeneralFusionHead: merge_method={merge_method}, size_match={size_match}, fusion_dim={fusion_dim}")
         print("Encoder channels:", enc_channels, "Decoder channels:", dec_channels)
+        self.enc_align = nn.Identity()
+        self.dec_align = nn.Identity()
         if merge_method in ("weighted_sum", "add", "multiply"):
-            target_dim = fusion_dim if fusion_dim is not None else max(enc_channels, dec_channels)
+            target_dim = fusion_dim if not fusion_dim else max(enc_channels, dec_channels)
             self.enc_align = self._make_align_layer(enc_channels, target_dim)
             self.dec_align = self._make_align_layer(dec_channels, target_dim)
             final_dim = target_dim
         elif merge_method == "channel_merge":
             merged_dim = enc_channels + dec_channels
-            final_dim = fusion_dim if fusion_dim is not None else merged_dim
+            final_dim = fusion_dim if not fusion_dim else merged_dim
             if final_dim != merged_dim:
                 self.channel_reduce = nn.Conv2d(merged_dim, final_dim, kernel_size=1, bias=False)
             else:
                 self.channel_reduce = nn.Identity()
-            self.enc_align = nn.Identity()
-            self.dec_align = nn.Identity()
+            if final_dim != merged_dim:
+                self.enc_align = self._make_align_layer(enc_channels, final_dim // 2)
+                self.dec_align = self._make_align_layer(dec_channels, final_dim // 2)
         else:  # channel_multiply
             if dec_channels <= 0:
                 raise ValueError("dec_channels must be > 0 for channel_multiply.")
@@ -453,9 +456,10 @@ class GeneralFusionHead(nn.Module):
             else:
                 effective_layers = dec_channels
             self.channel_multiply_layers = effective_layers
-            final_dim = enc_channels * effective_layers
-            self.enc_align = nn.Identity()
-            self.dec_align = nn.Identity()
+            multiply_dim = enc_channels * effective_layers
+            final_dim = enc_channels * effective_layers if not fusion_dim else fusion_dim
+            if not fusion_dim and fusion_dim != multiply_dim:
+                self.enc_align = self._make_align_layer(enc_channels, fusion_dim // effective_layers)
         print("Final fused feature dim:", final_dim)
 
         if merge_method == "weighted_sum":
@@ -591,19 +595,16 @@ class GeneralFusionHead(nn.Module):
             merged = torch.cat([enc_feats, dec_feats], dim=1)
             return self.channel_reduce(merged)
 
-        enc_aligned = self.enc_align(enc_feats)
-        dec_aligned = self.dec_align(dec_feats)
-
         if self.merge_method == "weighted_sum":
             if self.learnable_alpha:
                 alpha = torch.sigmoid(self.alpha_logit)
             else:
                 alpha = self.alpha_fixed
-            return alpha * enc_aligned + (1 - alpha) * dec_aligned
+            return alpha * enc_feats + (1 - alpha) * dec_feats
         if self.merge_method == "add":
-            return enc_aligned + dec_aligned
+            return enc_feats + dec_feats
         if self.merge_method == "multiply":
-            return enc_aligned * dec_aligned
+            return enc_feats * dec_feats
         raise RuntimeError(f"Unsupported merge_method {self.merge_method}")
 
     def _channel_multiply(self, enc_feats: torch.Tensor, dec_feats: torch.Tensor) -> torch.Tensor:
@@ -645,6 +646,8 @@ class GeneralFusionHead(nn.Module):
         """
         enc_feats, dec_feats = self._match_spatial(enc_feats, dec_feats)
         #print("After size match: enc_feats:", enc_feats.shape, "dec_feats:", dec_feats.shape)
+        enc_feats = self.enc_align(enc_feats)
+        dec_feats = self.dec_align(dec_feats)
         if self.merge_method == "channel_multiply":
             fused = self._channel_multiply(enc_feats, dec_feats)
         else:
