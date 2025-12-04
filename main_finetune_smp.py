@@ -453,7 +453,7 @@ def get_model(args):
             seg_activation=SMPConfig.ACTIVATION,
             mode=args.SMPMode,
             fuse_mode=args.smp_fuse_mode,
-            fusion_dim= None if args.fusion_dim==0 else args.fusion_dim,
+            fusion_dim= args.fusion_dim,
             learnable_alpha=args.smp_learnable_alpha,
             alpha=args.smp_alpha,
             pretrained_seg_ckpt=args.finetune,
