@@ -385,7 +385,7 @@ class GeneralFusionHead(nn.Module):
         *,
         merge_method: str = "weighted_sum",
         pooling: str = "gap",
-        fusion_dim: Optional[int] = None,
+        fusion_dim: Optional[int] = 0,
         learnable_alpha: bool = True,
         alpha_init: float = 0.5,
         size_match: str = "encoder_to_decoder",
