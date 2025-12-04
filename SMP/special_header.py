@@ -431,17 +431,19 @@ class GeneralFusionHead(nn.Module):
         self.enc_align = nn.Identity()
         self.dec_align = nn.Identity()
         if merge_method in ("weighted_sum", "add", "multiply"):
-            target_dim = fusion_dim if not fusion_dim else max(enc_channels, dec_channels)
+            target_dim = max(enc_channels, dec_channels) if not fusion_dim else fusion_dim
             self.enc_align = self._make_align_layer(enc_channels, target_dim)
             self.dec_align = self._make_align_layer(dec_channels, target_dim)
             final_dim = target_dim
         elif merge_method == "channel_merge":
             merged_dim = enc_channels + dec_channels
-            final_dim = fusion_dim if not fusion_dim else merged_dim
+            final_dim = merged_dim if not fusion_dim else fusion_dim
+            '''
             if final_dim != merged_dim:
                 self.channel_reduce = nn.Conv2d(merged_dim, final_dim, kernel_size=1, bias=False)
             else:
                 self.channel_reduce = nn.Identity()
+            '''
             if final_dim != merged_dim:
                 self.enc_align = self._make_align_layer(enc_channels, final_dim // 2)
                 self.dec_align = self._make_align_layer(dec_channels, final_dim // 2)
@@ -457,9 +459,9 @@ class GeneralFusionHead(nn.Module):
                 effective_layers = dec_channels
             self.channel_multiply_layers = effective_layers
             multiply_dim = enc_channels * effective_layers
-            final_dim = enc_channels * effective_layers if not fusion_dim else fusion_dim
-            if not fusion_dim and fusion_dim != multiply_dim:
-                self.enc_align = self._make_align_layer(enc_channels, fusion_dim // effective_layers)
+            final_dim = multiply_dim if not fusion_dim else fusion_dim
+            if final_dim != multiply_dim:
+                self.enc_align = self._make_align_layer(enc_channels, final_dim // effective_layers)
         print("Final fused feature dim:", final_dim)
 
         if merge_method == "weighted_sum":
@@ -593,7 +595,8 @@ class GeneralFusionHead(nn.Module):
     def _merge(self, enc_feats: torch.Tensor, dec_feats: torch.Tensor) -> torch.Tensor:
         if self.merge_method == "channel_merge":
             merged = torch.cat([enc_feats, dec_feats], dim=1)
-            return self.channel_reduce(merged)
+            #return self.channel_reduce(merged)
+            return merged
 
         if self.merge_method == "weighted_sum":
             if self.learnable_alpha:
