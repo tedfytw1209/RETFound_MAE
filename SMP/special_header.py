@@ -616,7 +616,7 @@ class GeneralFusionHead(nn.Module):
         if dec_feats is None:
             raise ValueError("dec_feats must be provided for channel_multiply mode.")
         masks = dec_feats # softmax already done in segmentation header
-        if self.channel_multiply_ignore_background:
+        if self.use_mask and self.channel_multiply_ignore_background:
             if masks.shape[1] <= 1:
                 raise ValueError("Decoder output must have background channel to ignore.")
             masks = masks[:, 1:, :, :]
