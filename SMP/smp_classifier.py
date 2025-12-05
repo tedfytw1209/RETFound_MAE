@@ -227,8 +227,6 @@ class SMPClassifier(nn.Module):
                 return logits
         elif self.mode == "dec":
             f = self._get_dec_last(x)
-            if self.use_mask:
-                f = self.seg_model.segmentation_head(f)
             logits, logits_map, cam = self.head(f)
             if mode_dict:
                 out["dec"] = {"logits": logits, "logits_map": logits_map, "cam": cam}
