@@ -393,7 +393,8 @@ class GeneralFusionHead(nn.Module):
         channel_multiply_ignore_background: bool = True,
         classifier_dropout: float = 0.0,
         classifier_bias: bool = False,
-        fixed_size: Optional[Tuple[int, int]] = None
+        fixed_size: Optional[Tuple[int, int]] = None,
+        use_mask: bool = False,
     ):
         super().__init__()
         merge_method = merge_method.lower()
@@ -420,6 +421,7 @@ class GeneralFusionHead(nn.Module):
         self.channel_multiply_ignore_background = channel_multiply_ignore_background
         self.channel_multiply_layers: Optional[int] = None
         self.fixed_size = fixed_size
+        self.use_mask = use_mask
         if resize_backend == "conv":
             self._upsample_layers = nn.ModuleDict()
             self._downsample_layers = nn.ModuleDict()
@@ -450,7 +452,7 @@ class GeneralFusionHead(nn.Module):
         else:  # channel_multiply
             if dec_channels <= 0:
                 raise ValueError("dec_channels must be > 0 for channel_multiply.")
-            if self.channel_multiply_ignore_background:
+            if self.channel_multiply_ignore_background and self.use_mask:
                 if dec_channels == 1:
                     effective_layers = 1
                 else:

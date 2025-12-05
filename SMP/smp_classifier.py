@@ -187,6 +187,7 @@ class SMPClassifier(nn.Module):
                 channel_multiply_ignore_background=True,
                 classifier_dropout=dropout,
                 classifier_bias=False,
+                use_mask=self.use_mask,
             )
 
         
