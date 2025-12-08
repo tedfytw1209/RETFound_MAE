@@ -43,7 +43,7 @@ do
     # Create a job name based on the variables
     DATASET="${DATASETS[$i]}"
     NUM_CLASS="${CLASSES[$i]}"
-    RESUME_MODEL=/orange/ruogu.fang/tienyuchang/RETfound_results/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-$Modality-bs16ep50lr5e-4optadamw-roc_auceval--/checkpoint-best.pth
+    RESUME_MODEL=/orange/ruogu.fang/tienyuchang/RETfound_results/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-$Modality-bs16ep50lr5e-4optadamw-roc_auceval-trsub0--/checkpoint-best.pth
     # Submit the job to Slurm
     echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $RESUME_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $SUBGROUP_COL $PROTECTED_VALUE $PRIVALENT_VALUE"
     bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $RESUME_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $SUBGROUP_COL $PROTECTED_VALUE $PRIVALENT_VALUE
