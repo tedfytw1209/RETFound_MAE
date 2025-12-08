@@ -23,14 +23,13 @@ SUBSETNUM=${9:-0} # 0, 500, 1000
 NUM_K=0
 
 # sbatch baseline_multirun_irb2024_fairness.sh infernce_retfound_UFirb2024v5_fairness.sh RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 auc OCT 0
-DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_binary_all_split Glaucoma_binary_all_split)  # List of datasets
-CLASSES=(2 2 6 6 2 2)  # Number of classes for each dataset
-#SUBGROUP_COLS=("race_ethnicity" "race_ethnicity" "gender_source_value" "age_group" "age_group" "age_group") # age_group, race_ethnicity, gender_source_value
-#PROTECTED_VALUES=("NHB" "HISPANIC" "FEMALE" "lt45" "65-74" "ge75")
-#PRIVALENT_VALUES=("NHW" "NHW" "MALE" "45-64" "45-64" "45-64")
-SUBGROUP_COLS=("age_group") # age_group, race_ethnicity, gender_source_value
-PROTECTED_VALUES=("ge75")
-PRIVALENT_VALUES=("45-64")
+#DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_binary_all_split Glaucoma_binary_all_split)  # List of datasets
+#CLASSES=(2 2 6 6 2 2)  # Number of classes for each dataset
+DATASETS=(DME_all_split CSR_all_split Drusen_all_split ERM_all_split MH_all_split CRVO_CRAO_all_split PVD_all_split RNV_all_split DME_binary_all_split) 
+CLASSES=(5 2 2 2 2 2 2 2 2)  # Number of classes for each dataset
+SUBGROUP_COLS=("race_ethnicity" "race_ethnicity" "gender_source_value" "age_group" "age_group" "age_group") # age_group, race_ethnicity, gender_source_value
+PROTECTED_VALUES=("NHB" "HISPANIC" "FEMALE" "lt45" "65-74" "ge75")
+PRIVALENT_VALUES=("NHW" "NHW" "MALE" "45-64" "45-64" "45-64")
 
 for i in "${!DATASETS[@]}"
 do
