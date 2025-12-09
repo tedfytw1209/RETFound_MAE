@@ -138,7 +138,7 @@ class SMPClassifier(nn.Module):
 
         #self.encoder = self.seg_model.encoder
         enc_chs = list(self.seg_model.encoder.out_channels)
-        self.enc_last_ch = int(enc_chs[-1])
+        self.enc_last_ch = int(enc_chs[self.enc_idx])
         
         # Infer decoder output channels by running a dummy forward pass
         if use_mask:
@@ -150,7 +150,7 @@ class SMPClassifier(nn.Module):
                 #encoder is each layers output [x, layer1, layer2, layer3, layer4...]
                 dec_out = self.seg_model.decoder(enc_feats)
                 if isinstance(dec_out, (list, tuple)):
-                    dec_out = dec_out[-1]
+                    dec_out = dec_out[self.dec_idx]
                 self.dec_out_ch = dec_out.shape[1]
         else:
             self.dec_out_ch = decoder_out_ch
