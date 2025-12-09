@@ -212,7 +212,15 @@ class SMPClassifier(nn.Module):
     def _get_enc_and_dec(self, x, enc_idx: int = -1, dec_idx: int = -1) -> Tuple[torch.Tensor, torch.Tensor]:
         """Efficiently compute both encoder and decoder features with single encoder pass."""
         enc_feats = self.seg_model.encoder(x)
-        final_enc = enc_feats[enc_idx]
+        if enc_idx != -1:
+            enc_list = [enc_feats[i] for i in range(enc_idx,len(enc_feats))]
+            first_enc_shape = enc_list[0].shape[2:]
+            for i in range(len(enc_list)):
+                if enc_list[i].shape[2:] != first_enc_shape:
+                    enc_list[i] = F.interpolate(enc_list[i], size=first_enc_shape, mode='bilinear', align_corners=False)
+            final_enc = torch.cat(enc_list, dim=1)
+        else:
+            final_enc = enc_feats[enc_idx]
         dec = self.seg_model.decoder(enc_feats)
         final_dec = dec[dec_idx] if isinstance(dec, (list, tuple)) else dec
         if self.use_mask:
