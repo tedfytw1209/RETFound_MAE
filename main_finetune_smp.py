@@ -230,6 +230,8 @@ def get_args_parser():
                         help='Use segmentation mask output from SMP model')
     parser.add_argument('--fusion_dim', type=int, default=0,
                         help='Fusion dimension for SMP model (default: 0 means no projection)')
+    parser.add_argument('--enc_idx', type=int, default=-1,help='SMP encoder index for feature extraction')
+    parser.add_argument('--dec_idx', type=int, default=-1,help='SMP decoder index for feature extraction')
 
     return parser
 
@@ -460,6 +462,8 @@ def get_model(args):
             dropout=SMPConfig.DROPOUT,
             size_match=args.smp_size_match,
             use_mask=args.seg_mask,
+            enc_idx=args.enc_idx,
+            dec_idx=args.dec_idx,
         )
     else:
         model = models.__dict__[args.model](

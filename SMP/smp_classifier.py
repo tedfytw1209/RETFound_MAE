@@ -103,6 +103,9 @@ class SMPClassifier(nn.Module):
         size_match: str = "decoder_to_encoder",
         use_mask: bool = False,
         fusion_dim: Optional[int] = None,
+        
+        enc_idx: int = -1,
+        dec_idx: int = -1,
     ):
         super().__init__()
         assert mode in ("enc", "dec", "fuse"), f"mode must be 'enc', 'dec', or 'fuse', got {mode}"
@@ -114,6 +117,7 @@ class SMPClassifier(nn.Module):
         self.mode, self.fuse_mode = mode, fuse_mode
         self.seg_arch, self.learnable_alpha = seg_arch, learnable_alpha
         self.use_mask = use_mask
+        self.enc_idx, self.dec_idx = enc_idx, dec_idx
 
         SegCls = getattr(smp, seg_arch)
         self.seg_model = SegCls(
@@ -205,12 +209,12 @@ class SMPClassifier(nn.Module):
             dec = self.seg_model.segmentation_head(dec)
         return dec
     
-    def _get_enc_and_dec(self, x):
+    def _get_enc_and_dec(self, x, enc_idx: int = -1, dec_idx: int = -1) -> Tuple[torch.Tensor, torch.Tensor]:
         """Efficiently compute both encoder and decoder features with single encoder pass."""
         enc_feats = self.seg_model.encoder(x)
-        final_enc = enc_feats[-1]
+        final_enc = enc_feats[enc_idx]
         dec = self.seg_model.decoder(enc_feats)
-        final_dec = dec[-1] if isinstance(dec, (list, tuple)) else dec
+        final_dec = dec[dec_idx] if isinstance(dec, (list, tuple)) else dec
         if self.use_mask:
             final_dec = self.seg_model.segmentation_head(final_dec)
         return final_enc, final_dec
@@ -237,7 +241,7 @@ class SMPClassifier(nn.Module):
         else:
             # --- fuse ---
             # Use GeneralFusionHead to combine encoder & decoder features.
-            f_enc, f_dec = self._get_enc_and_dec(x)
+            f_enc, f_dec = self._get_enc_and_dec(x, self.enc_idx, self.dec_idx)
 
             logits = self.head(
                 enc_feats=f_enc,
