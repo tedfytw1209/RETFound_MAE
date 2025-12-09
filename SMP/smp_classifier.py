@@ -138,8 +138,11 @@ class SMPClassifier(nn.Module):
 
         #self.encoder = self.seg_model.encoder
         enc_chs = list(self.seg_model.encoder.out_channels)
-        self.enc_last_ch = int(enc_chs[self.enc_idx])
-        
+        if self.enc_idx != -1:
+            self.enc_last_ch = sum([int(enc_chs[i]) for i in range(self.enc_idx, len(enc_chs))])
+        else:
+            self.enc_last_ch = int(enc_chs[self.enc_idx])
+        print(f"Encoder last feature channels: {self.enc_last_ch}")
         # Infer decoder output channels by running a dummy forward pass
         if use_mask:
             self.dec_out_ch = seg_classes
@@ -154,6 +157,7 @@ class SMPClassifier(nn.Module):
                 self.dec_out_ch = dec_out.shape[1]
         else:
             self.dec_out_ch = decoder_out_ch
+        print(f"Decoder last feature channels: {self.dec_out_ch}")
 
         # Determine final feature channels based on mode
         if self.mode == "enc":
@@ -216,9 +220,12 @@ class SMPClassifier(nn.Module):
             enc_list = [enc_feats[i] for i in range(enc_idx,len(enc_feats))]
             first_enc_shape = enc_list[0].shape[2:]
             for i in range(len(enc_list)):
+                print('enc shape before interp:', enc_list[i].shape)
                 if enc_list[i].shape[2:] != first_enc_shape:
                     enc_list[i] = F.interpolate(enc_list[i], size=first_enc_shape, mode='bilinear', align_corners=False)
+                print('enc shape after interp:', enc_list[i].shape)
             final_enc = torch.cat(enc_list, dim=1)
+            print('final enc shape after concat:', final_enc.shape)
         else:
             final_enc = enc_feats[enc_idx]
         dec = self.seg_model.decoder(enc_feats)
