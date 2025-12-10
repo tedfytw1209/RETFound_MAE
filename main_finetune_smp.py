@@ -524,14 +524,9 @@ def get_model(args):
 def main(args, criterion):
 
     misc.init_distributed_mode(args)
-    if args.bootstrap_runs:
-        project_name = "RETFound_MAE_bootstrap"
-        group_name = f"{args.task}_bootstrap_group"
-        model_add_dir = "seed_" + str(args.seed)
-    else:
-        project_name = "RETFound_MAE"
-        group_name = None
-        model_add_dir = ""
+    project_name = "RETFound_MAE_XAI"
+    group_name = None
+    model_add_dir = ""
     wandb.init(
         project=project_name,
         name=args.task,
