@@ -15,7 +15,7 @@ from util.misc import to_tensor
 
 def _get(obj, name, default=None):
     return getattr(obj, name, default)
-def _resolve_target_layer(model, model_name=None):
+def _resolve_target_layer(model, model_name=None, select_index=-1):
     # --- SMP Classifier (Segmentation Models PyTorch)
     # Check for SMP model structure: has encoder and seg_model
     seg_model = _get(model, "seg_model")
@@ -28,39 +28,41 @@ def _resolve_target_layer(model, model_name=None):
             # SMP encoders typically have stages/layers
             encoder = _get(seg_model, "encoder")
             if encoder is not None:
-                last_conv = None
+                conv_list = []
                 for name, module in encoder.named_modules():
                     if isinstance(module, nn.Conv2d):
-                        last_conv = module
-                if last_conv is not None:
-                    return last_conv
+                        conv_list.append(module)
+                if len(conv_list) > 0:
+                    return conv_list[select_index]
         elif mode == "dec":
             # For decoder mode, target the decoder output
             # Get the last conv layer in the decoder
             decoder = _get(seg_model, "decoder")
             if decoder is not None:
-                last_conv = None
+                conv_list = []
                 for name, module in decoder.named_modules():
                     if isinstance(module, nn.Conv2d):
-                        last_conv = module
-                if last_conv is not None:
-                    return last_conv
+                        conv_list.append(module)
+                if len(conv_list) > 0:
+                    return conv_list[select_index]
+        # !!! Need to check SMP fuse mode !!!
         elif mode == "fuse": #get general classifier layer, tmporary solution
-            last_conv = None
             encoder = _get(seg_model, "encoder")
             decoder = _get(seg_model, "decoder")
-            if encoder is not None:
+            if encoder is not None and model.size_match=="decoder_to_encoder":
+                conv_list = []
                 for name, module in encoder.named_modules():
                     if isinstance(module, nn.Conv2d):
-                        last_conv = module
-                if last_conv is not None:
-                    return last_conv
-            if decoder is not None:
+                        conv_list.append(module)
+                if len(conv_list) > 0:
+                    return conv_list[select_index]
+            if decoder is not None and model.size_match=="encoder_to_decoder":
+                conv_list = []
                 for name, module in decoder.named_modules():
                     if isinstance(module, nn.Conv2d):
-                        last_conv = module
-                if last_conv is not None:
-                    return last_conv
+                        conv_list.append(module)
+                if len(conv_list) > 0:
+                    return conv_list[select_index]
         else:
             raise ValueError(f"Unsupported SMP mode: {mode}")
     
@@ -68,7 +70,7 @@ def _resolve_target_layer(model, model_name=None):
     if _get(model, "blocks") is not None:
         blocks = model.blocks
         if isinstance(blocks, (nn.ModuleList, list)) and len(blocks) > 0:
-            return blocks[-1]
+            return blocks[select_index]
 
     # --- HuggingFace ViT 風格
     vit = _get(model, "vit")
@@ -76,7 +78,7 @@ def _resolve_target_layer(model, model_name=None):
         enc = _get(vit, "encoder")
         layers = _get(enc, "layer")
         if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
-            return layers[-2].output
+            return layers[select_index-1].output
 
     # --- HF 某些包裝在 base_model
     base = _get(model, "base_model")
@@ -86,7 +88,7 @@ def _resolve_target_layer(model, model_name=None):
             enc = _get(vit, "encoder")
             layers = _get(enc, "layer")
             if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
-                return layers[-2].output
+                return layers[select_index-1].output
 
     # --- timm Swin
     if _get(model, "layers") is not None:
@@ -94,7 +96,7 @@ def _resolve_target_layer(model, model_name=None):
         if len(layers) > 0 and _get(layers[-1], "blocks") is not None:
             blks = layers[-1].blocks
             if len(blks) > 0:
-                return blks[-1]
+                return blks[select_index]
 
     # --- HF Swin
     swin = _get(model, "swin")
@@ -104,20 +106,21 @@ def _resolve_target_layer(model, model_name=None):
         if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
             blks = _get(layers[-1], "blocks")
             if isinstance(blks, (nn.ModuleList, list)) and len(blks) > 0:
-                return blks[-1]
+                return blks[select_index]
 
     # --- torchvision ResNet
     if _get(model, "layer4") is not None and len(model.layer4) > 0:
-        return model.layer4[-1]
+        return model.layer4[select_index]
 
     # --- HF ResNet (wrapped under .resnet)
     resnet = _get(model, "resnet")
     if resnet is not None:
-        last_conv_name, last_conv = None, None
+        conv_list = []
         for name, module in resnet.named_modules():
             if isinstance(module, nn.Conv2d):
-                last_conv_name, last_conv = name, module
-        return last_conv
+                conv_list.append(module)
+        if len(conv_list) > 0:
+            return conv_list[select_index]
 
     # --- HF EfficientNet often wrapped under .efficientnet
     eff = _get(model, "efficientnet")
@@ -132,9 +135,9 @@ def _resolve_target_layer(model, model_name=None):
     for name in ["features", "blocks"]:
         seq = _get(model, name)
         if isinstance(seq, (nn.Sequential, nn.ModuleList, list)) and len(seq) > 0:
-            return seq[-1]
+            return seq[select_index]
 
-    print(model_name)
+    print(model_name, 'select_index=', select_index)
     print(model)
     raise ValueError("Unsupported model for GradCAM: cannot resolve target layer automatically.")
 

@@ -116,6 +116,11 @@ class SMPClassifier(nn.Module):
         
         self.mode, self.fuse_mode = mode, fuse_mode
         self.seg_arch, self.learnable_alpha = seg_arch, learnable_alpha
+        self.alpha = alpha
+        self.dropout = dropout
+        self.encoder_name = encoder_name
+        self.fusion_dim = fusion_dim
+        self.size_match = size_match
         self.use_mask = use_mask
         self.enc_idx, self.dec_idx = enc_idx, dec_idx
 
