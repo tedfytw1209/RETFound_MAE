@@ -23,7 +23,7 @@ FINETUNED_MODEL=${4:-"RETFound_mae_natureOCT"}
 RESUME_DIR=${5:-""}
 ADDCMD=${6:-""}
 
-DIR_ROOT="/orange/ruogu.fang/tienyuchang/OCTRFF_Data/benchmark/"
+DIR_ROOT="/orange/ruogu.fang/tienyuchang/OCTRFF_Data/benchmark"
 NUM_K=0
 Eval_score="auc"
 LR=1e-4
