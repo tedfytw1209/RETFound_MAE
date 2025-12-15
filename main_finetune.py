@@ -796,7 +796,7 @@ def main(args, criterion):
         else:
             sampler_test = torch.utils.data.SequentialSampler(dataset_test)
     
-    if global_rank == 0 and args.log_dir is not None and not args.eval:
+    if global_rank == 0 and args.log_dir is not None:
         os.makedirs(os.path.join(args.log_dir,args.task, model_add_dir), exist_ok=True)
         log_writer = SummaryWriter(log_dir=os.path.join(args.log_dir,args.task, model_add_dir))
     else:
