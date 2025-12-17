@@ -26,15 +26,13 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
         encoder = _get(seg_model, "encoder")
         decoder = _get(seg_model, "decoder")
         head = _get(seg_model, "head")
-        if mode == "enc":
+        if mode == "enc" and encoder is not None:
             # For encoder or fuse mode, target the last encoder layer
             # SMP encoders typically have stages/layers
-            encoder = _get(seg_model, "encoder")
             target_module = encoder
-        elif mode == "dec":
+        elif mode == "dec" and decoder is not None:
             # For decoder mode, target the decoder output
             # Get the last conv layer in the decoder
-            decoder = _get(seg_model, "decoder")
             target_module = decoder
         # !!! Need to check SMP fuse mode !!!
         elif mode == "fuse": #get general classifier layer, tmporary solution
@@ -57,12 +55,16 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
                 raise ValueError(f"Unsupported SMP size_match: {model.size_match}")
         else:
             raise ValueError(f"Unsupported SMP mode: {mode}")
-        conv_list = []
-        for name, module in target_module.named_modules():
-            if isinstance(module, nn.Conv2d):
-                conv_list.append(module)
-        if len(conv_list) > 0:
-            return conv_list[select_index]
+        
+        if target_module is not None:
+            conv_list = []
+            for name, module in target_module.named_modules():
+                if isinstance(module, nn.Conv2d):
+                    conv_list.append(module)
+            if len(conv_list) > 0:
+                return conv_list[select_index]
+        else:
+            raise ValueError(f"Cannot resolve mode {mode} target layer {target_module} {select_index} for SMP model.")
     
     # --- timm ViT 風格
     if _get(model, "blocks") is not None:
