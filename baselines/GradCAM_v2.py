@@ -37,12 +37,12 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
         # !!! Need to check SMP fuse mode !!!
         elif mode == "fuse": #get general classifier layer, tmporary solution
             if module_name is not None:
-                if module_name == "encoder":
+                if module_name == "encoder" and encoder is not None:
                     target_module = encoder
-                elif module_name == "decoder":
+                elif module_name == "decoder" and decoder is not None:
                     target_module = decoder
-                elif module_name == "head":
-                    target_module = _get(seg_model, "head")
+                elif module_name == "head" and head is not None:
+                    target_module = head
                 else:
                     raise ValueError(f"Unsupported SMP module_name: {module_name}")
             elif encoder is not None and model.size_match=="decoder_to_encoder":
@@ -64,7 +64,7 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
             if len(conv_list) > 0:
                 return conv_list[select_index]
         else:
-            raise ValueError(f"Cannot resolve mode {mode} target layer {target_module} {select_index} for SMP model.")
+            raise ValueError(f"Cannot resolve mode {mode} {module_name} target layer {target_module} {select_index} for SMP model.")
     
     # --- timm ViT 風格
     if _get(model, "blocks") is not None:
