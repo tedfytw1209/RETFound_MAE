@@ -25,7 +25,7 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
         # This is an SMP-based model
         encoder = _get(seg_model, "encoder")
         decoder = _get(seg_model, "decoder")
-        head = _get(seg_model, "head")
+        head = _get(model, "head")
         if mode == "enc" and encoder is not None:
             # For encoder or fuse mode, target the last encoder layer
             # SMP encoders typically have stages/layers
