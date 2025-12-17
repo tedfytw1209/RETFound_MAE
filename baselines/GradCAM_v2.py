@@ -15,7 +15,7 @@ from util.misc import to_tensor
 
 def _get(obj, name, default=None):
     return getattr(obj, name, default)
-def _resolve_target_layer(model, model_name=None, select_index=-1):
+def _resolve_target_layer(model, model_name=None, module_name=None, select_index=-1):
     # --- SMP Classifier (Segmentation Models PyTorch)
     # Check for SMP model structure: has encoder and seg_model
     seg_model = _get(model, "seg_model")
@@ -23,48 +23,46 @@ def _resolve_target_layer(model, model_name=None, select_index=-1):
     
     if seg_model is not None:
         # This is an SMP-based model
+        encoder = _get(seg_model, "encoder")
+        decoder = _get(seg_model, "decoder")
+        head = _get(seg_model, "head")
         if mode == "enc":
             # For encoder or fuse mode, target the last encoder layer
             # SMP encoders typically have stages/layers
             encoder = _get(seg_model, "encoder")
-            if encoder is not None:
-                conv_list = []
-                for name, module in encoder.named_modules():
-                    if isinstance(module, nn.Conv2d):
-                        conv_list.append(module)
-                if len(conv_list) > 0:
-                    return conv_list[select_index]
+            target_module = encoder
         elif mode == "dec":
             # For decoder mode, target the decoder output
             # Get the last conv layer in the decoder
             decoder = _get(seg_model, "decoder")
-            if decoder is not None:
-                conv_list = []
-                for name, module in decoder.named_modules():
-                    if isinstance(module, nn.Conv2d):
-                        conv_list.append(module)
-                if len(conv_list) > 0:
-                    return conv_list[select_index]
+            target_module = decoder
         # !!! Need to check SMP fuse mode !!!
         elif mode == "fuse": #get general classifier layer, tmporary solution
-            encoder = _get(seg_model, "encoder")
-            decoder = _get(seg_model, "decoder")
-            if encoder is not None and model.size_match=="decoder_to_encoder":
-                conv_list = []
-                for name, module in encoder.named_modules():
-                    if isinstance(module, nn.Conv2d):
-                        conv_list.append(module)
-                if len(conv_list) > 0:
-                    return conv_list[select_index]
-            if decoder is not None and model.size_match=="encoder_to_decoder":
-                conv_list = []
-                for name, module in decoder.named_modules():
-                    if isinstance(module, nn.Conv2d):
-                        conv_list.append(module)
-                if len(conv_list) > 0:
-                    return conv_list[select_index]
+            if module_name is not None:
+                if module_name == "encoder":
+                    target_module = encoder
+                elif module_name == "decoder":
+                    target_module = decoder
+                elif module_name == "head":
+                    target_module = _get(seg_model, "head")
+                else:
+                    raise ValueError(f"Unsupported SMP module_name: {module_name}")
+            elif encoder is not None and model.size_match=="decoder_to_encoder":
+                target_module = encoder
+            elif decoder is not None and model.size_match=="encoder_to_decoder":
+                target_module = decoder
+            elif head is not None:
+                target_module = head
+            else:
+                raise ValueError(f"Unsupported SMP size_match: {model.size_match}")
         else:
             raise ValueError(f"Unsupported SMP mode: {mode}")
+        conv_list = []
+        for name, module in target_module.named_modules():
+            if isinstance(module, nn.Conv2d):
+                conv_list.append(module)
+        if len(conv_list) > 0:
+            return conv_list[select_index]
     
     # --- timm ViT 風格
     if _get(model, "blocks") is not None:
@@ -218,13 +216,15 @@ def run_grad_cam_on_image(model: torch.nn.Module,
         return np.hstack(results)
 
 class PytorchCAM(torch.nn.Module):
-    def __init__(self, model, model_name, img_size, patch_size=14, method=GradCAM, reshape_transform=None, normalize_cam=True, device=None):
+    def __init__(self, model, model_name, img_size, target_module=None, select_index=-1, patch_size=14, method=GradCAM, reshape_transform=None, normalize_cam=True, device=None):
         super(PytorchCAM, self).__init__()
         self.model = model
         self.model_name = model_name
         self.model.eval()
         self.img_size = img_size
         self.patch_size = patch_size
+        self.target_module = target_module
+        self.select_index = select_index
         self.features = None
         self.gradients = None
         self.device = device
@@ -234,7 +234,7 @@ class PytorchCAM(torch.nn.Module):
             # timm or HuggingFace ViT
             self.target_layer = model.blocks[-1]
         else:
-            self.target_layer = _resolve_target_layer(model, model_name)
+            self.target_layer = _resolve_target_layer(model, model_name, module_name=target_module, select_index=select_index)
         
         # Set reshape transform if needed
         if reshape_transform is None:
