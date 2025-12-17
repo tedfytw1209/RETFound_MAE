@@ -49,7 +49,7 @@ class RISE(nn.Module):
             self.generate_masks(N=N, s=10, p1=0.1, savepath=maskspath)
         else:
             self.load_masks(maskspath)
-            print('Masks are loaded in CPU')
+            #print('Masks are loaded in CPU')
 
     def generate_masks(self, N, s, p1, savepath='masks.npy'):
         H, W = self.input_size
