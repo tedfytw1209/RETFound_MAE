@@ -428,8 +428,8 @@ class GeneralFusionHead(nn.Module):
         else:
             self._upsample_layers = None
             self._downsample_layers = None
-        print(f"GeneralFusionHead: merge_method={merge_method}, size_match={size_match}, fusion_dim={fusion_dim}")
-        print("Encoder channels:", enc_channels, "Decoder channels:", dec_channels)
+        #print(f"GeneralFusionHead: merge_method={merge_method}, size_match={size_match}, fusion_dim={fusion_dim}")
+        #print("Encoder channels:", enc_channels, "Decoder channels:", dec_channels)
         self.enc_align = nn.Identity()
         self.dec_align = nn.Identity()
         if merge_method in ("weighted_sum", "add", "multiply"):
@@ -464,7 +464,7 @@ class GeneralFusionHead(nn.Module):
             final_dim = multiply_dim if not fusion_dim else fusion_dim
             if final_dim != multiply_dim:
                 self.enc_align = self._make_align_layer(enc_channels, final_dim // effective_layers)
-        print("Final fused feature dim:", final_dim)
+        #print("Final fused feature dim:", final_dim)
 
         if merge_method == "weighted_sum":
             init_logit = math.log(alpha_init) - math.log(1 - alpha_init)
@@ -651,16 +651,16 @@ class GeneralFusionHead(nn.Module):
         """
         enc_feats = self.enc_align(enc_feats)
         dec_feats = self.dec_align(dec_feats)
-        print("After align: enc_feats:", enc_feats.shape, "dec_feats:", dec_feats.shape)
+        #print("After align: enc_feats:", enc_feats.shape, "dec_feats:", dec_feats.shape)
         enc_feats, dec_feats = self._match_spatial(enc_feats, dec_feats)
-        print("After size match: enc_feats:", enc_feats.shape, "dec_feats:", dec_feats.shape)
+        #print("After size match: enc_feats:", enc_feats.shape, "dec_feats:", dec_feats.shape)
         if self.merge_method == "channel_multiply":
             fused = self._channel_multiply(enc_feats, dec_feats)
         else:
             fused = self._merge(enc_feats, dec_feats)
-        print("Fused feature shape:", fused.shape)
+        #print("Fused feature shape:", fused.shape)
         pooled = self._pool(fused)
-        print("Pooled feature shape:", pooled.shape)
+        #print("Pooled feature shape:", pooled.shape)
         logits = self.classifier(pooled)
         if return_fused_feature:
             return logits, fused

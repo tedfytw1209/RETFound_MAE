@@ -595,7 +595,7 @@ class RelevanceMetric():
                 - mass (np.float64): Relevance mass accuracy in [0.0, 1.0], higher is better
                 - rank (np.float64): Relevance rank accuracy in [0.0, 1.0], higher is better
         """
-        print('Shape:',heatmap.shape, ground_truth.shape)
+        #print('Shape:',heatmap.shape, ground_truth.shape)
         C, H, W = heatmap.shape
         assert ground_truth.shape == (H, W), f"Ground truth shape {ground_truth.shape} must match heatmap spatial dims ({H}, {W})"
 
@@ -604,13 +604,13 @@ class RelevanceMetric():
         
         # Step 1: Pool the relevance across the channel dimension
         pooled_heatmap = self.pool_heatmap(heatmap)
-        print('Pooled shape:',pooled_heatmap.shape)
+        #print('Pooled shape:',pooled_heatmap.shape)
 
         # Step 2: Compute the ratio of relevance mass within ground truth w.r.t the total relevance
         relevance_within_ground_truth = np.sum(pooled_heatmap * np.where(ground_truth, 1.0, 0.0).astype(dtype=np.float64))
         relevance_total = np.sum(pooled_heatmap)
         relevance_mass_accuracy = 1.0 * relevance_within_ground_truth / (relevance_total + 1e-9)
-        print('In ground truth:', relevance_within_ground_truth, 'Total:', relevance_total, 'Mass acc:', relevance_mass_accuracy)
+        #print('In ground truth:', relevance_within_ground_truth, 'Total:', relevance_total, 'Mass acc:', relevance_mass_accuracy)
         assert (0.0 <= relevance_mass_accuracy) and (relevance_mass_accuracy <= 1.0)
 
         # Step 3: Order pixels by relevance and count how many of the top-N fall in ground truth
