@@ -143,10 +143,7 @@ class SMPClassifier(nn.Module):
 
         #self.encoder = self.seg_model.encoder
         enc_chs = list(self.seg_model.encoder.out_channels)
-        if self.enc_idx != -1:
-            self.enc_last_ch = sum([int(enc_chs[i]) for i in range(self.enc_idx, 0)])
-        else:
-            self.enc_last_ch = int(enc_chs[self.enc_idx])
+        self.enc_last_ch = int(enc_chs[self.enc_idx])
         print(f"Encoder last feature channels: {self.enc_last_ch}")
         # Infer decoder output channels by running a dummy forward pass
         if use_mask:
@@ -221,6 +218,7 @@ class SMPClassifier(nn.Module):
     def _get_enc_and_dec(self, x, enc_idx: int = -1, dec_idx: int = -1) -> Tuple[torch.Tensor, torch.Tensor]:
         """Efficiently compute both encoder and decoder features with single encoder pass."""
         enc_feats = self.seg_model.encoder(x)
+        '''
         if enc_idx != -1:
             enc_list = [enc_feats[i] for i in range(enc_idx,0)]
             first_enc_shape = enc_list[0].shape[2:]
@@ -232,6 +230,8 @@ class SMPClassifier(nn.Module):
             print('final enc shape after concat:', final_enc.shape)
         else:
             final_enc = enc_feats[enc_idx]
+        '''
+        final_enc = enc_feats[enc_idx]
         dec = self.seg_model.decoder(enc_feats)
         final_dec = dec[dec_idx] if isinstance(dec, (list, tuple)) else dec
         if self.use_mask:
