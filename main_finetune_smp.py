@@ -861,7 +861,7 @@ def main(args, criterion):
     model.to(device)
     model_without_ddp = model
 
-    if args.fix_extractor and not args.model.startswith('SAM2UNet'):
+    if args.fix_extractor:
         print("Fixing the backbone parameters")
         # Hugging Face models with 'classifier' as the head
         hf_models_with_classifier = ['vit_base_patch16_224', 'efficientnet_b0', 'efficientnet_b4', 'resnet-50', 'dinov3']
@@ -869,8 +869,9 @@ def main(args, criterion):
             head_keyword = 'classifier'
         else:
             head_keyword = 'head'  # timm or custom models
+        exclude_keyword = "segmentation_head"
         for name, param in model.named_parameters():
-            param.requires_grad = head_keyword in name
+            param.requires_grad = head_keyword in name and exclude_keyword not in name
     
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of model params (M): %.2f' % (n_parameters / 1.e6))
