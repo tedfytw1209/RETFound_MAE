@@ -2,7 +2,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem-per-cpu=12gb
+#SBATCH --mem-per-cpu=16gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
 #SBATCH --time=48:00:00
@@ -86,7 +86,7 @@ THICKNESS_DIR="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 THICKNESS_CSV="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/thickness_map.csv"
 MODEL_ROOT="/orange/ruogu.fang/tienyuchang/RETfound_results"
 OUTPUT_DIR="./heatmap_results_production"
-batch_size=4
+batch_size=2
 #target_module="encoder decoder head"
 target_module="head"
 
