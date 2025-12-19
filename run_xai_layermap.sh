@@ -86,6 +86,7 @@ THICKNESS_DIR="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 THICKNESS_CSV="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/thickness_map.csv"
 MODEL_ROOT="/orange/ruogu.fang/tienyuchang/RETfound_results"
 OUTPUT_DIR="./heatmap_results_production"
+batch_size=4
 
 # ============================================================================
 # Run XAI for base models (DME_finetuned)
@@ -109,7 +110,7 @@ for i in "${!Model_list[@]}"; do
         --task DME \
         --num_samples -1 \
         --xai_method GradCAM HiResCAM GradCAMPlusPlus \
-        --batch_size 8 \
+        --batch_size $batch_size \
         --input_size 512 \
         --nb_classes 2 \
         --load_mask \
@@ -140,7 +141,7 @@ for i in "${!Model_list[@]}"; do
         --task DME \
         --num_samples -1 \
         --xai_method GradCAM HiResCAM GradCAMPlusPlus \
-        --batch_size 8 \
+        --batch_size $batch_size \
         --input_size 512 \
         --nb_classes 2 \
         --load_mask \
@@ -171,7 +172,7 @@ for i in "${!Fuse_models[@]}"; do
         --task DME \
         --num_samples -1 \
         --xai_method GradCAM HiResCAM GradCAMPlusPlus \
-        --batch_size 8 \
+        --batch_size $batch_size \
         --input_size 512 \
         --nb_classes 2 \
         --load_mask \
