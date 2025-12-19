@@ -304,12 +304,22 @@ def _draw_grid_per_model(task_name, key, model_name, model_data, methods, module
     elif n_cols == 1:
         axes = [[ax] for ax in axes]
     
-    # Turn off all axes first
+    # Turn off ticks but keep axes for labels
     for r in range(n_rows):
         for c in range(n_cols):
-            axes[r][c].axis('off')
+            axes[r][c].set_xticks([])
+            axes[r][c].set_yticks([])
+            for spine in axes[r][c].spines.values():
+                spine.set_visible(False)
     
-    # Row 0: Image and Mask
+    # Column headers in row 0 only (XAI method names)
+    for c, method in enumerate(methods):
+        axes[0][c].set_title(method, fontsize=10)
+    
+    # Row label for row 0 (first column only)
+    axes[0][0].set_ylabel("Input", fontsize=10, rotation=0, labelpad=55, va='center', fontweight='bold')
+    
+    # Row 0: Image (col 0) and Mask (col 1)
     # Image
     if model_data['original'] is not None:
         im = _safe_open(model_data['original'])
@@ -317,25 +327,19 @@ def _draw_grid_per_model(task_name, key, model_name, model_data, methods, module
             if cell_size:
                 im = im.resize(cell_size)
             axes[0][0].imshow(im)
-            axes[0][0].set_title("Image", fontsize=10)
     else:
         axes[0][0].text(0.5, 0.5, "No Image", ha="center", va="center", fontsize=10, transform=axes[0][0].transAxes)
     
     # Mask
-    if model_data['mask'] is not None:
-        im = _safe_open(model_data['mask'])
-        if im is not None:
-            if cell_size:
-                im = im.resize(cell_size)
-            axes[0][1].imshow(im)
-            axes[0][1].set_title("Mask", fontsize=10)
-    else:
-        axes[0][1].text(0.5, 0.5, "No Mask", ha="center", va="center", fontsize=10, transform=axes[0][1].transAxes)
-    
-    # Column headers for XAI methods (on first layer row)
-    for c, method in enumerate(methods):
-        if n_rows > 1:
-            axes[1][c].set_title(method, fontsize=10)
+    if n_cols > 1:
+        if model_data['mask'] is not None:
+            im = _safe_open(model_data['mask'])
+            if im is not None:
+                if cell_size:
+                    im = im.resize(cell_size)
+                axes[0][1].imshow(im)
+        else:
+            axes[0][1].text(0.5, 0.5, "No Mask", ha="center", va="center", fontsize=10, transform=axes[0][1].transAxes)
     
     # Rows 1+: Module-Layer heatmaps
     for r_idx, module_layer in enumerate(available_layers):
@@ -345,12 +349,11 @@ def _draw_grid_per_model(task_name, key, model_name, model_data, methods, module
         # Row label - use full layer name (e.g., encoder_52, decoder_9, head_0)
         display_label = module_layer
         
+        # Add y-axis label on the first column for each row
+        axes[row][0].set_ylabel(display_label, fontsize=9, rotation=0, labelpad=55, va='center')
+        
         for c, method in enumerate(methods):
             ax = axes[row][c]
-            
-            # Add row label on the first column
-            if c == 0:
-                ax.set_ylabel(display_label, fontsize=9, rotation=0, labelpad=55, va='center')
             
             path = layer_data.get(method, None)
             
@@ -456,6 +459,14 @@ def _draw_comparison_grid(task_name, key, sample_data, models, methods, module_l
     if n_models == 1:
         axes = [axes]
     
+    # Turn off ticks but keep axes for labels
+    for r in range(n_models):
+        for c in range(n_cols):
+            axes[r][c].set_xticks([])
+            axes[r][c].set_yticks([])
+            for spine in axes[r][c].spines.values():
+                spine.set_visible(False)
+    
     # Column headers
     col_headers = ['Image', 'Mask'] + list(methods)
     for c, header in enumerate(col_headers):
@@ -464,9 +475,9 @@ def _draw_comparison_grid(task_name, key, sample_data, models, methods, module_l
     for r, model_name in enumerate(models):
         model_data = sample_data.get(model_name, {'original': None, 'mask': None, 'layers': {}})
         
-        # Row label (model name)
+        # Row label (model name) - y-axis label
         short_model = model_name.replace('_fus0enc-1dec-1', '').replace('_fus8enc-2dec-1', '_fea')
-        axes[r][0].set_ylabel(short_model, fontsize=8, rotation=0, labelpad=60, va='center')
+        axes[r][0].set_ylabel(short_model, fontsize=8, rotation=0, labelpad=70, va='center')
         
         # Image
         if model_data['original'] is not None:
@@ -475,7 +486,6 @@ def _draw_comparison_grid(task_name, key, sample_data, models, methods, module_l
                 if cell_size:
                     im = im.resize(cell_size)
                 axes[r][0].imshow(im)
-        axes[r][0].axis('off')
         
         # Mask
         if model_data['mask'] is not None:
@@ -484,13 +494,11 @@ def _draw_comparison_grid(task_name, key, sample_data, models, methods, module_l
                 if cell_size:
                     im = im.resize(cell_size)
                 axes[r][1].imshow(im)
-        axes[r][1].axis('off')
         
         # XAI methods
         layer_data = model_data['layers'].get(module_layer, {})
         for c, method in enumerate(methods):
             ax = axes[r][2 + c]
-            ax.axis('off')
             
             path = layer_data.get(method, None)
             if path is None:
