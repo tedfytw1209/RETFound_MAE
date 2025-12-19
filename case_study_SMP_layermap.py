@@ -236,43 +236,38 @@ def load_sample_data(task, num_sample=-1, save_mask=False):
         filename = os.path.basename(row['OCT']) if isinstance(row['OCT'], str) else row['OCT']
         img_path = os.path.join(dataset_dir, "%s_sampled"%task, img_p_fmt % (row['label'], filename))
         if os.path.exists(img_path):
-            try:
-                img = Image.open(img_path).convert('RGB')
-                if LOAD_MASK:
-                    mask_path = os.path.join(Thickness_DIR, row['folder'], row['Surface Name'])
-                    mask = np.load(mask_path) # (Layer, slice, W)
+            img = Image.open(img_path).convert('RGB')
+            if LOAD_MASK:
+                mask_path = os.path.join(Thickness_DIR, row['folder'], row['Surface Name'])
+                mask = np.load(mask_path) # (Layer, slice, W)
 
-                    # 假設我們要套用其中某一 slice 的 mask，例如 slice_index = 13
-                    slice_index = int(os.path.basename(img_path).split("_")[-1].split(".")[0])  # 從檔名抓 13
-                    mask_slice = mask[:, slice_index, :]  # shape: (Layer, W)
-                    mask_slices.append(mask_slice)
-                else:
-                    mask_slices.append(None)
-                
-                img_np = np.array(img)  # Convert PIL image to numpy array
-                if IMG_MASK:
-                    masked_img_np = masked_img_func(img_np, mask_slice)
-                    masked_img = Image.fromarray(masked_img_np)
-                    images.append(masked_img)
-                else:
-                    images.append(img)
-                
-                if save_mask:
-                    binary_mask = _build_binary_mask(mask_slice, img_np)
-                    mask_path = img_path.replace('.jpg','.npy')
-                    layer_path = img_path.replace('.jpg','_layer.npy')
-                    np.save(str(mask_path), binary_mask)
-                    np.save(str(layer_path), mask_slice)
-                
-                
-                labels.append(row['label'])
-                # Store filename without extension for directory naming
-                image_name = os.path.splitext(filename)[0]
-                filenames.append(image_name)
-            except Exception as e:
-                print(f"Error loading image {img_path}: {e}")
-                continue
-
+                # 假設我們要套用其中某一 slice 的 mask，例如 slice_index = 13
+                slice_index = int(os.path.basename(img_path).split("_")[-1].split(".")[0])  # 從檔名抓 13
+                mask_slice = mask[:, slice_index, :]  # shape: (Layer, W)
+                mask_slices.append(mask_slice)
+            else:
+                mask_slices.append(None)
+            
+            img_np = np.array(img)  # Convert PIL image to numpy array
+            if IMG_MASK:
+                masked_img_np = masked_img_func(img_np, mask_slice)
+                masked_img = Image.fromarray(masked_img_np)
+                images.append(masked_img)
+            else:
+                images.append(img)
+            
+            if save_mask:
+                binary_mask = _build_binary_mask(mask_slice, img_np)
+                mask_path = img_path.replace('.jpg','.npy')
+                layer_path = img_path.replace('.jpg','_layer.npy')
+                np.save(str(mask_path), binary_mask)
+                np.save(str(layer_path), mask_slice)
+            
+            
+            labels.append(row['label'])
+            # Store filename without extension for directory naming
+            image_name = os.path.splitext(filename)[0]
+            filenames.append(image_name)
 
     return images, labels, filenames, mask_slices
 
@@ -366,27 +361,22 @@ def load_trained_model(task, model_name, input_size=224, nb_classes=2, model_par
     # Load finetuned model if specified (following main_XAI_evaluation.py pattern)
     if model_path and model_path != '':
         if os.path.exists(model_path):
-            try:
-                # Load checkpoint
-                if model_path.startswith('https'):
-                    checkpoint = torch.hub.load_state_dict_from_url(
-                        model_path, map_location='cpu', check_hash=True)
-                else:
-                    checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
-                
-                # Extract model state dict
-                if 'model' in checkpoint:
-                    checkpoint_model = checkpoint['model']
-                else:
-                    checkpoint_model = checkpoint
-                
-                # Load with strict=False to handle potential mismatches
-                model.load_state_dict(checkpoint_model, strict=False)
-                print(f"Resume checkpoint {model_path} for {model_name} on {task}")
-                
-            except Exception as e:
-                print(f"Error loading model {model_name} for {task}: {e}")
-                print("Using pretrained weights instead")
+            # Load checkpoint
+            if model_path.startswith('https'):
+                checkpoint = torch.hub.load_state_dict_from_url(
+                    model_path, map_location='cpu', check_hash=True)
+            else:
+                checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
+            
+            # Extract model state dict
+            if 'model' in checkpoint:
+                checkpoint_model = checkpoint['model']
+            else:
+                checkpoint_model = checkpoint
+            
+            # Load with strict=False to handle potential mismatches
+            model.load_state_dict(checkpoint_model, strict=False)
+            print(f"Resume checkpoint {model_path} for {model_name} on {task}")
         else:
             print(f"Model path not found: {model_path}")
             print(f"Using pretrained weights for {model_name} on {task}")
@@ -990,12 +980,8 @@ def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model
         results[task] = {}
         
         # Load sample data for this task (now returns filenames too)
-        try:
-            images, labels, filenames, mask_slices = load_sample_data(task, num_samples, save_mask=save_mask_flag)
-            print(f"Loaded {len(images)} images for {task}")
-        except Exception as e:
-            print(f"Error loading data for {task}: {e}")
-            continue
+        images, labels, filenames, mask_slices = load_sample_data(task, num_samples, save_mask=save_mask_flag)
+        print(f"Loaded {len(images)} images for {task}")
         
         if not Model_param_dict_list:
             Model_param_dict_list = [{} for _ in model_list]
@@ -1135,57 +1121,46 @@ def process_xai_batch(image, image_tensor, label, filename, mask_slice,
         # Generate heatmaps for this batch of XAI methods
         batch_heatmaps = {}
         for xai_name in batch_xai_methods:
-            try:
-                heatmap_dict = xai_generator.generate_all_heatmaps(image_tensor, target_class=label, xai_name=xai_name)
-                heatmap = heatmap_dict.get(xai_name, None)
-                if heatmap is not None:
-                    batch_heatmaps[xai_name] = heatmap
-                elif verbose:
-                    print(f"  Warning: {xai_name} returned None for {filename}")
-            except Exception as e:
-                if verbose:
-                    print(f"  Error generating {xai_name} for {filename}: {e}")
-                continue
+            heatmap_dict = xai_generator.generate_all_heatmaps(image_tensor, target_class=label, xai_name=xai_name)
+            heatmap = heatmap_dict.get(xai_name, None)
+            if heatmap is not None:
+                batch_heatmaps[xai_name] = heatmap
+            elif verbose:
+                print(f"  Warning: {xai_name} returned None for {filename}")
         
         # Process and save results for this batch
         for xai_name, heatmap in batch_heatmaps.items():
-            try:
-                heatmap = heatmap + 1e-9
-                overlay, heatmap_resized = overlay_heatmap_on_image(image, heatmap, mask_slice)
-                
-                mass_acc = rel_metric([image], heatmap_resized, binary_mask)
-                rank_acc = rank_metric([image], heatmap_resized, binary_mask)
-                
-                if draw_layer_flag and mask_slice is not None:
-                    overlay = add_layer_line(overlay, mask_slice)
-                
-                out_path = save_dir / f"{xai_name}.jpg"
-                
-                # Save outputs
-                if not isinstance(overlay, Image.Image):
-                    overlay = Image.fromarray(overlay)
-                overlay.save(out_path, format='JPEG', quality=95)
-                
-                # Save the heatmap as numpy array
-                np.save(save_dir / f"{xai_name}.npy", heatmap)
-                
-                image_results.append({
-                    'task': task,
-                    'image_name': filename,
-                    'label': label,
-                    'output_path': str(out_path),
-                    'model_name': model_name,
-                    'module_name': module_name,
-                    'select_index': select_index,
-                    'xai_method': xai_name,
-                    'relevance_mass_accuracy': mass_acc,
-                    'relevance_rank_accuracy': rank_acc
-                })
-                
-            except Exception as e:
-                if verbose:
-                    print(f"  Error saving {xai_name} for {filename}: {e}")
-                continue
+            heatmap = heatmap + 1e-9
+            overlay, heatmap_resized = overlay_heatmap_on_image(image, heatmap, mask_slice)
+            
+            mass_acc = rel_metric([image], heatmap_resized, binary_mask)
+            rank_acc = rank_metric([image], heatmap_resized, binary_mask)
+            
+            if draw_layer_flag and mask_slice is not None:
+                overlay = add_layer_line(overlay, mask_slice)
+            
+            out_path = save_dir / f"{xai_name}.jpg"
+            
+            # Save outputs
+            if not isinstance(overlay, Image.Image):
+                overlay = Image.fromarray(overlay)
+            overlay.save(out_path, format='JPEG', quality=95)
+            
+            # Save the heatmap as numpy array
+            np.save(save_dir / f"{xai_name}.npy", heatmap)
+            
+            image_results.append({
+                'task': task,
+                'image_name': filename,
+                'label': label,
+                'output_path': str(out_path),
+                'model_name': model_name,
+                'module_name': module_name,
+                'select_index': select_index,
+                'xai_method': xai_name,
+                'relevance_mass_accuracy': mass_acc,
+                'relevance_rank_accuracy': rank_acc
+            })
     
     return image_results
 

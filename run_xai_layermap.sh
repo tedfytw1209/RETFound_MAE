@@ -87,6 +87,8 @@ THICKNESS_CSV="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/thickness_ma
 MODEL_ROOT="/orange/ruogu.fang/tienyuchang/RETfound_results"
 OUTPUT_DIR="./heatmap_results_production"
 batch_size=4
+#target_module="encoder decoder head"
+target_module="head"
 
 # ============================================================================
 # Run XAI for base models (DME_finetuned)
@@ -106,7 +108,7 @@ for i in "${!Model_list[@]}"; do
         --model_root "$MODEL_ROOT" \
         --model_fname "$model_fname" \
         --model "$model" \
-        --target_module encoder decoder head \
+        --target_module "$target_module" \
         --task DME \
         --num_samples -1 \
         --xai_method GradCAM HiResCAM GradCAMPlusPlus \
@@ -137,7 +139,7 @@ for i in "${!Model_list[@]}"; do
         --model_root "$MODEL_ROOT" \
         --model_fname "$model_fname" \
         --model "$model" \
-        --target_module encoder decoder head \
+        --target_module "$target_module" \
         --task DME \
         --num_samples -1 \
         --xai_method GradCAM HiResCAM GradCAMPlusPlus \
@@ -168,7 +170,7 @@ for i in "${!Fuse_models[@]}"; do
         --model_root "$MODEL_ROOT" \
         --model_fname "$model_fname" \
         --model "$model" \
-        --target_module encoder decoder head \
+        --target_module "$target_module" \
         --task DME \
         --num_samples -1 \
         --xai_method GradCAM HiResCAM GradCAMPlusPlus \
