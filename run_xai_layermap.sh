@@ -1,11 +1,19 @@
 #!/bin/bash
-# ============================================================================
-# Example bash script for running case_study_SMP_layermap.py
-# XAI Heatmap Generation for SMP Models with Layer-wise Analysis
-# ============================================================================
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=4gb
+#SBATCH --partition=hpg-turin
+#SBATCH --gpus=1
+#SBATCH --time=48:00:00
+#SBATCH --output=%x.%j.out
+#SBATCH --account=ruogu.fang
+#SBATCH --qos=ruogu.fang
 
-# Set environment
-export CUDA_VISIBLE_DEVICES=0
+date;hostname;pwd
+
+module load conda
+conda activate octxai
 
 # ============================================================================
 # Example 1: List available models and XAI methods
@@ -23,14 +31,13 @@ python case_study_SMP_layermap.py \
     --thickness_csv /orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/thickness_map.csv \
     --model_root /orange/ruogu.fang/tienyuchang/RETfound_results \
     --model_fname checkpoint-best.pth \
-    --model SMP_enc SMP_dec \
-    --target_module encoder decoder \
+    --model SMP_enc \
+    --target_module encoder \
     --encoder_idx 10 23 42 52 \
-    --decoder_idx 1 3 5 7 9 \
     --task DME \
     --num_samples -1 \
     --xai_method GradCAM HiResCAM GradCAMPlusPlus \
-    --batch_size 4 \
+    --batch_size 8 \
     --input_size 512 \
     --nb_classes 2 \
     --load_mask \
