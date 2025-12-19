@@ -233,13 +233,21 @@ def _order(items, fixed):
     return ordered
 
 def _order_module_layers(module_layers):
-    """Order module layers: encoder first, then decoder, then head, sorted by index"""
+    """Order module layers: encoder first, then decoder, then head, sorted by index
+    
+    Order: encoder_10, encoder_23, encoder_42, encoder_52, decoder_0, decoder_1, ..., head_0, head_-1
+    Negative indices (like -1 for last layer) are sorted at the end of each module group.
+    """
     def sort_key(ml):
         parts = ml.rsplit('_', 1)
         if len(parts) == 2:
             module, idx = parts[0], parts[1]
             try:
                 idx_num = int(idx)
+                # Handle negative indices: sort them at the end (e.g., -1 means last layer)
+                # Map negative to large positive for sorting: -1 -> 10000-1=9999, -2 -> 9998, etc.
+                if idx_num < 0:
+                    idx_num = 10000 + idx_num  # -1 becomes 9999, -2 becomes 9998
             except ValueError:
                 idx_num = 999
         else:
@@ -334,13 +342,16 @@ def _draw_grid_per_model(task_name, key, model_name, model_data, methods, module
         row = r_idx + 1  # Skip first row (image/mask)
         layer_data = model_data['layers'].get(module_layer, {})
         
-        # Row label
-        # Shorten the label for display
-        display_label = module_layer.replace('encoder_', 'enc_').replace('decoder_', 'dec_')
-        axes[row][0].set_ylabel(display_label, fontsize=9, rotation=0, labelpad=40, va='center')
+        # Row label - use full layer name (e.g., encoder_52, decoder_9, head_0)
+        display_label = module_layer
         
         for c, method in enumerate(methods):
             ax = axes[row][c]
+            
+            # Add row label on the first column
+            if c == 0:
+                ax.set_ylabel(display_label, fontsize=9, rotation=0, labelpad=55, va='center')
+            
             path = layer_data.get(method, None)
             
             if path is None:
@@ -363,9 +374,11 @@ def _draw_grid_per_model(task_name, key, model_name, model_data, methods, module
     short_model = model_name.replace('_fus0enc-1dec-1', '').replace('_fus8enc-2dec-1', '_fea')
     fig.suptitle(f"{task_name} | {short_model}\nImage: {image_name} | Label: {label}", fontsize=12)
     
-    plt.tight_layout(rect=[0.05, 0, 1, 0.93])
-    save_dir.mkdir(parents=True, exist_ok=True)
-    out_path = save_dir / f"{label}_{image_name}_{model_name}_grid.png"
+    plt.tight_layout(rect=[0.08, 0, 1, 0.93])
+    # Save in <img_name> directory
+    img_save_dir = save_dir / f"{label}_{image_name}"
+    img_save_dir.mkdir(parents=True, exist_ok=True)
+    out_path = img_save_dir / f"{model_name}_grid.png"
     plt.savefig(out_path, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
     return out_path
@@ -494,8 +507,10 @@ def _draw_comparison_grid(task_name, key, sample_data, models, methods, module_l
     fig.suptitle(f"{task_name} | {module_layer}\nImage: {image_name} | Label: {label}", fontsize=12)
     
     plt.tight_layout(rect=[0.08, 0, 1, 0.93])
-    save_dir.mkdir(parents=True, exist_ok=True)
-    out_path = save_dir / f"{label}_{image_name}_{module_layer}_comparison.png"
+    # Save in <img_name> directory
+    img_save_dir = save_dir / f"{label}_{image_name}"
+    img_save_dir.mkdir(parents=True, exist_ok=True)
+    out_path = img_save_dir / f"{module_layer}_comparison.png"
     plt.savefig(out_path, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
     return out_path
