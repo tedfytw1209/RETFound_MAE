@@ -18,11 +18,6 @@ conda activate octxai
 # ============================================================================
 # Example 1: List available models and XAI methods
 # ============================================================================
-echo "=== Listing available models ==="
-python case_study_SMP_layermap.py --list_models
-
-echo "=== Listing available XAI methods ==="
-python case_study_SMP_layermap.py --list_xai
 
 python case_study_SMP_layermap.py \
     --dataset_dir /blue/ruogu.fang/tienyuchang/OCT_EDA \
@@ -30,7 +25,7 @@ python case_study_SMP_layermap.py \
     --thickness_dir /orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/ \
     --thickness_csv /orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/thickness_map.csv \
     --model_root /orange/ruogu.fang/tienyuchang/RETfound_results \
-    --model_fname checkpoint-best.pth \
+    --model_fname DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr5e-4optadamw-defaulteval-trsub0-enc---fix_extractor--/checkpoint-best.pth \
     --model SMP_enc \
     --target_module encoder \
     --encoder_idx 10 23 42 52 \
