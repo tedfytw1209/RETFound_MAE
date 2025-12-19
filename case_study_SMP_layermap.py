@@ -789,18 +789,36 @@ def get_args_parser():
     """Create argument parser for command-line interface"""
     parser = argparse.ArgumentParser(description='Generate XAI heatmaps for SMP models with layer-wise analysis')
     
-    # Model selection
+    # ==================== Data paths ====================
+    parser.add_argument('--dataset_dir', type=str, default=dataset_dir,
+                        help=f'Root directory for dataset. Default: {dataset_dir}')
+    parser.add_argument('--dataset_fname', type=str, default=dataset_fname,
+                        help=f'Dataset CSV filename. Default: {dataset_fname}')
+    parser.add_argument('--thickness_dir', type=str, default=Thickness_DIR,
+                        help=f'Directory for thickness mask data. Default: {Thickness_DIR}')
+    parser.add_argument('--thickness_csv', type=str, default=Thickness_CSV,
+                        help=f'CSV file for thickness mapping. Default: {Thickness_CSV}')
+    
+    # ==================== Model paths ====================
+    parser.add_argument('--model_root', type=str, default=Model_root,
+                        help=f'Root directory for model checkpoints. Default: {Model_root}')
+    parser.add_argument('--model_fname', type=str, default=Model_fname,
+                        help=f'Model checkpoint filename. Default: {Model_fname}')
+    
+    # ==================== Model selection ====================
     parser.add_argument('--model', type=str, nargs='+', default=None,
                         help='Model name(s) to use. Available: SMP_enc, SMP_dec, SMP_fuse_*. If not specified, use all models.')
     parser.add_argument('--model_idx', type=int, nargs='+', default=None,
                         help='Model index(es) from Model_list. Alternative to --model.')
+    parser.add_argument('--nb_classes', type=int, default=2,
+                        help='Number of classes for classification. Default: 2')
     
-    # Target module selection  
-    parser.add_argument('--target_module', type=str, nargs='+', default=['encoder', 'decoder', 'head'],
-                        choices=['encoder', 'decoder', 'head', 'all'],
+    # ==================== Target module selection ====================
+    parser.add_argument('--target_module', type=str, nargs='+', default=['encoder'],
+                        choices=['encoder', 'decoder', 'head'],
                         help='Target module(s) for XAI methods. Default: encoder decoder head')
     
-    # Layer selection
+    # ==================== Layer selection ====================
     parser.add_argument('--select_idx', type=int, nargs='+', default=None,
                         help='Specific layer indices to analyze. If not specified, use module_select_dict or all layers.')
     parser.add_argument('--encoder_idx', type=int, nargs='+', default=None,
@@ -812,24 +830,24 @@ def get_args_parser():
     parser.add_argument('--all_layers', action='store_true', default=False,
                         help='Analyze all layers (ignores module_select_dict).')
     
-    # Task and data
+    # ==================== Task and data ====================
     parser.add_argument('--task', type=str, nargs='+', default=['DME'],
                         help='Task name(s). Default: DME')
     parser.add_argument('--num_samples', type=int, default=-1,
                         help='Number of samples to process. -1 for all samples. Default: -1')
     
-    # XAI methods
+    # ==================== XAI methods ====================
     parser.add_argument('--xai_method', type=str, nargs='+', default=['GradCAM', 'HiResCAM', 'GradCAMPlusPlus'],
                         choices=['Attention', 'RISE', 'GradCAM', 'ScoreCAM', 'HiResCAM', 'GradCAMPlusPlus', 'all'],
                         help='XAI method(s) to use. Default: GradCAM HiResCAM GradCAMPlusPlus')
     
-    # Output and batch processing
+    # ==================== Output and batch processing ====================
     parser.add_argument('--output_dir', type=str, default='./heatmap_results_layerwise',
                         help='Output directory for heatmaps. Default: ./heatmap_results_layerwise')
     parser.add_argument('--batch_size', type=int, default=4,
                         help='Batch size for XAI methods (process multiple XAI methods per image). Default: 4')
     
-    # Image and mask options
+    # ==================== Image and mask options ====================
     parser.add_argument('--input_size', type=int, default=512,
                         help='Input image size. Default: 512')
     parser.add_argument('--load_mask', action='store_true', default=True,
@@ -845,7 +863,7 @@ def get_args_parser():
     parser.add_argument('--no_draw_layer', action='store_false', dest='draw_layer',
                         help='Do not draw layer boundaries.')
     
-    # Other options
+    # ==================== Other options ====================
     parser.add_argument('--save_mask', action='store_true', default=False,
                         help='Save binary mask as numpy file.')
     parser.add_argument('--verbose', action='store_true', default=False,
@@ -854,6 +872,9 @@ def get_args_parser():
                         help='List available models and exit.')
     parser.add_argument('--list_xai', action='store_true', default=False,
                         help='List available XAI methods and exit.')
+    parser.add_argument('--device', type=str, default='cuda',
+                        choices=['cuda', 'cpu'],
+                        help='Device to use for computation. Default: cuda')
     
     return parser
 
@@ -921,11 +942,12 @@ def get_all_conv_layers(model, module_name=None):
             conv_layers.append(module)
     return conv_layers
 # Updated function with new directory structure for heatmap saving and batch processing
-def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model_list=Model_list, img_size_list=Model_image_size_list, 
-                                       Model_param_dict_list=None, XAI_list=None, heatmap_dir="./heatmap_results", module_list=None, 
+def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model_list=Model_list, 
+                                       img_size_list=Model_image_size_list,
+                                       Model_param_dict_list=None, XAI_list=None, heatmap_dir="./heatmap_results", module_list=None,
                                        module_select_dict={}, choose_last_layer=True, batch_size=4, verbose=False,
                                        load_mask_flag=True, img_mask_flag=False, heatmap_mask_flag=False, draw_layer_flag=True,
-                                       save_mask_flag=False):
+                                       save_mask_flag=False, nb_classes=2):
     """Generate heatmaps for all task-model combinations with new directory structure and batch processing
     
     Args:
@@ -995,7 +1017,7 @@ def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model
             print(f"\n--- Processing Model [{model_idx+1}/{len(model_list)}]: {model_name} ---")
             
             # Load trained model
-            model, processor = load_trained_model(task, model_name, input_size, nb_classes=2, model_param_dict=model_param_dict)
+            model, processor = load_trained_model(task, model_name, input_size, nb_classes=nb_classes, model_param_dict=model_param_dict)
             for module_name in module_list:
                 # Get all Conv layers
                 if module_select_dict.get(module_name, False):
@@ -1257,22 +1279,18 @@ def main():
     # Determine target modules
     target_modules = args.target_module if args.target_module else Module_list
     
+    # Update global paths based on arguments
+    global dataset_dir, dataset_fname, Thickness_DIR, Thickness_CSV, Model_root, Model_fname
+    dataset_dir = args.dataset_dir
+    dataset_fname = args.dataset_fname
+    Thickness_DIR = args.thickness_dir
+    Thickness_CSV = args.thickness_csv
+    Model_root = args.model_root
+    Model_fname = args.model_fname
+    
     print("\n" + "=" * 60)
     print("Configuration Summary:")
     print("=" * 60)
-    print(f"Tasks: {args.task}")
-    print(f"Models ({len(selected_models)}): {selected_models}")
-    print(f"Target Modules: {target_modules}")
-    print(f"XAI Methods: {args.xai_method}")
-    print(f"Module Select Dict: {module_select_dict}")
-    print(f"Num Samples: {args.num_samples if args.num_samples > 0 else 'all'}")
-    print(f"XAI Batch Size: {args.batch_size}")
-    print(f"Output Directory: {args.output_dir}")
-    print(f"Choose Last Layer: {args.choose_last_layer}")
-    print(f"Load Mask: {args.load_mask}")
-    print(f"Image Mask: {args.img_mask}")
-    print(f"Heatmap Mask: {args.heatmap_mask}")
-    print(f"Draw Layer: {args.draw_layer}")
     print("=" * 60 + "\n")
     
     # Run heatmap generation
@@ -1293,7 +1311,8 @@ def main():
         img_mask_flag=args.img_mask,
         heatmap_mask_flag=args.heatmap_mask,
         draw_layer_flag=args.draw_layer,
-        save_mask_flag=args.save_mask
+        save_mask_flag=args.save_mask,
+        nb_classes=args.nb_classes
     )
     
     print("\n" + "=" * 60)
@@ -1305,24 +1324,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-else:
-    # When imported as module, still provide access to original hardcoded execution
-    # Uncomment below to run in non-CLI mode (e.g., Jupyter notebook)
-    '''
-    print("=== Testing New Heatmap Generation Function ===")
-    print("This will save heatmaps in the structure: ./heatmap_results/<task_name>/<label_idx>/<image_name>/<baselinemodel>/<XAI>.jpg")
-    
-    heatmap_results_v2 = generate_comprehensive_heatmaps_v2(
-        num_samples=-1,
-        task_list=['DME'],
-        model_list=Model_list,
-        img_size_list=Model_image_size_list, 
-        Model_param_dict_list=Model_param_dict_list,
-        XAI_list=['GradCAM', 'HiResCAM', 'GradCAMPlusPlus'],
-        heatmap_dir="./heatmap_results_layerwise",
-        module_list=Module_list,
-        module_select_dict=module_select_dict_default,
-        choose_last_layer=False
-    )
-    '''
-    pass
