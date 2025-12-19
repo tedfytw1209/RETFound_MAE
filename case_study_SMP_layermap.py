@@ -127,17 +127,17 @@ data = [
     {"seg_mask": True,  "smp_fuse_mode": "channel_merge"},
     {"seg_mask": True,  "smp_fuse_mode": "channel_multiply"},
     {"seg_mask": True,  "smp_fuse_mode": "weighted_sum"},
-    #{"seg_mask": False, "smp_fuse_mode": "channel_merge"},
-    #{"seg_mask": False, "smp_fuse_mode": "add"},
-    #{"seg_mask": False, "smp_fuse_mode": "multiply"},
-    #{"seg_mask": False, "smp_fuse_mode": "weighted_sum"},
-    #{"seg_mask": True, 'enc_idx': -2, "smp_fuse_mode": "add", "fusion_dim": 8},
-    #{"seg_mask": True, 'enc_idx': -2, "smp_fuse_mode": "channel_merge", "fusion_dim": 8},
-    #{"seg_mask": True, 'enc_idx': -2, "smp_fuse_mode": "channel_multiply", "fusion_dim": 0},
-    #{"seg_mask": True, 'enc_idx': -2, "smp_fuse_mode": "multiply", "fusion_dim": 8},
-    #{"seg_mask": True, 'enc_idx': -2, "smp_fuse_mode": "weighted_sum", "fusion_dim": 8},
+    {"seg_mask": False, "smp_fuse_mode": "channel_merge"},
+    {"seg_mask": False, "smp_fuse_mode": "add"},
+    {"seg_mask": False, "smp_fuse_mode": "multiply"},
+    {"seg_mask": False, "smp_fuse_mode": "weighted_sum"},
+    {"seg_mask": True, 'enc_idx': -2, "smp_fuse_mode": "add", "fusion_dim": 8},
+    {"seg_mask": True, 'enc_idx': -2, "smp_fuse_mode": "channel_merge", "fusion_dim": 8},
+    {"seg_mask": True, 'enc_idx': -2, "smp_fuse_mode": "channel_multiply", "fusion_dim": 0},
+    {"seg_mask": True, 'enc_idx': -2, "smp_fuse_mode": "multiply", "fusion_dim": 8},
+    {"seg_mask": True, 'enc_idx': -2, "smp_fuse_mode": "weighted_sum", "fusion_dim": 8},
 ]
-Model_list = ['SMP_enc', 'SMP_dec'] # + ['SMP_enc_fix', 'SMP_dec_fix']
+Model_list = ['SMP_enc', 'SMP_dec'] + ['SMP_enc_fix', 'SMP_dec_fix']
 
 Model_param_dict_list = [{} for _ in Model_list]
 for param_dict in data:
@@ -151,16 +151,16 @@ Model_image_size_list = [512] * len(Model_list)
 DME_finetuned = [
     "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-enc--/",
     "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0--/",
-    # "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr5e-4optadamw-defaulteval-trsub0-enc---fix_extractor--/",
-    # "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-dec---fix_extractor--/"
+    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr5e-4optadamw-defaulteval-trsub0-enc---fix_extractor--/",
+    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-dec---fix_extractor--/"
 ]
 
 Model_root = "/orange/ruogu.fang/tienyuchang/RETfound_results"
 DME_finetuned_masked = [
     "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-enc---add_mask---train_no_aug/",
     "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0---add_mask---train_no_aug/",
-    # "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-2optadamw-defaulteval-trsub0-enc---add_mask---train_no_aug---fix_extractor/",
-    # "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-dec---add_mask---train_no_aug---fix_extractor/"
+    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-2optadamw-defaulteval-trsub0-enc---add_mask---train_no_aug---fix_extractor/",
+    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-dec---add_mask---train_no_aug---fix_extractor/"
 ]
 
 #unmasked fuse models
@@ -170,22 +170,11 @@ Fuse_models += [
 'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_merge-0.5-decoder_to_encoder---seg_mask--/',
 'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_multiply-0.5-decoder_to_encoder---seg_mask--/',
 'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-0.5-decoder_to_encoder---smp_learnable_alpha---seg_mask-/',
-#'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_merge-0.5-decoder_to_encoder---/',
-#'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpadd-0.5-decoder_to_encoder---/',
-#'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-0.5-decoder_to_encoder---/',
-#'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-0.5-decoder_to_encoder---smp_learnable_alpha--/'
+'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_merge-0.5-decoder_to_encoder---/',
+'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpadd-0.5-decoder_to_encoder---/',
+'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-0.5-decoder_to_encoder---/',
+'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-0.5-decoder_to_encoder---smp_learnable_alpha--/'
 ]
-
-'''
-Fuse_models = [
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpadd-fea-1-1-0.5-encoder_to_decoder---seg_mask--/',
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_merge-fea-1-1-0.5-encoder_to_decoder---seg_mask--/',
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_multiply-0.5-encoder_to_decoder---seg_mask--/',
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-fea-1-1-0.5-encoder_to_decoder---seg_mask--/',
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-fea-1-1-0.5-encoder_to_decoder---seg_mask--/',
-]
-'''
-'''
 Fuse_models += [
 'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpadd-fea-2-1-0.5-decoder_to_encoder---seg_mask--/',
 'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_merge-fea-2-1-0.5-decoder_to_encoder---seg_mask--/',
@@ -193,7 +182,7 @@ Fuse_models += [
 'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-fea-2-1-0.5-decoder_to_encoder---seg_mask--/',
 'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-fea-2-1-0.5-decoder_to_encoder---smp_learnable_alpha---seg_mask-/',
 ]
-'''
+
 #masked fuse models
 Fuse_models_masked = []
 
