@@ -520,6 +520,10 @@ class XAIGenerator:
         """Generate GradCAM heatmap"""
         if self.gradcam is None:
             return None
+        # #region agent log
+        import json; _log_path = r"debug.log"
+        with open(_log_path, "a") as _f: _f.write(json.dumps({"location":"case_study_SMP_layermap.py:generate_gradcam:entry","message":"GradCAM entry","data":{"target_class":target_class,"tensor_requires_grad":image_tensor.requires_grad,"tensor_grad_fn":str(image_tensor.grad_fn),"model_grad_enabled":any(p.grad is not None for p in self.model.parameters() if p.requires_grad)},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"A,B,E"})+"\n")
+        # #endregion
         self.model.zero_grad(set_to_none=True)
         image_tensor = image_tensor.to(self.device)
         if target_class is None:
@@ -529,6 +533,9 @@ class XAIGenerator:
                 target_class = outputs.argmax(dim=1).item()
         targets = [ClassifierOutputTarget(target_class)]
         heatmap = self.gradcam(image_tensor, targets)
+        # #region agent log
+        with open(_log_path, "a") as _f: _f.write(json.dumps({"location":"case_study_SMP_layermap.py:generate_gradcam:exit","message":"GradCAM exit","data":{"heatmap_shape":list(heatmap.shape) if heatmap is not None else None,"heatmap_min":float(heatmap.min()) if heatmap is not None else None,"heatmap_max":float(heatmap.max()) if heatmap is not None else None,"heatmap_has_nan":bool(np.isnan(heatmap).any()) if heatmap is not None else None,"model_grad_after":any(p.grad is not None for p in self.model.parameters() if p.requires_grad)},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"A,B"})+"\n")
+        # #endregion
         if hasattr(self.gradcam, "remove_hooks"):
             self.gradcam.remove_hooks()
         return heatmap[0] if len(heatmap) > 0 else None
@@ -555,6 +562,10 @@ class XAIGenerator:
         """Generate gardcamplusplus heatmap"""
         if self.gardcamplusplus is None:
             return None
+        # #region agent log
+        import json; _log_path = r"debug.log"
+        with open(_log_path, "a") as _f: _f.write(json.dumps({"location":"case_study_SMP_layermap.py:generate_gardcamplusplus:entry","message":"GradCAM++ entry","data":{"target_class":target_class,"tensor_requires_grad":image_tensor.requires_grad},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"A,B,E"})+"\n")
+        # #endregion
         self.model.zero_grad(set_to_none=True)
         image_tensor = image_tensor.to(self.device)
         if target_class is None:
@@ -565,6 +576,9 @@ class XAIGenerator:
 
         targets = [ClassifierOutputTarget(target_class)]
         heatmap = self.gardcamplusplus(image_tensor, targets)
+        # #region agent log
+        with open(_log_path, "a") as _f: _f.write(json.dumps({"location":"case_study_SMP_layermap.py:generate_gardcamplusplus:exit","message":"GradCAM++ exit","data":{"heatmap_shape":list(heatmap.shape) if heatmap is not None else None,"heatmap_min":float(heatmap.min()) if heatmap is not None else None,"heatmap_max":float(heatmap.max()) if heatmap is not None else None,"heatmap_has_nan":bool(np.isnan(heatmap).any()) if heatmap is not None else None},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"A,B"})+"\n")
+        # #endregion
         if hasattr(self.gardcamplusplus, "remove_hooks"):
             self.gardcamplusplus.remove_hooks()
         return heatmap[0] if len(heatmap) > 0 else None
@@ -573,6 +587,10 @@ class XAIGenerator:
         """Generate hirescam heatmap"""
         if self.hirescam is None:
             return None
+        # #region agent log
+        import json; _log_path = r"debug.log"
+        with open(_log_path, "a") as _f: _f.write(json.dumps({"location":"case_study_SMP_layermap.py:generate_hirescam:entry","message":"HiResCAM entry","data":{"target_class":target_class,"tensor_requires_grad":image_tensor.requires_grad},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"A,B,E"})+"\n")
+        # #endregion
         self.model.zero_grad(set_to_none=True)
         image_tensor = image_tensor.to(self.device)
         if target_class is None:
@@ -583,6 +601,9 @@ class XAIGenerator:
 
         targets = [ClassifierOutputTarget(target_class)]
         heatmap = self.hirescam(image_tensor, targets)
+        # #region agent log
+        with open(_log_path, "a") as _f: _f.write(json.dumps({"location":"case_study_SMP_layermap.py:generate_hirescam:exit","message":"HiResCAM exit","data":{"heatmap_shape":list(heatmap.shape) if heatmap is not None else None,"heatmap_min":float(heatmap.min()) if heatmap is not None else None,"heatmap_max":float(heatmap.max()) if heatmap is not None else None,"heatmap_has_nan":bool(np.isnan(heatmap).any()) if heatmap is not None else None},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"A,B"})+"\n")
+        # #endregion
         if hasattr(self.hirescam, "remove_hooks"):
             self.hirescam.remove_hooks()
         return heatmap[0] if len(heatmap) > 0 else None
@@ -717,6 +738,13 @@ def normalize_heatmap(heatmap):
         return None
     
     heatmap = np.array(heatmap)
+    # #region agent log
+    import json; _log_path = r"debug.log"
+    is_constant = heatmap.max() == heatmap.min()
+    has_nan = bool(np.isnan(heatmap).any())
+    has_inf = bool(np.isinf(heatmap).any())
+    with open(_log_path, "a") as _f: _f.write(json.dumps({"location":"case_study_SMP_layermap.py:normalize_heatmap","message":"Normalizing heatmap","data":{"is_constant":is_constant,"has_nan":has_nan,"has_inf":has_inf,"min":float(np.nanmin(heatmap)),"max":float(np.nanmax(heatmap)),"shape":list(heatmap.shape)},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"C"})+"\n")
+    # #endregion
     if heatmap.max() == heatmap.min():
         return np.zeros_like(heatmap)
     
@@ -724,6 +752,10 @@ def normalize_heatmap(heatmap):
 
 def overlay_heatmap_on_image(image, heatmap, mask_slice = None, alpha=0.4, colormap='jet'):
     """Overlay heatmap on original image"""
+    # #region agent log
+    import json; _log_path = r"debug.log"
+    with open(_log_path, "a") as _f: _f.write(json.dumps({"location":"case_study_SMP_layermap.py:overlay_heatmap_on_image:entry","message":"Overlay entry","data":{"heatmap_shape":list(heatmap.shape) if heatmap is not None else None,"heatmap_min":float(np.nanmin(heatmap)) if heatmap is not None else None,"heatmap_max":float(np.nanmax(heatmap)) if heatmap is not None else None,"heatmap_has_nan":bool(np.isnan(heatmap).any()) if heatmap is not None else None,"heatmap_has_inf":bool(np.isinf(heatmap).any()) if heatmap is not None else None},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"C"})+"\n")
+    # #endregion
     
     if heatmap is None:
         return np.array(image)
@@ -755,6 +787,10 @@ def overlay_heatmap_on_image(image, heatmap, mask_slice = None, alpha=0.4, color
     # Overlay
     overlay = alpha * heatmap_colored + (1 - alpha) * image_norm
     overlay = np.clip(overlay, 0, 1)
+    
+    # #region agent log
+    with open(_log_path, "a") as _f: _f.write(json.dumps({"location":"case_study_SMP_layermap.py:overlay_heatmap_on_image:exit","message":"Overlay exit","data":{"heatmap_norm_min":float(np.nanmin(heatmap_norm)),"heatmap_norm_max":float(np.nanmax(heatmap_norm)),"heatmap_resized_shape":list(heatmap_resized.shape),"overlay_shape":list(overlay.shape),"overlay_min":float(np.nanmin(overlay)),"overlay_max":float(np.nanmax(overlay))},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"C"})+"\n")
+    # #endregion
     
     return (overlay * 255).astype(np.uint8), heatmap_resized
 
@@ -1009,6 +1045,10 @@ def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model
                 for select_index in select_indexs:
                     # Initialize XAI generator
                     xai_generator = XAIGenerator(model, model_name, input_size, target_module=module_name, select_index=select_index)
+                    # #region agent log
+                    import json; _log_path = r"debug.log"
+                    with open(_log_path, "a") as _f: _f.write(json.dumps({"location":"case_study_SMP_layermap.py:generate_comprehensive_heatmaps_v2:xai_init","message":"XAIGenerator initialized","data":{"model_name":model_name,"module_name":module_name,"select_index":select_index,"num_images":len(images)},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"D"})+"\n")
+                    # #endregion
                     
                     # Store results for this model
                     results[task][model_name] = {
@@ -1029,6 +1069,9 @@ def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model
                         
                         # Preprocess image
                         image_tensor = preprocess_image(image, processor, input_size)
+                        # #region agent log
+                        with open(_log_path, "a") as _f: _f.write(json.dumps({"location":"case_study_SMP_layermap.py:generate_comprehensive_heatmaps_v2:image_loop","message":"Processing new image","data":{"idx":idx,"filename":filename,"label":label,"tensor_shape":list(image_tensor.shape),"tensor_requires_grad":image_tensor.requires_grad},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"D,E"})+"\n")
+                        # #endregion
                         
                         # Batch process XAI methods for this image
                         image_results = process_xai_batch(
@@ -1082,6 +1125,10 @@ def process_xai_batch(image, image_tensor, label, filename, mask_slice,
     Returns:
         List of result dictionaries
     """
+    # #region agent log
+    import json; _log_path = r"debug.log"
+    with open(_log_path, "a") as _f: _f.write(json.dumps({"location":"case_study_SMP_layermap.py:process_xai_batch:entry","message":"Batch processing entry","data":{"filename":filename,"label":label,"xai_list":XAI_list,"tensor_requires_grad":image_tensor.requires_grad,"tensor_grad_fn":str(image_tensor.grad_fn),"tensor_id":id(image_tensor)},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"D,E"})+"\n")
+    # #endregion
     image_results = []
     
     # Create directory structure (once per image)
@@ -1121,8 +1168,14 @@ def process_xai_batch(image, image_tensor, label, filename, mask_slice,
         # Generate heatmaps for this batch of XAI methods
         batch_heatmaps = {}
         for xai_name in batch_xai_methods:
+            # #region agent log
+            with open(_log_path, "a") as _f: _f.write(json.dumps({"location":"case_study_SMP_layermap.py:process_xai_batch:before_xai","message":"Before XAI method","data":{"filename":filename,"xai_name":xai_name,"batch_idx":batch_idx,"model_grad_state":any(p.grad is not None for p in xai_generator.model.parameters() if p.requires_grad)},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"A,B,D"})+"\n")
+            # #endregion
             heatmap_dict = xai_generator.generate_all_heatmaps(image_tensor, target_class=label, xai_name=xai_name)
             heatmap = heatmap_dict.get(xai_name, None)
+            # #region agent log
+            with open(_log_path, "a") as _f: _f.write(json.dumps({"location":"case_study_SMP_layermap.py:process_xai_batch:after_xai","message":"After XAI method","data":{"filename":filename,"xai_name":xai_name,"heatmap_is_none":heatmap is None,"heatmap_stats":{"min":float(np.nanmin(heatmap)),"max":float(np.nanmax(heatmap)),"mean":float(np.nanmean(heatmap)),"has_nan":bool(np.isnan(heatmap).any())} if heatmap is not None else None,"model_grad_state":any(p.grad is not None for p in xai_generator.model.parameters() if p.requires_grad)},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"A,B,D"})+"\n")
+            # #endregion
             if heatmap is not None:
                 batch_heatmaps[xai_name] = heatmap
             elif verbose:
