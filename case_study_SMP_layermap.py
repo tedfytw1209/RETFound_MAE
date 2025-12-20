@@ -463,6 +463,11 @@ class XAIGenerator:
             target_module=self.target_module,
             select_index=self.select_index
         )
+        # #region agent log
+        import json as _json; _log_path = "debug.log"
+        _tgt_layer = str(self.gradcam.target_layer) if hasattr(self.gradcam, 'target_layer') else "N/A"
+        with open(_log_path, "a") as _f: _f.write(_json.dumps({"location":"XAIGenerator:init_gradcam","message":"GradCAM layer selected","data":{"model_name":self.model_name,"target_module":self.target_module,"select_index":self.select_index,"resolved_target_layer":_tgt_layer[:200]},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"A"})+"\n")
+        # #endregion
         #print(f"✓ GradCAM initialized for {self.model_name} (patch_size: {config['patch_size']})")
         
         # ScoreCAM with model-specific config
@@ -520,8 +525,15 @@ class XAIGenerator:
         """Generate GradCAM heatmap"""
         if self.gradcam is None:
             return None
+        # #region agent log
+        import json as _json; _log_path = "debug.log"
+        _target_layer_name = str(self.gradcam.target_layer.__class__.__name__) if hasattr(self.gradcam, 'target_layer') else "unknown"
+        with open(_log_path, "a") as _f: _f.write(_json.dumps({"location":"generate_gradcam:entry","message":"GradCAM start","data":{"target_class":target_class,"select_index":self.select_index,"target_layer":_target_layer_name,"tensor_requires_grad":bool(image_tensor.requires_grad),"tensor_has_grad_fn":image_tensor.grad_fn is not None},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"A,C,E"})+"\n")
+        # #endregion
         self.model.zero_grad(set_to_none=True)
-        image_tensor = image_tensor.to(self.device)
+        # Detach tensor to prevent gradient contamination from previous computations
+        image_tensor = image_tensor.detach().to(self.device)
+        image_tensor.requires_grad = True
         if target_class is None:
             # Get predicted class
             with torch.no_grad():
@@ -529,6 +541,10 @@ class XAIGenerator:
                 target_class = outputs.argmax(dim=1).item()
         targets = [ClassifierOutputTarget(target_class)]
         heatmap = self.gradcam(image_tensor, targets)
+        # #region agent log
+        _hm_stats = {"shape":list(heatmap.shape),"min":float(heatmap.min()),"max":float(heatmap.max()),"mean":float(heatmap.mean()),"sum":float(heatmap.sum())} if heatmap is not None else None
+        with open(_log_path, "a") as _f: _f.write(_json.dumps({"location":"generate_gradcam:exit","message":"GradCAM done","data":{"heatmap_stats":_hm_stats,"target_class_used":target_class},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"B,D"})+"\n")
+        # #endregion
         if hasattr(self.gradcam, "remove_hooks"):
             self.gradcam.remove_hooks()
         return heatmap[0] if len(heatmap) > 0 else None
@@ -538,7 +554,8 @@ class XAIGenerator:
         if self.scorecam is None:
             return None
         self.model.zero_grad(set_to_none=True)
-        image_tensor = image_tensor.to(self.device)
+        # Detach tensor to prevent gradient contamination
+        image_tensor = image_tensor.detach().to(self.device)
         if target_class is None:
             # Get predicted class
             with torch.no_grad():
@@ -555,8 +572,14 @@ class XAIGenerator:
         """Generate gardcamplusplus heatmap"""
         if self.gardcamplusplus is None:
             return None
+        # #region agent log
+        import json as _json; _log_path = "debug.log"
+        with open(_log_path, "a") as _f: _f.write(_json.dumps({"location":"generate_gardcamplusplus:entry","message":"GradCAM++ start","data":{"select_index":self.select_index,"tensor_requires_grad":bool(image_tensor.requires_grad)},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"C,E"})+"\n")
+        # #endregion
         self.model.zero_grad(set_to_none=True)
-        image_tensor = image_tensor.to(self.device)
+        # Detach tensor to prevent gradient contamination
+        image_tensor = image_tensor.detach().to(self.device)
+        image_tensor.requires_grad = True
         if target_class is None:
             # Get predicted class
             with torch.no_grad():
@@ -565,6 +588,10 @@ class XAIGenerator:
 
         targets = [ClassifierOutputTarget(target_class)]
         heatmap = self.gardcamplusplus(image_tensor, targets)
+        # #region agent log
+        _hm_stats = {"shape":list(heatmap.shape),"min":float(heatmap.min()),"max":float(heatmap.max()),"mean":float(heatmap.mean()),"sum":float(heatmap.sum())} if heatmap is not None else None
+        with open(_log_path, "a") as _f: _f.write(_json.dumps({"location":"generate_gardcamplusplus:exit","message":"GradCAM++ done","data":{"heatmap_stats":_hm_stats},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"B,D"})+"\n")
+        # #endregion
         if hasattr(self.gardcamplusplus, "remove_hooks"):
             self.gardcamplusplus.remove_hooks()
         return heatmap[0] if len(heatmap) > 0 else None
@@ -573,8 +600,14 @@ class XAIGenerator:
         """Generate hirescam heatmap"""
         if self.hirescam is None:
             return None
+        # #region agent log
+        import json as _json; _log_path = "debug.log"
+        with open(_log_path, "a") as _f: _f.write(_json.dumps({"location":"generate_hirescam:entry","message":"HiResCAM start","data":{"select_index":self.select_index,"tensor_requires_grad":bool(image_tensor.requires_grad)},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"C,E"})+"\n")
+        # #endregion
         self.model.zero_grad(set_to_none=True)
-        image_tensor = image_tensor.to(self.device)
+        # Detach tensor to prevent gradient contamination
+        image_tensor = image_tensor.detach().to(self.device)
+        image_tensor.requires_grad = True
         if target_class is None:
             # Get predicted class
             with torch.no_grad():
@@ -583,6 +616,10 @@ class XAIGenerator:
 
         targets = [ClassifierOutputTarget(target_class)]
         heatmap = self.hirescam(image_tensor, targets)
+        # #region agent log
+        _hm_stats = {"shape":list(heatmap.shape),"min":float(heatmap.min()),"max":float(heatmap.max()),"mean":float(heatmap.mean()),"sum":float(heatmap.sum())} if heatmap is not None else None
+        with open(_log_path, "a") as _f: _f.write(_json.dumps({"location":"generate_hirescam:exit","message":"HiResCAM done","data":{"heatmap_stats":_hm_stats},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"B,D"})+"\n")
+        # #endregion
         if hasattr(self.hirescam, "remove_hooks"):
             self.hirescam.remove_hooks()
         return heatmap[0] if len(heatmap) > 0 else None
@@ -1082,6 +1119,10 @@ def process_xai_batch(image, image_tensor, label, filename, mask_slice,
     Returns:
         List of result dictionaries
     """
+    # #region agent log
+    import json as _json; _log_path = "debug.log"
+    with open(_log_path, "a") as _f: _f.write(_json.dumps({"location":"process_xai_batch:entry","message":"Processing image batch","data":{"filename":filename,"label":label,"module_name":module_name,"select_index":select_index,"xai_list":XAI_list,"tensor_shape":list(image_tensor.shape),"tensor_requires_grad":bool(image_tensor.requires_grad)},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"D,E"})+"\n")
+    # #endregion
     image_results = []
     
     # Create directory structure (once per image)
@@ -1121,8 +1162,15 @@ def process_xai_batch(image, image_tensor, label, filename, mask_slice,
         # Generate heatmaps for this batch of XAI methods
         batch_heatmaps = {}
         for xai_name in batch_xai_methods:
+            # #region agent log
+            with open(_log_path, "a") as _f: _f.write(_json.dumps({"location":"process_xai_batch:before_xai","message":"Calling XAI method","data":{"filename":filename,"xai_name":xai_name,"model_has_grad":any(p.grad is not None for p in xai_generator.model.parameters() if p.requires_grad)},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"B"})+"\n")
+            # #endregion
             heatmap_dict = xai_generator.generate_all_heatmaps(image_tensor, target_class=label, xai_name=xai_name)
             heatmap = heatmap_dict.get(xai_name, None)
+            # #region agent log
+            _hm_stats = {"min":float(heatmap.min()),"max":float(heatmap.max()),"mean":float(heatmap.mean()),"std":float(heatmap.std())} if heatmap is not None else None
+            with open(_log_path, "a") as _f: _f.write(_json.dumps({"location":"process_xai_batch:after_xai","message":"XAI method done","data":{"filename":filename,"xai_name":xai_name,"heatmap_stats":_hm_stats,"heatmap_is_none":heatmap is None},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"B,D"})+"\n")
+            # #endregion
             if heatmap is not None:
                 batch_heatmaps[xai_name] = heatmap
             elif verbose:
