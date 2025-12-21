@@ -191,7 +191,7 @@ print(Model_list)
 print(Model_param_dict_list)
 
 Module_list = ['encoder', 'decoder', 'head']
-
+# Visualization functions
 def _build_binary_mask(mask_slice, heatmap):
     binary_mask = np.zeros((heatmap.shape[0],heatmap.shape[1]), dtype=np.uint8)
     for i in range(mask_slice.shape[0]-1):
@@ -672,17 +672,6 @@ for model_name in Model_list:
     XAIGenerator(model, model_name)
 '''
 
-# Visualization functions
-def _build_binary_mask(mask_slice, heatmap):
-    if isinstance(heatmap, Image.Image):
-        heatmap = np.array(heatmap)
-    binary_mask = np.zeros((heatmap.shape[0],heatmap.shape[1]), dtype=np.uint8)
-    for i in range(mask_slice.shape[0]-1):
-        upper = mask_slice[i].astype(int)
-        lower = mask_slice[i+1].astype(int)
-        for x in range(heatmap.shape[1]):
-            binary_mask[upper[x]:lower[x], x] = 1
-    return binary_mask
 def masked_heatmap_func(heatmap, mask_slice):
     if heatmap is None:
         return None
