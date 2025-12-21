@@ -736,7 +736,7 @@ def _ensure_numpy_2d_heatmap(heatmap):
     if heatmap.ndim > 2:
         heatmap = np.squeeze(heatmap)
     
-    print(f"heatmap shape: {heatmap.shape}") # for debug
+    #print(f"heatmap shape: {heatmap.shape}") # for debug
     return heatmap
 
 def overlay_heatmap_on_image(image, heatmap, mask_slice = None, alpha=0.4, colormap='jet'):
