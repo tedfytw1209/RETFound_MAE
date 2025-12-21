@@ -720,13 +720,9 @@ def normalize_heatmap(heatmap):
 
 def _ensure_numpy_2d_heatmap(heatmap):
     """Convert a heatmap to a 2D numpy array for downstream processing."""
-    print(f"heatmap: {heatmap}") # for debug
-    if heatmap is None:
-        return None
+    
     # Unwrap lists/tuples that sometimes come back from CAM libs
     if isinstance(heatmap, (list, tuple)):
-        if len(heatmap) == 0:
-            return None
         heatmap = heatmap[0]
     # Move torch tensors to CPU numpy
     if isinstance(heatmap, torch.Tensor):
@@ -739,6 +735,8 @@ def _ensure_numpy_2d_heatmap(heatmap):
         heatmap = heatmap[..., 0]
     if heatmap.ndim > 2:
         heatmap = np.squeeze(heatmap)
+    
+    print(f"heatmap shape: {heatmap.shape}") # for debug
     return heatmap
 
 def overlay_heatmap_on_image(image, heatmap, mask_slice = None, alpha=0.4, colormap='jet'):
