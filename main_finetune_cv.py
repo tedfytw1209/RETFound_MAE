@@ -22,7 +22,7 @@ from transformers import (
     AutoImageProcessor, EfficientNetForImageClassification,
     ResNetForImageClassification, AutoModel
 )
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
 import matplotlib.pyplot as plt
 
 import models_vit as models
@@ -535,25 +535,40 @@ def main(args, criterion):
         pid_key = 'person_id'
     else:
         pid_key = 'patient_id'
-    full_pat_list = dataset_all.annotations[pid_key].unique()
+    def majority_label(g):
+        nonzero = g[g['label'] != 0]['label']
+        if len(nonzero) > 0:
+            return nonzero.mode().iloc[0]
+        else:
+            return 0
+    patient_labels = dataset_all.annotations.groupby(pid_key).apply(majority_label).reset_index()
+    patient_labels.columns = ['patient_id', 'patient_label']
+    full_pat_list = patient_labels['patient_id'].values
+    full_pat_labels = patient_labels['patient_label'].values
     full_pat_len = len(full_pat_list)
     print(f"Total number of patients: {full_pat_len} Samples: {len(dataset_all)}")
-    skf = KFold(n_splits=args.kfold, shuffle=True, random_state=args.seed)
+    skf = StratifiedKFold(n_splits=args.kfold, shuffle=True, random_state=args.seed)
     all_test_stats = []
-    for fold_idx, (tr_idx, va_idx) in enumerate(skf.split(np.arange(full_pat_len))):
+    for fold_idx, (tr_idx, te_idx) in enumerate(skf.split(full_pat_list, full_pat_labels)):
         print(f"Starting KFold {fold_idx + 1}/{Kfold}")
         model_add_dir = f"CV{fold_idx}"
         model, processor = get_model(args)
         tr_pats = full_pat_list[tr_idx]
-        va_pats = full_pat_list[va_idx]
-        #train_idx = dataset_all.annotations.index[dataset_all.annotations["patient_id"].isin(tr_pats)].tolist()
-        #val_idx = dataset_all.annotations.index[dataset_all.annotations["patient_id"].isin(va_pats)].tolist()
-        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k, img_dir=args.img_dir, modality=args.modality, transform=processor,select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap, patient_ids=tr_pats, pid_key=pid_key, CV=True)
-        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k, img_dir=args.img_dir, modality=args.modality, transform=processor,select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap, patient_ids=va_pats, pid_key=pid_key, CV=True)
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k, img_dir=args.img_dir, modality=args.modality, transform=processor, select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap, patient_ids=va_pats, pid_key=pid_key, CV=True)
+        te_pats = full_pat_list[te_idx]
+        tr_pat_labels = full_pat_labels[tr_idx]
+        te_pat_labels = full_pat_labels[te_idx]
+        sss = StratifiedShuffleSplit(n_splits=1, test_size=0.125, random_state=args.seed)
+        for train_idx, val_idx in sss.split(tr_pats, tr_pat_labels):
+            train_patients = tr_pats[train_idx]
+            val_patients = tr_pats[val_idx]
+        
+        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k, img_dir=args.img_dir, modality=args.modality, transform=processor,select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap, patient_ids=train_patients.tolist(), pid_key=pid_key, CV=True)
+        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k, img_dir=args.img_dir, modality=args.modality, transform=processor,select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap, patient_ids=val_patients.tolist(), pid_key=pid_key, CV=True)
+        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k, img_dir=args.img_dir, modality=args.modality, transform=processor, select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap, patient_ids=te_pats.tolist(), pid_key=pid_key, CV=True)
         print('Debug:')
-        print(f"train set length: {len(dataset_train)}, patient ids: {tr_pats}")
-        print(f"val set length: {len(dataset_val)}, patient ids: {va_pats}")
+        print(f"train set length: {len(dataset_train)}, patient ids: {train_patients.tolist()}")
+        print(f"val set length: {len(dataset_val)}, patient ids: {val_patients.tolist()}")
+        print(f"test set length: {len(dataset_test)}, patient ids: {te_pats.tolist()}")
 
         # Apply subset sampling if subset_ratio > 0
         if args.subset_ratio > 0:

@@ -24,7 +24,7 @@ Epochs=${5:-"100"}
 Num_CLASS=${6:-"2"}
 Eval_score=${7:-"default"}
 Modality=${8:-"OCT"} # CFP, OCT, OCT_CFP
-SUBSET_R=${9:-0} # 0, 500, 1000
+SUBSET_R=${9:-0} # 0, 1, 4
 ADDCMD=${10:-""}
 ADDCMD2=${11:-""}
 

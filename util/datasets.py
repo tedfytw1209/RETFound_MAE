@@ -177,7 +177,7 @@ class CSV_Dataset(Dataset):
         else:
             is_train_l = is_train
         is_train = is_train_l[0]
-        if CV and patient_ids: #for cross-validation with patient ids
+        if CV and len(patient_ids)>0: #for cross-validation with patient ids
             self.annotations = data[data[pid_key].isin(patient_ids)].reset_index(drop=True)
             self.annotations['split'] = is_train
         elif 'split' in data.columns:
