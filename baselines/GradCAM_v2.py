@@ -26,7 +26,18 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
         encoder = _get(seg_model, "encoder")
         decoder = _get(seg_model, "decoder")
         head = _get(model, "head")
-        if mode == "enc" and encoder is not None:
+        #Manually select the target module
+        if module_name is not None:
+            if module_name == "encoder" and encoder is not None:
+                target_module = encoder
+            elif module_name == "decoder" and decoder is not None:
+                target_module = decoder
+            elif module_name == "head" and head is not None:
+                target_module = head
+            else:
+                raise ValueError(f"Unsupported SMP module_name: {module_name}")
+        # Automatically select the target module
+        elif mode == "enc" and encoder is not None:
             # For encoder or fuse mode, target the last encoder layer
             # SMP encoders typically have stages/layers
             target_module = encoder
@@ -36,16 +47,7 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
             target_module = decoder
         # !!! Need to check SMP fuse mode !!!
         elif mode == "fuse": #get general classifier layer, tmporary solution
-            if module_name is not None:
-                if module_name == "encoder" and encoder is not None:
-                    target_module = encoder
-                elif module_name == "decoder" and decoder is not None:
-                    target_module = decoder
-                elif module_name == "head" and head is not None:
-                    target_module = head
-                else:
-                    raise ValueError(f"Unsupported SMP module_name: {module_name}")
-            elif encoder is not None and model.size_match=="decoder_to_encoder":
+            if encoder is not None and model.size_match=="decoder_to_encoder":
                 target_module = encoder
             elif decoder is not None and model.size_match=="encoder_to_decoder":
                 target_module = decoder
