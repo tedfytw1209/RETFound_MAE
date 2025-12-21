@@ -789,9 +789,13 @@ def get_args_parser():
                         help='Number of classes for classification. Default: 2')
     
     # ==================== Target module selection ====================
-    parser.add_argument('--target_module', type=str, nargs='+', default=['encoder'],
-                        choices=['encoder', 'decoder', 'head'],
-                        help='Target module(s) for XAI methods. Default: encoder decoder head')
+    parser.add_argument(
+        '--target_module',
+        type=str,
+        nargs='+',
+        default=['encoder', 'decoder', 'head'],
+        help='Target module(s) for XAI methods. Default: encoder decoder head (or "all")'
+    )
     
     # ==================== Layer selection ====================
     parser.add_argument('--select_idx', type=int, nargs='+', default=None,
@@ -862,9 +866,20 @@ def parse_args():
     if 'all' in args.xai_method:
         args.xai_method = ['Attention', 'RISE', 'GradCAM', 'ScoreCAM', 'HiResCAM', 'GradCAMPlusPlus']
     
-    # Handle 'all' in target_module
-    if 'all' in args.target_module:
-        args.target_module = ['encoder', 'decoder', 'head']
+    # Normalize target_module to support quoted/space/comma separated values
+    allowed_modules = {'encoder', 'decoder', 'head'}
+    normalized_target_modules = []
+    for item in args.target_module or []:
+        parts = str(item).replace(',', ' ').split()
+        normalized_target_modules.extend([p for p in parts if p])
+    if not normalized_target_modules:
+        normalized_target_modules = ['encoder', 'decoder', 'head']
+    if 'all' in normalized_target_modules:
+        normalized_target_modules = ['encoder', 'decoder', 'head']
+    invalid = [m for m in normalized_target_modules if m not in allowed_modules]
+    if invalid:
+        parser.error(f"--target_module accepts {sorted(allowed_modules)}, got {invalid}")
+    args.target_module = normalized_target_modules
     
     return args
 
