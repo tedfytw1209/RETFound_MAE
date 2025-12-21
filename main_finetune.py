@@ -355,19 +355,19 @@ def get_model(args):
         global_pool="token",
     )
     elif 'vit-base-patch16-224' in args.model:
-            # ViT-base-patch16-224 preprocessor
-            model_ = args.finetune if args.finetune else 'google/vit-base-patch16-224'
-            processor = TransformWrapper(ViTImageProcessor.from_pretrained(model_))
-            model = ViTForImageClassification.from_pretrained(
-                model_,
-                image_size=args.input_size, #Not in tianhao code, default 224
-                num_labels=args.nb_classes,
-                hidden_dropout_prob=args.drop_path, #Not in tianhao code, default 0.0
-                attention_probs_dropout_prob=args.drop_path, #Not in tianhao code, default 0.0
-                id2label=id2label,
-                label2id=label2id,
-                ignore_mismatched_sizes=True
-            )
+        # ViT-base-patch16-224 preprocessor
+        model_ = args.finetune if args.finetune else 'google/vit-base-patch16-224'
+        processor = TransformWrapper(ViTImageProcessor.from_pretrained(model_))
+        model = ViTForImageClassification.from_pretrained(
+            model_,
+            image_size=args.input_size, #Not in tianhao code, default 224
+            num_labels=args.nb_classes,
+            hidden_dropout_prob=args.drop_path, #Not in tianhao code, default 0.0
+            attention_probs_dropout_prob=args.drop_path, #Not in tianhao code, default 0.0
+            id2label=id2label,
+            label2id=label2id,
+            ignore_mismatched_sizes=True
+        )
     elif 'pytorchvit' in args.model:
         model_name = args.finetune if args.finetune else 'B_16_imagenet1k'
         model = ViT(model_name, image_size=args.input_size, num_classes=args.nb_classes, pretrained=True)
@@ -961,7 +961,6 @@ def main(args, criterion):
                     args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
                     loss_scaler=loss_scaler, epoch=epoch, mode='best', add_dir=model_add_dir)
         print("Best epoch = %d, Best score = %.4f" % (best_epoch, max_score))
-
 
         if epoch == (args.epochs - 1):
             checkpoint = torch.load(os.path.join(args.output_dir, args.task, model_add_dir, 'checkpoint-best.pth'), map_location='cpu')

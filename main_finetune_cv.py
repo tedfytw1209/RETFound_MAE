@@ -3,6 +3,7 @@ import datetime
 import json
 
 import numpy as np
+import pandas as pd
 import os
 import time
 from pathlib import Path
@@ -28,6 +29,8 @@ import models_vit as models
 import vig as vig_models
 import pyramid_vig as pvig_models
 from relaynet import ReLayNet, relynet_load_pretrained
+from SAM2UNet.SAM2UNet_classifier import SAM2UNetClassifier
+from SMP.smp_classifier import SMPClassifier, Config as SMPConfig
 import util.lr_decay as lrd
 import util.misc as misc
 from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapper
@@ -35,7 +38,7 @@ from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.losses import FocalLoss, compute_alpha_from_labels
 from huggingface_hub import hf_hub_download, login
-from engine_finetune import evaluate_half3D, train_one_epoch, evaluate
+from engine_finetune import evaluate_half3D, train_one_epoch, evaluate, reinit_model_weights_
 import wandb
 from pytorch_pretrained_vit import ViT
 
@@ -62,6 +65,10 @@ def get_args_parser():
                         help='images input size')
     parser.add_argument('--drop_path', type=float, default=0.2, metavar='PCT',
                         help='Drop path rate (default: 0.1)')
+    parser.add_argument('--init_pretrained', action='store_true', default=False,
+                        help='Initialize the pretrained model')
+    parser.add_argument('--SMPMode', type=str, default='dec',
+                        help='SMP mode (fuse, enc, dec)')
 
     # Optimizer parameters
     parser.add_argument('--optimizer', default='adamw', type=str, metavar='OPTIMIZER',
@@ -92,6 +99,8 @@ def get_args_parser():
                         help='Gamma parameter for Focal Loss')
 
     # Augmentation parameters
+    parser.add_argument('--train_no_aug', action='store_true', default=False,
+                        help='No training augmentation (random crop/flip, color jitter, auto augment, random erase)')
     parser.add_argument('--color_jitter', type=float, default=None, metavar='PCT',
                         help='Color jitter factor (enabled only when not using Auto/RandAug)')
     parser.add_argument('--aa', type=str, default='rand-m9-mstd0.5-inc1', metavar='NAME',
@@ -145,7 +154,7 @@ def get_args_parser():
     parser.add_argument('--nb_classes', default=8, type=int,
                         help='number of the classification types')
     parser.add_argument('--modality', default='OCT', type=str,
-                        help='used modality of the UF dataset, e.g., OCT, CFP')
+                        help='used modality of the UF dataset, e.g., OCT, CFP, thickness, etc.')
     parser.add_argument('--output_dir', default='./output_dir',
                         help='path where to save, empty for no saving')
     parser.add_argument('--log_dir', default='./output_logs',
@@ -171,6 +180,8 @@ def get_args_parser():
                         help='Fixing the backbone parameters')
     parser.add_argument('--num_k', default=0, type=float)
     parser.add_argument('--img_dir', default='/orange/bianjiang/tienyu/OCT_AD/all_images/', type=str)
+    parser.add_argument('--select_layer_idx', default=-1, type=int, help='number of layers to select for training')
+    parser.add_argument('--th_heatmap', action='store_true', default=False, help='Transform thickness map to heatmap')
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -183,20 +194,30 @@ def get_args_parser():
     # Image per Patient settings
     parser.add_argument('--use_img_per_patient', action='store_true', default=False,
                         help='Whether to use image per patient sampling')
-    
+
     # fine-tuning parameters
     parser.add_argument('--savemodel', action='store_true', default=True,
                         help='Save model')
     parser.add_argument('--norm', default='IMAGENET', type=str, help='Normalization method')
     parser.add_argument('--enhance', action='store_true', default=False, help='Use enhanced data')
-    parser.add_argument('--datasets_seed', default=2026, type=int)
+    parser.add_argument('--subsetseed', default=42, type=int)
     parser.add_argument('--subset_ratio', default=0, type=float,
                         help='Subset ratio for sampling dataset. If > 0, sample subset_ratio * minor_class_numbers from train/val/test datasets with seed 42')
     parser.add_argument('--subset_num', default=0, type=int,
                         help='Subset number for sampling dataset. If > 0, sample subset_num from train datasets with seed 42')
+    parser.add_argument('--new_subset_num', default=0, type=int,
+                        help='Subset number for sampling dataset. If > 0, sample subset_num from train datasets with seed 42')
     parser.add_argument('--visualize_samples', action='store_true', default=False,
                         help='Visualize sample images from the dataset')
+    parser.add_argument('--thickness_dir', default='/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/', type=str,
+                        help='Directory containing thickness maps')
+    parser.add_argument('--add_mask', action='store_true', default=False,
+                        help='Add mask to the image based on thickness map')
     parser.add_argument('--no_amp', dest='use_amp', action='store_false', help='Disable AMP')
+    parser.add_argument('--droplast', action='store_true', default=False,
+                        help='Drop the last incomplete batch, if the dataset size is not divisible by the batch size')
+    parser.add_argument('--bootstrap_runs', action='store_true', default=False, help="Doing bootstrap sampling for training dataset")
+    
     parser.set_defaults(use_amp=False)
 
     return parser
@@ -308,7 +329,7 @@ def get_timm_model(args):
     if 'efficientnet-b4' in args.model:
         model = timm.create_model('efficientnet_b4', pretrained=True, num_classes=args.nb_classes)
         processor  = transforms.Compose([
-            transforms.Resize((380,380)),
+            transforms.Resize((args.input_size,args.input_size)),
             transforms.ToTensor(),
             transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225]),
         ])
@@ -406,6 +427,24 @@ def get_model(args):
             pretrained=True,
             num_classes=args.nb_classes,
         )
+    elif args.model.startswith('SAM2UNet'):
+        model = SAM2UNetClassifier(num_classes=args.nb_classes,
+                               seg_ckpt=args.finetune,
+                               freeze_backbone=args.fix_extractor).cuda()
+    elif args.model.startswith('SMP'):
+        model = SMPClassifier(
+            seg_arch=SMPConfig.SEG_ARCH,
+            encoder_name=SMPConfig.ENCODER,
+            encoder_weights=SMPConfig.ENCODER_WEIGHTS,
+            in_channels=SMPConfig.IN_CHANNELS,
+            num_classes=args.nb_classes,
+            mode=args.SMPMode,
+            fuse_mode=SMPConfig.FUSE_MODE,
+            learnable_alpha=SMPConfig.LEARNABLE_ALPHA,
+            alpha=SMPConfig.ALPHA,
+            pretrained_seg_ckpt=args.finetune,
+            dropout=SMPConfig.DROPOUT,
+        )
     else:
         model = models.__dict__[args.model](
             num_classes=args.nb_classes,
@@ -414,7 +453,7 @@ def get_model(args):
         )
     #RETFound special case: load checkpoint
     if args.finetune and not args.eval:
-        if 'RETFound' in args.finetune: 
+        if 'RETFound' in args.model: 
             print(f"Downloading pre-trained weights from: {args.finetune}")
             checkpoint_path = hf_hub_download(
                 repo_id=f'YukunZhou/{args.finetune}',
@@ -454,33 +493,39 @@ def get_model(args):
             model = relynet_load_pretrained(model, args.finetune, args.device)
         else:
             print("No checkpoints from: %s" % args.finetune)
+    #initialize the pretrained model if needed
+    if args.init_pretrained:
+        print("Initialize the pretrained model weights")
+        misc.print_all_named_parameters(model)
+        reinit_model_weights_(model, seed=getattr(args, 'seed', None))
+        misc.print_all_named_parameters(model)
     return model, processor
 
-def _attach_subset_meta(subset, base_dataset, indices):
-    # 讓 torch.utils.data.Subset 也有 targets / classes / class_to_idx，方便後續加權與報表
-    if not hasattr(subset, "targets"):
-        subset.targets = [base_dataset.targets[i] for i in indices]
-    if not hasattr(subset, "classes") and hasattr(base_dataset, "classes"):
-        subset.classes = base_dataset.classes
-    if not hasattr(subset, "class_to_idx") and hasattr(base_dataset, "class_to_idx"):
-        subset.class_to_idx = base_dataset.class_to_idx
-    return subset
-
 def main(args, criterion):
+
     misc.init_distributed_mode(args)
+    project_name = "RETFound_MAE_CV"
+    name = args.task
+    group_name = None
+    model_add_dir = ""
+    wandb.init(
+        project=project_name,
+        name=name,
+        group=group_name,
+        config=args,
+        dir=os.path.join(args.log_dir,args.task, model_add_dir),
+    )
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
-    wandb.init(
-        project="RETFound_MAE",
-        name=args.task,
-        config=args,
-        dir=os.path.join(args.log_dir,args.task),
-    )
+
     device = torch.device(args.device)
+    print(f'Using device: {device}')
+
     # fix the seed for reproducibility
     seed = args.seed + misc.get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
+
     cudnn.benchmark = True
     Kfold = args.kfold
     #dataset selection
@@ -497,14 +542,15 @@ def main(args, criterion):
     all_test_stats = []
     for fold_idx, (tr_idx, va_idx) in enumerate(skf.split(np.arange(full_pat_len))):
         print(f"Starting KFold {fold_idx + 1}/{Kfold}")
+        model_add_dir = f"CV{fold_idx}"
         model, processor = get_model(args)
         tr_pats = full_pat_list[tr_idx]
         va_pats = full_pat_list[va_idx]
         #train_idx = dataset_all.annotations.index[dataset_all.annotations["patient_id"].isin(tr_pats)].tolist()
         #val_idx = dataset_all.annotations.index[dataset_all.annotations["patient_id"].isin(va_pats)].tolist()
-        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k, img_dir=args.img_dir, modality=args.modality, transform=processor, patient_ids=tr_pats, pid_key=pid_key, CV=True)
-        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k, img_dir=args.img_dir, modality=args.modality, transform=processor, patient_ids=va_pats, pid_key=pid_key, CV=True)
-        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k, img_dir=args.img_dir, modality=args.modality, transform=processor, patient_ids=va_pats, pid_key=pid_key, CV=True)
+        dataset_train = build_dataset(is_train='train', args=args, k=args.num_k, img_dir=args.img_dir, modality=args.modality, transform=processor,select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap, patient_ids=tr_pats, pid_key=pid_key, CV=True)
+        dataset_val = build_dataset(is_train='val', args=args, k=args.num_k, img_dir=args.img_dir, modality=args.modality, transform=processor,select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap, patient_ids=va_pats, pid_key=pid_key, CV=True)
+        dataset_test = build_dataset(is_train='test', args=args, k=args.num_k, img_dir=args.img_dir, modality=args.modality, transform=processor, select_layers=[args.select_layer_idx], th_heatmap=args.th_heatmap, patient_ids=va_pats, pid_key=pid_key, CV=True)
         print('Debug:')
         print(f"train set length: {len(dataset_train)}, patient ids: {tr_pats}")
         print(f"val set length: {len(dataset_val)}, patient ids: {va_pats}")
@@ -528,7 +574,7 @@ def main(args, criterion):
                     class_indices = np.where(targets == class_idx)[0]
                     if len(class_indices) >= subset_size:
                         # Randomly sample subset_size samples from this class
-                        rng = np.random.RandomState(args.seed)
+                        rng = np.random.RandomState(args.subsetseed)
                         sampled_indices = rng.choice(class_indices, subset_size, replace=False)
                     else:
                         # If class has fewer samples than subset_size, use all samples
@@ -548,10 +594,11 @@ def main(args, criterion):
             dataset_train = create_subset(dataset_train, 'Train')
             dataset_val = create_subset(dataset_val, 'Validation')
             dataset_test = create_subset(dataset_test, 'Test')
+            args.droplast = False  # Disable droplast when using subset_num
         
         # Apply subset sampling by absolute number if subset_num > 0
         if args.subset_num > 0:
-            print(f'Applying subset sampling with absolute number {args.subset_num}')
+            print(f'Old subset method for absolute number {args.subset_num}')
             
             def create_subset_by_num(dataset, split_name, subset_num):
                 """Create a subset of the dataset with specified absolute number"""
@@ -564,7 +611,7 @@ def main(args, criterion):
                 if subset_num < n_classes:
                     # Too small to guarantee at least one per class → fall back to plain random sample
                     print(f'Warning: subset_num ({subset_num}) < number of classes ({n_classes}), using random sampling')
-                    rng = np.random.RandomState(args.seed)
+                    rng = np.random.RandomState(args.subsetseed)
                     subset_indices = rng.choice(len(dataset), min(subset_num, len(dataset)), replace=False)
                 else:
                     # Use stratified sampling to maintain class distribution
@@ -573,7 +620,7 @@ def main(args, criterion):
                         print(f'Warning: subset_num ({subset_num}) >= dataset size ({len(dataset)}), using full dataset')
                         subset_indices = list(range(len(dataset)))
                     else:
-                        sss = StratifiedShuffleSplit(n_splits=1, train_size=subset_num, random_state=args.seed)
+                        sss = StratifiedShuffleSplit(n_splits=1, train_size=subset_num, random_state=args.subsetseed)
                         subset_indices = next(sss.split(range(len(dataset)), targets))[0]
                 
                 # Create subset dataset
@@ -588,6 +635,89 @@ def main(args, criterion):
                 return subset_dataset
 
             dataset_train = create_subset_by_num(dataset_train, 'Train', int(args.subset_num))
+            args.droplast = False  # Disable droplast when using subset_num
+        # Apply subset sampling by absolute number if new_subset_num > 0
+        if args.new_subset_num > 0:
+            print(f'New subset method for absolute number {args.new_subset_num}')
+            def create_separate_class_based_subsets(train_dataset, val_dataset, total_subset_num):
+                """Create separate subsets from train and validation datasets based on class ratios"""
+                
+                def create_class_balanced_subset(dataset, split_name, target_size):
+                    """Create a class-balanced subset from a single dataset"""
+                    targets = np.array(dataset.targets)
+                    unique_classes, class_counts = np.unique(targets, return_counts=True)
+                    n_classes = len(unique_classes)
+                    
+                    # Calculate class ratios within this dataset
+                    class_ratios = class_counts / len(targets)
+                    
+                    print(f'\n{split_name} dataset - Original size: {len(dataset)}, Classes: {n_classes}')
+                    print(f'{split_name} class counts: {dict(zip(unique_classes, class_counts))}')
+                    print(f'{split_name} class ratios: {dict(zip(unique_classes, class_ratios))}')
+                    print(f'{split_name} target subset size: {target_size}')
+                    
+                    # Separate samples by class and permute
+                    rng = np.random.RandomState(args.subsetseed)
+                    selected_indices = []
+                    
+                    for class_idx in unique_classes:
+                        # Get all samples for this class
+                        class_mask = targets == class_idx
+                        class_samples = np.where(class_mask)[0]
+                        
+                        # Permute samples within this class
+                        class_samples_copy = class_samples.copy()
+                        rng.shuffle(class_samples_copy)
+                        
+                        # Calculate how many samples to select for this class
+                        class_target_samples = int((target_size-n_classes) * class_ratios[class_idx]) + 1
+                        
+                        # Ensure we don't exceed available samples
+                        available_samples = len(class_samples_copy)
+                        if class_target_samples > available_samples:
+                            print(f'Warning: {split_name} Class {class_idx} needs {class_target_samples} samples but only {available_samples} available')
+                            class_target_samples = available_samples
+                        
+                        # Select samples for this class
+                        selected_class_samples = class_samples_copy[:class_target_samples]
+                        selected_indices.extend(selected_class_samples)
+                        
+                        print(f'{split_name} Class {class_idx}: ratio={class_ratios[class_idx]:.3f}, target={class_target_samples}, selected={len(selected_class_samples)}')
+                    
+                    print('Selected indices:', selected_indices)
+                    subset_dataset = Subset(dataset, selected_indices)
+                    
+                    # Add targets attribute to subset for compatibility
+                    subset_dataset.targets = [dataset.targets[i] for i in selected_indices]
+                    subset_dataset.annotations = dataset.annotations.iloc[selected_indices].reset_index(drop=True)
+                    subset_dataset.classes = dataset.classes
+                    subset_dataset.class_to_idx = dataset.class_to_idx
+                    
+                    print(f'{split_name} final subset size: {len(subset_dataset)}')
+                    return subset_dataset
+                
+                # Calculate target sizes for train and validation (80/20 split)
+                train_target_size = int(total_subset_num * 0.8)
+                val_target_size = int(total_subset_num * 0.2)
+                
+                print(f'Total target subset size: {total_subset_num}')
+                print(f'Train target size: {train_target_size} (80%)')
+                print(f'Validation target size: {val_target_size} (20%)')
+                
+                # Create subsets separately
+                train_subset = create_class_balanced_subset(train_dataset, 'Train', train_target_size)
+                val_subset = create_class_balanced_subset(val_dataset, 'Validation', val_target_size)
+                args.droplast = False  # Disable droplast when using subset_num
+                
+                return train_subset, val_subset
+
+            dataset_train, dataset_val = create_separate_class_based_subsets(dataset_train, dataset_val, int(args.new_subset_num))
+        
+        #print final label distribution
+        print('Final label distribution:')
+        print('Train:', pd.Series(dataset_train.targets).value_counts())
+        print('Validation:', pd.Series(dataset_val.targets).value_counts())
+        print('Test:', pd.Series(dataset_test.targets).value_counts())
         # Visualize sample images if requested
         if args.visualize_samples and misc.is_main_process():
             print("Generating dataset visualizations...")
@@ -686,7 +816,7 @@ def main(args, criterion):
                 batch_size=args.batch_size,
                 num_workers=args.num_workers,
                 pin_memory=args.pin_mem,
-                drop_last=True,
+                drop_last=args.droplast,
             )
 
             print(f'len of train_set: {len(data_loader_train) * args.batch_size}')
@@ -837,12 +967,11 @@ def main(args, criterion):
                 if args.output_dir and args.savemodel:
                     misc.save_model(
                         args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
-                        loss_scaler=loss_scaler, epoch=epoch, mode='best', add_dir=f"CV{fold_idx}")
+                        loss_scaler=loss_scaler, epoch=epoch, mode='best', add_dir=model_add_dir)
             print("Best epoch = %d, Best score = %.4f" % (best_epoch, max_score))
 
-
             if epoch == (args.epochs - 1):
-                checkpoint = torch.load(os.path.join(args.output_dir, args.task, f"CV{fold_idx}", 'checkpoint-best.pth'), map_location='cpu')
+                checkpoint = torch.load(os.path.join(args.output_dir, args.task, model_add_dir, 'checkpoint-best.pth'), map_location='cpu')
                 model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
                 model.to(device)
                 print("Validation with the best model, epoch = %d:" % checkpoint['epoch'])
@@ -868,7 +997,7 @@ def main(args, criterion):
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         print('Training time {}'.format(total_time_str))
-        state_dict_best = torch.load(os.path.join(args.output_dir,args.task, f"CV{fold_idx}",'checkpoint-best.pth'), map_location='cpu')
+        state_dict_best = torch.load(os.path.join(args.output_dir,args.task, model_add_dir,'checkpoint-best.pth'), map_location='cpu')
         model_without_ddp.load_state_dict(state_dict_best['model'])
         print("Test with the best model, epoch = %d:" % state_dict_best['epoch'])
         test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
