@@ -388,7 +388,7 @@ def load_trained_model(task, model_name, input_size=224, nb_classes=2, model_par
 
 # XAI Methods Implementation
 class XAIGenerator:
-    def __init__(self, model, model_name, input_size=224, target_module=None, select_index=-1):
+    def __init__(self, model, model_name, input_size=224, batch_size=10, target_module=None, select_index=-1):
         self.model = model
         self.model_name = model_name
         self.input_size = input_size
@@ -397,6 +397,7 @@ class XAIGenerator:
         self.xai_list = ['Attention', 'RISE', 'GradCAM', 'ScoreCAM', 'HiResCAM', 'GradCAMPlusPlus']
         self.target_module = target_module
         self.select_index = select_index
+        self.batch_size = batch_size
         # Initialize XAI methods
         self.init_xai_methods()
     
@@ -404,7 +405,7 @@ class XAIGenerator:
         """Get model-specific configuration for XAI methods"""
         config = {
             'patch_size': 14,
-            'gpu_batch': 1,
+            'gpu_batch': self.batch_size,
             'attention_layers': 12
         }
         
@@ -412,23 +413,23 @@ class XAIGenerator:
         if 'resnet' in self.model_name.lower():
             config.update({
                 'patch_size': 7,  # ResNet has different spatial resolution
-                'gpu_batch': 10,  # ResNet can handle larger batches
+                'gpu_batch': self.batch_size,  # ResNet can handle larger batches
             })
         elif 'efficientnet' in self.model_name.lower():
             config.update({
                 'patch_size': 7,  # EfficientNet spatial resolution
-                'gpu_batch': 10,
+                'gpu_batch': self.batch_size,
             })
         elif 'vit' in self.model_name.lower():
             config.update({
                 'patch_size': 16,  # ViT patch size
-                'gpu_batch': 10,
+                'gpu_batch': self.batch_size,
                 'attention_layers': 12,  # Standard ViT-Base layers
             })
         elif 'retfound' in self.model_name.lower():
             config.update({
                 'patch_size': 16,  # RETFound uses ViT architecture
-                'gpu_batch': 10,
+                'gpu_batch': self.batch_size,
                 'attention_layers': 12,
             })
         
@@ -533,7 +534,7 @@ class XAIGenerator:
         heatmap = self.gradcam(image_tensor, targets)
         if hasattr(self.gradcam, "remove_hooks"):
             self.gradcam.remove_hooks()
-        return heatmap[0] if len(heatmap) > 0 else None
+        return heatmap if len(heatmap) > 0 else None
     
     def generate_scorecam(self, image_tensor, target_class=None):
         """Generate ScoreCAM heatmap"""
@@ -552,7 +553,7 @@ class XAIGenerator:
         heatmap = self.scorecam(image_tensor, targets)
         if hasattr(self.scorecam, "remove_hooks"):
             self.scorecam.remove_hooks()
-        return heatmap[0] if len(heatmap) > 0 else None
+        return heatmap if len(heatmap) > 0 else None
     
     def generate_gardcamplusplus(self, image_tensor, target_class=None):
         """Generate gardcamplusplus heatmap"""
@@ -572,7 +573,7 @@ class XAIGenerator:
         heatmap = self.gardcamplusplus(image_tensor, targets)
         if hasattr(self.gardcamplusplus, "remove_hooks"):
             self.gardcamplusplus.remove_hooks()
-        return heatmap[0] if len(heatmap) > 0 else None
+        return heatmap if len(heatmap) > 0 else None
     
     def generate_hirescam(self, image_tensor, target_class=None):
         """Generate hirescam heatmap"""
@@ -592,7 +593,7 @@ class XAIGenerator:
         heatmap = self.hirescam(image_tensor, targets)
         if hasattr(self.hirescam, "remove_hooks"):
             self.hirescam.remove_hooks()
-        return heatmap[0] if len(heatmap) > 0 else None
+        return heatmap if len(heatmap) > 0 else None
     
     def generate_rise(self, image_tensor, target_class=None):
         """Generate RISE heatmap"""
@@ -607,7 +608,7 @@ class XAIGenerator:
                 target_class = outputs.argmax(dim=1).item()
 
         heatmap = self.rise(image_tensor,[target_class])
-        return heatmap[0] if heatmap is not None else None
+        return heatmap if heatmap is not None else None
 
     def generate_attention(self, image_tensor, target_class=None):
         """Generate Attention heatmap"""
@@ -615,12 +616,11 @@ class XAIGenerator:
             return None
         image_tensor = image_tensor.to(self.device)
         attention_map = self.attention(image_tensor)
-        return attention_map[0] if attention_map is not None else None
+        return attention_map if attention_map is not None else None
     
     def generate_all_heatmaps(self, image_tensor, target_class=None, xai_name=None):
-        """Generate all available heatmaps for an image (safe, no hook interference)"""
-        #['Attention', 'RISE', 'GradCAM', 'ScoreCAM']
-        if xai_name==None:
+        """Generate requested heatmaps for an image (safe, no hook interference)"""
+        if xai_name is None:
             xai_names = self.xai_list
         else:
             xai_names = [xai_name]
@@ -631,37 +631,37 @@ class XAIGenerator:
         if 'Attention' in xai_names:
             attention_map = self.generate_attention(image_tensor)
         if attention_map is not None:
-            heatmaps['Attention'] = attention_map
+            heatmaps['Attention'] = _ensure_numpy_2d_heatmap(attention_map)
 
         # RISE (chunk-based forward, 不依賴 hooks)
         if 'RISE' in xai_names:
             rise_map = self.generate_rise(image_tensor, target_class)
         if rise_map is not None:
-            heatmaps['RISE'] = rise_map
+            heatmaps['RISE'] = _ensure_numpy_2d_heatmap(rise_map)
 
         # GradCAM（需要梯度 + hooks）
         if 'GradCAM' in xai_names:
             gradcam_map = self.generate_gradcam(image_tensor, target_class)
         if gradcam_map is not None:
-            heatmaps['GradCAM'] = gradcam_map
+            heatmaps['GradCAM'] = _ensure_numpy_2d_heatmap(gradcam_map)
 
         # ScoreCAM
         if 'ScoreCAM' in xai_names:
             scorecam_map = self.generate_scorecam(image_tensor, target_class)
         if scorecam_map is not None:
-            heatmaps['ScoreCAM'] = scorecam_map
+            heatmaps['ScoreCAM'] = _ensure_numpy_2d_heatmap(scorecam_map)
         #['Attention', 'RISE', 'GradCAM', 'ScoreCAM', 'HiResCAM', 'GradCAMPlusPlus']
         # GradCAMPlusPlus
         if 'GradCAMPlusPlus' in xai_names:
             gardcamplusplus_map = self.generate_gardcamplusplus(image_tensor, target_class)
         if gardcamplusplus_map is not None:
-            heatmaps['GradCAMPlusPlus'] = gardcamplusplus_map
+            heatmaps['GradCAMPlusPlus'] = _ensure_numpy_2d_heatmap(gardcamplusplus_map)
         
         # HiResCAM
         if 'HiResCAM' in xai_names:
             hirescam_map = self.generate_hirescam(image_tensor, target_class)
         if hirescam_map is not None:
-            heatmaps['HiResCAM'] = hirescam_map
+            heatmaps['HiResCAM'] = _ensure_numpy_2d_heatmap(hirescam_map)
 
         return heatmaps
 
@@ -717,6 +717,29 @@ def normalize_heatmap(heatmap):
         return np.zeros_like(heatmap)
     
     return (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
+
+def _ensure_numpy_2d_heatmap(heatmap):
+    """Convert a heatmap to a 2D numpy array for downstream processing."""
+    print(f"heatmap: {heatmap}") # for debug
+    if heatmap is None:
+        return None
+    # Unwrap lists/tuples that sometimes come back from CAM libs
+    if isinstance(heatmap, (list, tuple)):
+        if len(heatmap) == 0:
+            return None
+        heatmap = heatmap[0]
+    # Move torch tensors to CPU numpy
+    if isinstance(heatmap, torch.Tensor):
+        heatmap = heatmap.detach().cpu().numpy()
+    heatmap = np.array(heatmap)
+    # Drop singleton channel or batch dimensions
+    if heatmap.ndim == 3 and heatmap.shape[0] == 1:
+        heatmap = heatmap[0]
+    if heatmap.ndim == 3 and heatmap.shape[-1] == 1:
+        heatmap = heatmap[..., 0]
+    if heatmap.ndim > 2:
+        heatmap = np.squeeze(heatmap)
+    return heatmap
 
 def overlay_heatmap_on_image(image, heatmap, mask_slice = None, alpha=0.4, colormap='jet'):
     """Overlay heatmap on original image"""
@@ -1042,7 +1065,7 @@ def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model
                         image_tensor = preprocess_image(image, processor, input_size)
                         
                         # Batch process XAI methods for this image
-                        image_results = process_xai_batch(
+                        image_results = process_xai(
                             image, image_tensor, label, filename, mask_slice,
                             xai_generator, XAI_list, batch_size,
                             task, model_name, module_name, select_index,
@@ -1067,7 +1090,7 @@ def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model
     return results
 
 
-def process_xai_batch(image, image_tensor, label, filename, mask_slice,
+def process_xai(image, image_tensor, label, filename, mask_slice,
                       xai_generator, XAI_list, batch_size,
                       task, model_name, module_name, select_index,
                       heatmap_dir, draw_layer_flag, verbose):
@@ -1120,58 +1143,54 @@ def process_xai_batch(image, image_tensor, label, filename, mask_slice,
             plt.savefig(mask_out_path, bbox_inches='tight', pad_inches=0)
             plt.close()
     
-    # Batch process XAI methods
-    num_xai = len(XAI_list)
-    num_batches = (num_xai + batch_size - 1) // batch_size
-    
-    for batch_idx in range(num_batches):
-        start_idx = batch_idx * batch_size
-        end_idx = min(start_idx + batch_size, num_xai)
-        batch_xai_methods = XAI_list[start_idx:end_idx]
-        
-        # Generate heatmaps for this batch of XAI methods
-        batch_heatmaps = {}
-        for xai_name in batch_xai_methods:
-            heatmap_dict = xai_generator.generate_all_heatmaps(image_tensor, target_class=label, xai_name=xai_name)
-            heatmap = heatmap_dict.get(xai_name, None)
-            if heatmap is not None:
-                batch_heatmaps[xai_name] = heatmap
-            elif verbose:
+    # Sequentially process XAI methods (no batching, follows notebook flow)
+    for xai_name in XAI_list:
+        heatmap_dict = xai_generator.generate_all_heatmaps(image_tensor, target_class=label, xai_name=xai_name)
+        heatmap = _ensure_numpy_2d_heatmap(heatmap_dict.get(xai_name, None))
+        if heatmap is None:
+            if verbose:
                 print(f"  Warning: {xai_name} returned None for {filename}")
-        
-        # Process and save results for this batch
-        for xai_name, heatmap in batch_heatmaps.items():
-            heatmap = heatmap + 1e-9
-            overlay, heatmap_resized = overlay_heatmap_on_image(image, heatmap, mask_slice)
-            
-            mass_acc = rel_metric([image], heatmap_resized, binary_mask)
-            rank_acc = rank_metric([image], heatmap_resized, binary_mask)
-            
-            if draw_layer_flag and mask_slice is not None:
-                overlay = add_layer_line(overlay, mask_slice)
-            
-            out_path = save_dir / f"{xai_name}.jpg"
-            
-            # Save outputs
-            if not isinstance(overlay, Image.Image):
-                overlay = Image.fromarray(overlay)
-            overlay.save(out_path, format='JPEG', quality=95)
-            
-            # Save the heatmap as numpy array
-            np.save(save_dir / f"{xai_name}.npy", heatmap)
-            
-            image_results.append({
-                'task': task,
-                'image_name': filename,
-                'label': label,
-                'output_path': str(out_path),
-                'model_name': model_name,
-                'module_name': module_name,
-                'select_index': select_index,
-                'xai_method': xai_name,
-                'relevance_mass_accuracy': mass_acc,
-                'relevance_rank_accuracy': rank_acc
-            })
+            continue
+
+        heatmap = heatmap + 1e-9
+        overlay, heatmap_resized = overlay_heatmap_on_image(image, heatmap, mask_slice)
+
+        # Build mask using heatmap resolution (matches notebook behavior)
+        binary_mask = _build_binary_mask(mask_slice, heatmap_resized) if mask_slice is not None else None
+
+        mass_acc = rel_metric([image], heatmap_resized, binary_mask)
+        rank_acc = rank_metric([image], heatmap_resized, binary_mask)
+
+        if draw_layer_flag and mask_slice is not None:
+            overlay = add_layer_line(overlay, mask_slice)
+
+        out_path = save_dir / f"{xai_name}.jpg"
+
+        if not isinstance(overlay, Image.Image):
+            overlay = Image.fromarray(overlay)
+        overlay.save(out_path, format='JPEG', quality=95)
+        # Save the heatmap as numpy array
+        np.save(save_dir / f"{xai_name}.npy", heatmap_resized)
+        # Save image and mask for reference (per notebook workflow)
+        image.save(img_dir / f"{xai_name}_image.jpg")
+        if binary_mask is not None:
+            plt.imshow(binary_mask, cmap='gray')
+            plt.axis('off')
+            plt.savefig(img_dir / f"{xai_name}_mask.jpg", bbox_inches='tight', pad_inches=0)
+            plt.close()
+
+        image_results.append({
+            'task': task,
+            'image_name': filename,
+            'label': label,
+            'output_path': str(out_path),
+            'model_name': model_name,
+            'module_name': module_name,
+            'select_index': select_index,
+            'xai_method': xai_name,
+            'relevance_mass_accuracy': mass_acc,
+            'relevance_rank_accuracy': rank_acc
+        })
     
     return image_results
 
