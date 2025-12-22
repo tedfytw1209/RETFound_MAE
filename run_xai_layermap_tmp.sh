@@ -57,7 +57,7 @@ for i in "${!Model_list[@]}"; do
     
     echo "Processing model: $model with checkpoint: $model_fname"
     
-    python case_study_SMP_layermap.py \
+    python case_study_SMP_layermap_ori.py \
         --dataset_dir "$DATASET_DIR" \
         --dataset_fname "$DATASET_FNAME" \
         --thickness_dir "$THICKNESS_DIR" \

@@ -34,6 +34,7 @@ from transformers import (
 import models_vit as models
 from util.datasets import TransformWrapper
 import timm
+import wandb
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 #transform
@@ -1063,6 +1064,16 @@ def main():
         list_available_xai()
         return
     
+    project_name = "RETFound_MAE_XAI"
+    group_name = None
+    model_add_dir = ""
+    wandb.init(
+        project=project_name,
+        name="case_study_SMP_layermap_ori",
+        group=group_name,
+        config=args,
+    )
+    
     # Determine which models to use
     if args.model is not None:
         # Use specified model names
@@ -1151,7 +1162,7 @@ def main():
     print("\n" + "=" * 60)
     print("Heatmap generation completed!")
     print("=" * 60)
-    
+    wandb.finish()
     return heatmap_results
 
 
