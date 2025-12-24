@@ -950,6 +950,8 @@ def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model
             # Load trained model
             model, processor = load_trained_model(task, model_name, Model_fname=model_fname, input_size=input_size, nb_classes=nb_classes, model_param_dict=model_param_dict)
             for module_name in module_list:
+                if model_name.startswith('SMP_enc') and module_name=='decoder':
+                    continue
                 # Get all Conv layers
                 if module_select_dict.get(module_name, False):
                     select_indexs = module_select_dict[module_name]
