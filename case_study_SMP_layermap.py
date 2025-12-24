@@ -570,6 +570,8 @@ class XAIGenerator:
         """Generate requested heatmaps for an image (safe, no hook interference)"""
         if xai_name is None:
             xai_names = self.xai_list
+        elif isinstance(xai_name, (list, tuple, set)):
+            xai_names = list(xai_name)
         else:
             xai_names = [xai_name]
         heatmaps = {}
@@ -899,7 +901,7 @@ def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model
         module_list: List of target modules (encoder, decoder, head)
         module_select_dict: Dict mapping module names to layer indices
         choose_last_layer: If True, only analyze last layer
-        batch_size: Batch size for XAI methods (process multiple XAI methods per image at once)
+        batch_size: Number of XAI methods to process together when generating heatmaps
         verbose: Print verbose output
         load_mask_flag: Load thickness mask
         img_mask_flag: Apply mask to input images
@@ -966,7 +968,14 @@ def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model
                 
                 for select_index in select_indexs:
                     # Initialize XAI generator
-                    xai_generator = XAIGenerator(model, model_name, input_size, target_module=module_name, select_index=select_index)
+                    xai_generator = XAIGenerator(
+                        model,
+                        model_name,
+                        input_size,
+                        batch_size=batch_size,
+                        target_module=module_name,
+                        select_index=select_index
+                    )
                     
                     # Store results for this model
                     results[task][model_name] = {
@@ -977,59 +986,73 @@ def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model
                         'select_index': select_index
                     }
                     # Process each image individually, batch XAI methods
+                    image_tensor_list, label_list, filename_list, mask_slice_list = [],[],[],[]
                     for idx, (image, label, filename, mask_slice) in enumerate(zip(images, labels, filenames, mask_slices)):
                         print(f"Processing image {idx+1}/{len(images)} (Label: {label}, File: {filename})")
                         # Preprocess image
                         image_tensor = preprocess_image(image, processor, input_size)
+                        image_tensor_list.append(image_tensor)
+                        label_list.append(label)
+                        filename_list.append(filename)
+                        mask_slice_list.append(mask_slice)
                         
-                        for xai_name in XAI_list:
-                            heatmap_dict = xai_generator.generate_all_heatmaps(image_tensor, target_class=label, xai_name=xai_name)
-                            heatmap = heatmap_dict.get(xai_name,None)
-                            if heatmap is None:
-                                continue
-                            #print("XAI & heatmap: ",xai_name, heatmap.shape)
-                            heatmap = heatmap + 1e-9
-                            overlay, heatmap_resized = overlay_heatmap_on_image(image, heatmap, mask_slice)
-                            binary_mask = _build_binary_mask(mask_slice, overlay) if mask_slice is not None else None
-                            #print(binary_mask.shape)
-                            mass_acc = rel_metric(images,heatmap_resized, binary_mask)
-                            rank_acc = rank_metric(images,heatmap_resized, binary_mask)
-                            #print(f"Image: {filename}, XAI: {xai_name}, Relevance Mass Accuracy: {mass_acc:.4f}")
-                            if DRAW_LAYER:
-                                overlay = add_layer_line(overlay, mask_slice)
-                            # overlay is np.uint8 HxWx3 per implementation
-                            # Create directory structure: ./heatmap_results/<task_name>/<label_idx>/<image_name>/<baselinemodel>/<XAI>.jpg
-                            module_idx = f'{module_name}_{select_index}' if module_name is not None else f'all_{select_index}'
-                            img_dir = Path(heatmap_dir) / task / str(label) / filename / model_name
-                            save_dir = img_dir / module_idx
-                            save_dir.mkdir(parents=True, exist_ok=True)
-                            out_path = save_dir / f"{xai_name}.jpg"
-                            try:
-                                if not isinstance(overlay, Image.Image):
-                                    overlay = Image.fromarray(overlay)
-                                overlay.save(out_path, format='JPEG', quality=95)
-                                # Save the heatmap as numpy array
-                                np.save(save_dir / f"{xai_name}.npy", heatmap)
-                                #save the image
-                                image.save(img_dir / f"{xai_name}_image.jpg")
-                                #save the mask_slice
-                                plt.imshow(binary_mask, cmap='gray')
-                                plt.savefig(img_dir / f"{xai_name}_mask.jpg")
-                            except Exception as e:
-                                print(f"Failed to save {out_path}: {e}")
-                            out_df.append({
-                                'task': task,
-                                'image_name': filename,
-                                'label': label,
-                                'output_path': str(out_path),
-                                'model_name': model_name,
-                                'xai_method': xai_name,
-                                'relevance_mass_accuracy': mass_acc,
-                                'relevance_rank_accuracy': rank_acc
-                            })
-                    #print(f"Completed {model_name} for {task}")
-                    #delete after finish
-                    del xai_generator, heatmap_dict, image_tensor
+                        if idx%batch_size==batch_size-1 or idx==len(images)-1:
+                            image_tensors = torch.stack(image_tensor_list)
+                            labels = np.stack(label_list)
+                            for xai_name in XAI_list:
+                                heatmap_dict = xai_generator.generate_all_heatmaps(image_tensors, target_class=labels, xai_name=xai_name)
+                                heatmaps = heatmap_dict.get(xai_name,None)
+                                for b_idx in range(len(heatmaps)):
+                                    heatmap = heatmaps[b_idx]
+                                    image = images[idx - batch_size + b_idx + 1]
+                                    label = label_list[b_idx]
+                                    filename = filename_list[b_idx]
+                                    mask_slice = mask_slice_list[b_idx]
+                                    if heatmap is None:
+                                        continue
+                                    #print("XAI & heatmap: ",xai_name, heatmap.shape)
+                                    heatmap = heatmap + 1e-9
+                                    overlay, heatmap_resized = overlay_heatmap_on_image(image, heatmap, mask_slice)
+                                    binary_mask = _build_binary_mask(mask_slice, overlay) if mask_slice is not None else None
+                                    #print(binary_mask.shape)
+                                    mass_acc = rel_metric(images,heatmap_resized, binary_mask)
+                                    rank_acc = rank_metric(images,heatmap_resized, binary_mask)
+                                    #print(f"Image: {filename}, XAI: {xai_name}, Relevance Mass Accuracy: {mass_acc:.4f}")
+                                    if DRAW_LAYER:
+                                        overlay = add_layer_line(overlay, mask_slice)
+                                    # overlay is np.uint8 HxWx3 per implementation
+                                    # Create directory structure: ./heatmap_results/<task_name>/<label_idx>/<image_name>/<baselinemodel>/<XAI>.jpg
+                                    module_idx = f'{module_name}_{select_index}' if module_name is not None else f'all_{select_index}'
+                                    img_dir = Path(heatmap_dir) / task / str(label) / filename / model_name
+                                    save_dir = img_dir / module_idx
+                                    save_dir.mkdir(parents=True, exist_ok=True)
+                                    out_path = save_dir / f"{xai_name}.jpg"
+                                    try:
+                                        if not isinstance(overlay, Image.Image):
+                                            overlay = Image.fromarray(overlay)
+                                        overlay.save(out_path, format='JPEG', quality=95)
+                                        # Save the heatmap as numpy array
+                                        np.save(save_dir / f"{xai_name}.npy", heatmap)
+                                        #save the image
+                                        image.save(img_dir / f"{xai_name}_image.jpg")
+                                        #save the mask_slice
+                                        plt.imshow(binary_mask, cmap='gray')
+                                        plt.savefig(img_dir / f"{xai_name}_mask.jpg")
+                                    except Exception as e:
+                                        print(f"Failed to save {out_path}: {e}")
+                                    out_df.append({
+                                        'task': task,
+                                        'image_name': filename,
+                                        'label': label,
+                                        'output_path': str(out_path),
+                                        'model_name': model_name,
+                                        'xai_method': xai_name,
+                                        'relevance_mass_accuracy': mass_acc,
+                                        'relevance_rank_accuracy': rank_acc
+                                    })
+                            #clear list
+                            image_tensor_list, label_list, filename_list, mask_slice_list = [],[],[],[]
+
         # Save out_df to CSV
         df = pd.DataFrame(out_df)
         df.to_csv(Path(heatmap_dir) / f"{task}_results.csv", index=False)
