@@ -42,5 +42,6 @@ echo "Running base models..."
 for i in "${!Model_list[@]}"; do
     model="${Model_list[$i]}"
     model_fname="${DME_finetuned[$i]}checkpoint-best.pth"
+    echo "sbatch run_xai_layermap_single.sh case_study_SMP_layermap_ori.py $model_fname $model ././heatmap_debug_batch 2"
     sbatch run_xai_layermap_single.sh case_study_SMP_layermap_ori.py "$model_fname" "$model" "././heatmap_debug_batch" 2
 done
