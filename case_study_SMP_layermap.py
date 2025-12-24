@@ -34,6 +34,7 @@ from transformers import (
 import models_vit as models
 from util.datasets import TransformWrapper
 import timm
+import wandb
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 #transform
@@ -148,47 +149,7 @@ Fusemodel_list = [f'SMP_fuse_{v["smp_fuse_mode"]}_fus{v["fusion_dim"]}enc{v["enc
 Model_list += Fusemodel_list
 Model_image_size_list = [512] * len(Model_list)
 
-DME_finetuned = [
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-enc--/",
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0--/",
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr5e-4optadamw-defaulteval-trsub0-enc---fix_extractor--/",
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-dec---fix_extractor--/"
-]
-
 Model_root = "/orange/ruogu.fang/tienyuchang/RETfound_results"
-DME_finetuned_masked = [
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-enc---add_mask---train_no_aug/",
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0---add_mask---train_no_aug/",
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-2optadamw-defaulteval-trsub0-enc---add_mask---train_no_aug---fix_extractor/",
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-dec---add_mask---train_no_aug---fix_extractor/"
-]
-
-#unmasked fuse models
-Fuse_models = []
-Fuse_models += [
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-0.5-decoder_to_encoder---seg_mask--/',
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_merge-0.5-decoder_to_encoder---seg_mask--/',
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_multiply-0.5-decoder_to_encoder---seg_mask--/',
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-0.5-decoder_to_encoder---smp_learnable_alpha---seg_mask-/',
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_merge-0.5-decoder_to_encoder---/',
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpadd-0.5-decoder_to_encoder---/',
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-0.5-decoder_to_encoder---/',
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-0.5-decoder_to_encoder---smp_learnable_alpha--/'
-]
-Fuse_models += [
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpadd-fea-2-1-0.5-decoder_to_encoder---seg_mask--/',
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_merge-fea-2-1-0.5-decoder_to_encoder---seg_mask--/',
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_multiply-fea-2-1-0.5-decoder_to_encoder---seg_mask--/',
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-fea-2-1-0.5-decoder_to_encoder---seg_mask--/',
-'DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-fea-2-1-0.5-decoder_to_encoder---smp_learnable_alpha---seg_mask-/',
-]
-
-#masked fuse models
-Fuse_models_masked = []
-
-DME_finetuned += Fuse_models
-print(Model_list)
-print(Model_param_dict_list)
 
 Module_list = ['encoder', 'decoder', 'head']
 # Visualization functions
@@ -339,24 +300,11 @@ def preprocess_image(image, processor=None, input_size=224, device=None, dtype=t
 
 
 # Load trained models function
-def load_trained_model(task, model_name, input_size=224, nb_classes=2, model_param_dict={}):
+def load_trained_model(task, model_name, Model_fname, input_size=224, nb_classes=2, model_param_dict={}):
     """Load a trained model for a specific task"""
     model, processor = get_model(task, model_name, input_size, nb_classes, param_dict=model_param_dict)
-    
-    # Load model weights based on task and model
-    if task == 'DME':
-        if IMG_MASK or HEATMAP_MASK:
-            model_paths = DME_finetuned_masked
-        else:
-            model_paths = DME_finetuned
-    else:
-        print(f"Unknown task: {task}")
-        model.eval()
-        return model, processor
-    
-    model_idx = Model_list.index(model_name)
-    model_dir = model_paths[model_idx]
-    model_path = os.path.join(Model_root, model_dir, Model_fname)
+    model_path = os.path.join(Model_root, Model_fname)
+    print(f"Loading {model_name} model from: {model_path}")
     
     # Load finetuned model if specified (following main_XAI_evaluation.py pattern)
     if model_path and model_path != '':
@@ -534,7 +482,7 @@ class XAIGenerator:
         heatmap = self.gradcam(image_tensor, targets)
         if hasattr(self.gradcam, "remove_hooks"):
             self.gradcam.remove_hooks()
-        return heatmap if len(heatmap) > 0 else None
+        return heatmap[0] if len(heatmap) > 0 else None
     
     def generate_scorecam(self, image_tensor, target_class=None):
         """Generate ScoreCAM heatmap"""
@@ -553,7 +501,7 @@ class XAIGenerator:
         heatmap = self.scorecam(image_tensor, targets)
         if hasattr(self.scorecam, "remove_hooks"):
             self.scorecam.remove_hooks()
-        return heatmap if len(heatmap) > 0 else None
+        return heatmap[0] if len(heatmap) > 0 else None
     
     def generate_gardcamplusplus(self, image_tensor, target_class=None):
         """Generate gardcamplusplus heatmap"""
@@ -573,7 +521,7 @@ class XAIGenerator:
         heatmap = self.gardcamplusplus(image_tensor, targets)
         if hasattr(self.gardcamplusplus, "remove_hooks"):
             self.gardcamplusplus.remove_hooks()
-        return heatmap if len(heatmap) > 0 else None
+        return heatmap[0] if len(heatmap) > 0 else None
     
     def generate_hirescam(self, image_tensor, target_class=None):
         """Generate hirescam heatmap"""
@@ -593,7 +541,7 @@ class XAIGenerator:
         heatmap = self.hirescam(image_tensor, targets)
         if hasattr(self.hirescam, "remove_hooks"):
             self.hirescam.remove_hooks()
-        return heatmap if len(heatmap) > 0 else None
+        return heatmap[0] if len(heatmap) > 0 else None
     
     def generate_rise(self, image_tensor, target_class=None):
         """Generate RISE heatmap"""
@@ -608,7 +556,7 @@ class XAIGenerator:
                 target_class = outputs.argmax(dim=1).item()
 
         heatmap = self.rise(image_tensor,[target_class])
-        return heatmap if heatmap is not None else None
+        return heatmap[0] if heatmap is not None else None
 
     def generate_attention(self, image_tensor, target_class=None):
         """Generate Attention heatmap"""
@@ -616,7 +564,7 @@ class XAIGenerator:
             return None
         image_tensor = image_tensor.to(self.device)
         attention_map = self.attention(image_tensor)
-        return attention_map if attention_map is not None else None
+        return attention_map[0] if attention_map is not None else None
     
     def generate_all_heatmaps(self, image_tensor, target_class=None, xai_name=None):
         """Generate requested heatmaps for an image (safe, no hook interference)"""
@@ -631,37 +579,37 @@ class XAIGenerator:
         if 'Attention' in xai_names:
             attention_map = self.generate_attention(image_tensor)
         if attention_map is not None:
-            heatmaps['Attention'] = _ensure_numpy_2d_heatmap(attention_map)
+            heatmaps['Attention'] = attention_map
 
         # RISE (chunk-based forward, 不依賴 hooks)
         if 'RISE' in xai_names:
             rise_map = self.generate_rise(image_tensor, target_class)
         if rise_map is not None:
-            heatmaps['RISE'] = _ensure_numpy_2d_heatmap(rise_map)
+            heatmaps['RISE'] = rise_map
 
         # GradCAM（需要梯度 + hooks）
         if 'GradCAM' in xai_names:
             gradcam_map = self.generate_gradcam(image_tensor, target_class)
         if gradcam_map is not None:
-            heatmaps['GradCAM'] = _ensure_numpy_2d_heatmap(gradcam_map)
+            heatmaps['GradCAM'] = gradcam_map
 
         # ScoreCAM
         if 'ScoreCAM' in xai_names:
             scorecam_map = self.generate_scorecam(image_tensor, target_class)
         if scorecam_map is not None:
-            heatmaps['ScoreCAM'] = _ensure_numpy_2d_heatmap(scorecam_map)
+            heatmaps['ScoreCAM'] = scorecam_map
         #['Attention', 'RISE', 'GradCAM', 'ScoreCAM', 'HiResCAM', 'GradCAMPlusPlus']
         # GradCAMPlusPlus
         if 'GradCAMPlusPlus' in xai_names:
             gardcamplusplus_map = self.generate_gardcamplusplus(image_tensor, target_class)
         if gardcamplusplus_map is not None:
-            heatmaps['GradCAMPlusPlus'] = _ensure_numpy_2d_heatmap(gardcamplusplus_map)
+            heatmaps['GradCAMPlusPlus'] = gardcamplusplus_map
         
         # HiResCAM
         if 'HiResCAM' in xai_names:
             hirescam_map = self.generate_hirescam(image_tensor, target_class)
         if hirescam_map is not None:
-            heatmaps['HiResCAM'] = _ensure_numpy_2d_heatmap(hirescam_map)
+            heatmaps['HiResCAM'] = hirescam_map
 
         return heatmaps
 
@@ -717,27 +665,6 @@ def normalize_heatmap(heatmap):
         return np.zeros_like(heatmap)
     
     return (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
-
-def _ensure_numpy_2d_heatmap(heatmap):
-    """Convert a heatmap to a 2D numpy array for downstream processing."""
-    
-    # Unwrap lists/tuples that sometimes come back from CAM libs
-    if isinstance(heatmap, (list, tuple)):
-        heatmap = heatmap[0]
-    # Move torch tensors to CPU numpy
-    if isinstance(heatmap, torch.Tensor):
-        heatmap = heatmap.detach().cpu().numpy()
-    heatmap = np.array(heatmap)
-    # Drop singleton channel or batch dimensions
-    if heatmap.ndim == 3 and heatmap.shape[0] == 1:
-        heatmap = heatmap[0]
-    if heatmap.ndim == 3 and heatmap.shape[-1] == 1:
-        heatmap = heatmap[..., 0]
-    if heatmap.ndim > 2:
-        heatmap = np.squeeze(heatmap)
-    
-    #print(f"heatmap shape: {heatmap.shape}") # for debug
-    return heatmap
 
 def overlay_heatmap_on_image(image, heatmap, mask_slice = None, alpha=0.4, colormap='jet'):
     """Overlay heatmap on original image"""
@@ -954,7 +881,7 @@ def get_all_conv_layers(model, module_name=None):
     return conv_layers
 # Updated function with new directory structure for heatmap saving and batch processing
 def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model_list=Model_list, 
-                                       img_size_list=Model_image_size_list,
+                                       img_size_list=Model_image_size_list, model_fname=Model_fname,
                                        Model_param_dict_list=None, XAI_list=None, heatmap_dir="./heatmap_results", module_list=None,
                                        module_select_dict={}, choose_last_layer=True, batch_size=4, verbose=False,
                                        load_mask_flag=True, img_mask_flag=False, heatmap_mask_flag=False, draw_layer_flag=True,
@@ -1017,15 +944,14 @@ def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model
         
         if not Model_param_dict_list:
             Model_param_dict_list = [{} for _ in model_list]
-        
         out_df = []
-        
         for model_idx, (model_name, input_size, model_param_dict) in enumerate(zip(model_list, img_size_list, Model_param_dict_list)):
-            print(f"\n--- Processing Model [{model_idx+1}/{len(model_list)}]: {model_name} ---")
-            
+            print(f"\n--- Processing Model [{model_idx+1}/{len(model_list)}]: {model_name} ---") 
             # Load trained model
-            model, processor = load_trained_model(task, model_name, input_size, nb_classes=nb_classes, model_param_dict=model_param_dict)
+            model, processor = load_trained_model(task, model_name, Model_fname=model_fname, input_size=input_size, nb_classes=nb_classes, model_param_dict=model_param_dict)
             for module_name in module_list:
+                if model_name.startswith('SMP_enc') and module_name=='decoder':
+                    continue
                 # Get all Conv layers
                 if module_select_dict.get(module_name, False):
                     select_indexs = module_select_dict[module_name]
@@ -1050,147 +976,64 @@ def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model
                         'module_name': module_name,
                         'select_index': select_index
                     }
-                    
                     # Process each image individually, batch XAI methods
-                    module_idx_str = f'{module_name}_{select_index}' if module_name is not None else f'all_{select_index}'
-                    desc = f"  {model_name}/{module_idx_str}"
-                    
-                    for idx, (image, label, filename, mask_slice) in enumerate(tqdm(
-                            zip(images, labels, filenames, mask_slices), 
-                            total=len(images), desc=desc, disable=not verbose)):
-                        
+                    for idx, (image, label, filename, mask_slice) in enumerate(zip(images, labels, filenames, mask_slices)):
+                        print(f"Processing image {idx+1}/{len(images)} (Label: {label}, File: {filename})")
                         # Preprocess image
                         image_tensor = preprocess_image(image, processor, input_size)
                         
-                        # Batch process XAI methods for this image
-                        image_results = process_xai(
-                            image, image_tensor, label, filename, mask_slice,
-                            xai_generator, XAI_list, batch_size,
-                            task, model_name, module_name, select_index,
-                            heatmap_dir, draw_layer_flag, verbose
-                        )
-                        out_df.extend(image_results)
-                    
-                    # Cleanup after processing module
-                    del xai_generator
-                    torch.cuda.empty_cache() if torch.cuda.is_available() else None
-            
-            # Cleanup after processing model
-            del model, processor
-            torch.cuda.empty_cache() if torch.cuda.is_available() else None
-        
+                        for xai_name in XAI_list:
+                            heatmap_dict = xai_generator.generate_all_heatmaps(image_tensor, target_class=label, xai_name=xai_name)
+                            heatmap = heatmap_dict.get(xai_name,None)
+                            if heatmap is None:
+                                continue
+                            #print("XAI & heatmap: ",xai_name, heatmap.shape)
+                            heatmap = heatmap + 1e-9
+                            overlay, heatmap_resized = overlay_heatmap_on_image(image, heatmap, mask_slice)
+                            binary_mask = _build_binary_mask(mask_slice, overlay) if mask_slice is not None else None
+                            #print(binary_mask.shape)
+                            mass_acc = rel_metric(images,heatmap_resized, binary_mask)
+                            rank_acc = rank_metric(images,heatmap_resized, binary_mask)
+                            #print(f"Image: {filename}, XAI: {xai_name}, Relevance Mass Accuracy: {mass_acc:.4f}")
+                            if DRAW_LAYER:
+                                overlay = add_layer_line(overlay, mask_slice)
+                            # overlay is np.uint8 HxWx3 per implementation
+                            # Create directory structure: ./heatmap_results/<task_name>/<label_idx>/<image_name>/<baselinemodel>/<XAI>.jpg
+                            module_idx = f'{module_name}_{select_index}' if module_name is not None else f'all_{select_index}'
+                            img_dir = Path(heatmap_dir) / task / str(label) / filename / model_name
+                            save_dir = img_dir / module_idx
+                            save_dir.mkdir(parents=True, exist_ok=True)
+                            out_path = save_dir / f"{xai_name}.jpg"
+                            try:
+                                if not isinstance(overlay, Image.Image):
+                                    overlay = Image.fromarray(overlay)
+                                overlay.save(out_path, format='JPEG', quality=95)
+                                # Save the heatmap as numpy array
+                                np.save(save_dir / f"{xai_name}.npy", heatmap)
+                                #save the image
+                                image.save(img_dir / f"{xai_name}_image.jpg")
+                                #save the mask_slice
+                                plt.imshow(binary_mask, cmap='gray')
+                                plt.savefig(img_dir / f"{xai_name}_mask.jpg")
+                            except Exception as e:
+                                print(f"Failed to save {out_path}: {e}")
+                            out_df.append({
+                                'task': task,
+                                'image_name': filename,
+                                'label': label,
+                                'output_path': str(out_path),
+                                'model_name': model_name,
+                                'xai_method': xai_name,
+                                'relevance_mass_accuracy': mass_acc,
+                                'relevance_rank_accuracy': rank_acc
+                            })
+                    #print(f"Completed {model_name} for {task}")
+                    #delete after finish
+                    del xai_generator, heatmap_dict, image_tensor
         # Save out_df to CSV
         df = pd.DataFrame(out_df)
-        output_csv = Path(heatmap_dir) / f"{task}_results.csv"
-        df.to_csv(output_csv, index=False)
-        print(f"\nResults saved to: {output_csv}")
-    
+        df.to_csv(Path(heatmap_dir) / f"{task}_results.csv", index=False)
     return results
-
-
-def process_xai(image, image_tensor, label, filename, mask_slice,
-                      xai_generator, XAI_list, batch_size,
-                      task, model_name, module_name, select_index,
-                      heatmap_dir, draw_layer_flag, verbose):
-    """Process XAI methods in batches for a single image
-    
-    Args:
-        image: PIL image
-        image_tensor: Preprocessed image tensor
-        label: Image label
-        filename: Image filename
-        mask_slice: Mask slice for the image
-        xai_generator: XAIGenerator instance
-        XAI_list: List of XAI methods to apply
-        batch_size: Number of XAI methods to process in each batch
-        task: Task name
-        model_name: Model name
-        module_name: Target module name
-        select_index: Layer index
-        heatmap_dir: Output directory
-        draw_layer_flag: Whether to draw layer boundaries
-        verbose: Print verbose output
-    
-    Returns:
-        List of result dictionaries
-    """
-    image_results = []
-    
-    # Create directory structure (once per image)
-    module_idx = f'{module_name}_{select_index}' if module_name is not None else f'all_{select_index}'
-    img_dir = Path(heatmap_dir) / task / str(label) / filename / model_name
-    save_dir = img_dir / module_idx
-    save_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Save original image once
-    image_out_path = img_dir / f"original_image.jpg"
-    if not image_out_path.exists():
-        image.save(image_out_path)
-    
-    # Compute binary mask once
-    binary_mask = None
-    if mask_slice is not None:
-        # Need a reference shape for mask - use image
-        binary_mask = _build_binary_mask(mask_slice, np.array(image))
-        # Save the mask once
-        mask_out_path = img_dir / f"mask.jpg"
-        if not mask_out_path.exists():
-            plt.figure(figsize=(6, 6))
-            plt.imshow(binary_mask, cmap='gray')
-            plt.axis('off')
-            plt.savefig(mask_out_path, bbox_inches='tight', pad_inches=0)
-            plt.close()
-    
-    # Sequentially process XAI methods (no batching, follows notebook flow)
-    for xai_name in XAI_list:
-        heatmap_dict = xai_generator.generate_all_heatmaps(image_tensor, target_class=label, xai_name=xai_name)
-        heatmap = _ensure_numpy_2d_heatmap(heatmap_dict.get(xai_name, None))
-        if heatmap is None:
-            if verbose:
-                print(f"  Warning: {xai_name} returned None for {filename}")
-            continue
-
-        heatmap = heatmap + 1e-9
-        overlay, heatmap_resized = overlay_heatmap_on_image(image, heatmap, mask_slice)
-
-        # Build mask using heatmap resolution (matches notebook behavior)
-        binary_mask = _build_binary_mask(mask_slice, heatmap_resized) if mask_slice is not None else None
-
-        mass_acc = rel_metric([image], heatmap_resized, binary_mask)
-        rank_acc = rank_metric([image], heatmap_resized, binary_mask)
-
-        if draw_layer_flag and mask_slice is not None:
-            overlay = add_layer_line(overlay, mask_slice)
-
-        out_path = save_dir / f"{xai_name}.jpg"
-
-        if not isinstance(overlay, Image.Image):
-            overlay = Image.fromarray(overlay)
-        overlay.save(out_path, format='JPEG', quality=95)
-        # Save the heatmap as numpy array
-        np.save(save_dir / f"{xai_name}.npy", heatmap_resized)
-        # Save image and mask for reference (per notebook workflow)
-        image.save(img_dir / f"{xai_name}_image.jpg")
-        if binary_mask is not None:
-            plt.imshow(binary_mask, cmap='gray')
-            plt.axis('off')
-            plt.savefig(img_dir / f"{xai_name}_mask.jpg", bbox_inches='tight', pad_inches=0)
-            plt.close()
-
-        image_results.append({
-            'task': task,
-            'image_name': filename,
-            'label': label,
-            'output_path': str(out_path),
-            'model_name': model_name,
-            'module_name': module_name,
-            'select_index': select_index,
-            'xai_method': xai_name,
-            'relevance_mass_accuracy': mass_acc,
-            'relevance_rank_accuracy': rank_acc
-        })
-    
-    return image_results
 
 def list_available_models():
     """Print available models and their indices"""
@@ -1222,6 +1065,16 @@ def main():
     if args.list_xai:
         list_available_xai()
         return
+    
+    project_name = "RETFound_MAE_XAI"
+    group_name = None
+    model_add_dir = ""
+    wandb.init(
+        project=project_name,
+        name="case_study_SMP_layermap_ori",
+        group=group_name,
+        config=args,
+    )
     
     # Determine which models to use
     if args.model is not None:
@@ -1290,6 +1143,7 @@ def main():
         num_samples=args.num_samples,
         task_list=args.task,
         model_list=selected_models,
+        model_fname=args.model_fname,
         img_size_list=selected_img_sizes,
         Model_param_dict_list=selected_param_dicts,
         XAI_list=args.xai_method,
@@ -1310,7 +1164,7 @@ def main():
     print("\n" + "=" * 60)
     print("Heatmap generation completed!")
     print("=" * 60)
-    
+    wandb.finish()
     return heatmap_results
 
 
