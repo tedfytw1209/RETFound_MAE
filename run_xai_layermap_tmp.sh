@@ -10,11 +10,6 @@
 #SBATCH --account=ruogu.fang
 #SBATCH --qos=ruogu.fang
 
-date;hostname;pwd
-
-module load conda
-conda activate octxai
-
 # ============================================================================
 # Model Definitions
 # ============================================================================
