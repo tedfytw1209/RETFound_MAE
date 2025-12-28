@@ -91,96 +91,12 @@ batch_size=2
 target_module="head"
 
 # ============================================================================
-# Run XAI for base models (DME_finetuned)
-# ============================================================================
-echo "Running base models..."
-for i in "${!Model_list[@]}"; do
-    model="${Model_list[$i]}"
-    model_fname="${DME_finetuned[$i]}checkpoint-best.pth"
-    
-    echo "Processing model: $model with checkpoint: $model_fname"
-    
-    python case_study_SMP_layermap.py \
-        --dataset_dir "$DATASET_DIR" \
-        --dataset_fname "$DATASET_FNAME" \
-        --thickness_dir "$THICKNESS_DIR" \
-        --thickness_csv "$THICKNESS_CSV" \
-        --model_root "$MODEL_ROOT" \
-        --model_fname "$model_fname" \
-        --model "$model" \
-        --target_module "$target_module" \
-        --task DME \
-        --num_samples -1 \
-        --xai_method GradCAM HiResCAM GradCAMPlusPlus \
-        --batch_size $batch_size \
-        --input_size 512 \
-        --nb_classes 2 \
-        --load_mask \
-        --draw_layer \
-        --output_dir "$OUTPUT_DIR" \
-        --verbose
-done
-
-# ============================================================================
-# Run XAI for masked models (DME_finetuned_masked)
-# ============================================================================
-echo "Running masked models..."
-for i in "${!Model_list[@]}"; do
-    model="${Model_list[$i]}"
-    model_fname="${DME_finetuned_masked[$i]}checkpoint-best.pth"
-    
-    echo "Processing masked model: $model with checkpoint: $model_fname"
-    
-    python case_study_SMP_layermap.py \
-        --dataset_dir "$DATASET_DIR" \
-        --dataset_fname "$DATASET_FNAME" \
-        --thickness_dir "$THICKNESS_DIR" \
-        --thickness_csv "$THICKNESS_CSV" \
-        --model_root "$MODEL_ROOT" \
-        --model_fname "$model_fname" \
-        --model "$model" \
-        --target_module "$target_module" \
-        --task DME \
-        --num_samples -1 \
-        --xai_method GradCAM HiResCAM GradCAMPlusPlus \
-        --batch_size $batch_size \
-        --input_size 512 \
-        --nb_classes 2 \
-        --load_mask \
-        --draw_layer \
-        --output_dir "$OUTPUT_DIR" \
-        --verbose
-done
-
-# ============================================================================
 # Run XAI for fuse models
 # ============================================================================
 echo "Running fuse models..."
 for i in "${!Fuse_models[@]}"; do
     model="${Fuse_model_names[$i]}"
-    model_fname="${Fuse_models[$i]}checkpoint-best.pth"
-    
-    echo "Processing fuse model: $model with checkpoint: $model_fname"
-    
-    python case_study_SMP_layermap.py \
-        --dataset_dir "$DATASET_DIR" \
-        --dataset_fname "$DATASET_FNAME" \
-        --thickness_dir "$THICKNESS_DIR" \
-        --thickness_csv "$THICKNESS_CSV" \
-        --model_root "$MODEL_ROOT" \
-        --model_fname "$model_fname" \
-        --model "$model" \
-        --target_module "$target_module" \
-        --task DME \
-        --num_samples -1 \
-        --xai_method GradCAM HiResCAM GradCAMPlusPlus \
-        --batch_size $batch_size \
-        --input_size 512 \
-        --nb_classes 2 \
-        --load_mask \
-        --draw_layer \
-        --output_dir "$OUTPUT_DIR" \
-        --verbose
+    model_fname="${DME_finetuned[$i]}checkpoint-best.pth"
+    echo "sbatch run_xai_layermap_single.sh case_study_SMP_layermap_ori.py $model_fname $model ././heatmap_debug_batch 2"
+    sbatch run_xai_layermap_single.sh case_study_SMP_layermap_ori.py "$model_fname" "$model" "././heatmap_debug_batch" 2
 done
-
-echo "All models completed!"
