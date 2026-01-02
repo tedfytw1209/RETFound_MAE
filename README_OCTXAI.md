@@ -109,10 +109,10 @@ Baseline Model: timm_efficientnet-b4, resnet-50, vit-base-patch16-224, RETFound_
 sbatch finetune_retfound_UFbenchmark_v5_eval.sh AMD_all_split RETFound_mae RETFound_mae_natureOCT /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0--/checkpoint-best.pth 2 224 hirescam
 ```
 
-SMP Model
+SMP Model: Need Update
 
 ```
-sbatch finetune_retfound_UFbenchmark_v5_eval.sh AMD_all_split RETFound_mae RETFound_mae_natureOCT /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0--/checkpoint-best.pth 2 224 hirescam
+sbatch finetune_retfound_UFbenchmark_v5_eval_smp.sh DME_binary_all_split SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-enc---add_mask---train_no_aug/checkpoint-best.pth 2 512 gradcamv2 1024 enc /orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/ --add_mask
 ```
 
 2. For Case Study
