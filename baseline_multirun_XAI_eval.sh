@@ -20,12 +20,15 @@ MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
 #microsoft/resnet-50, timm_efficientnet-b4, google/vit-base-patch16-224-in21k, RETFound_mae_natureOCT
 #DATASETS=(AMD_all_split DR_binary_all_split DME_binary_all_split)  # List of datasets
 #CLASSES=(2 2 2)  # Number of classes for each dataset
-DATASETS=(AMD_all_split)  # List of datasets
+DATASETS=(DME_binary_all_split)  # List of datasets
 CLASSES=(2)  # Number of classes for each dataset
 
 #sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh RETFound_mae RETFound_mae_natureOCT 224
-#XAI_METHODS=("attn" "gradcam")  # List of XAI methods
-XAI_METHODS=("attn" "gradcamv2" "scorecam" "rise" "crp")  # List of XAI methods
+#sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh resnet-50 microsoft/resnet-50 224
+#sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh vit-base-patch16-224 google/vit-base-patch16-224-in21k 224
+#sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh timm_efficientnet-b4 timm_efficientnet-b4 380
+XAI_METHODS=("hirescam" "gradcam++")  # List of XAI methods
+#XAI_METHODS=("attn" "gradcamv2" "scorecam" "rise" "crp")  # List of XAI methods
 for i in "${!DATASETS[@]}"
 do
     # Create a job name based on the variables
@@ -35,7 +38,7 @@ do
     for XAI in "${XAI_METHODS[@]}"
     do
         # Submit the job to Slurm
-        echo "sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0---add_mask---train_no_aug/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI"
-        sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0---add_mask---train_no_aug/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI
+        echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0---add_mask---train_no_aug/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI"
+        bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0---add_mask---train_no_aug/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI
     done
 done
