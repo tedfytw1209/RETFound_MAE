@@ -1,7 +1,9 @@
 import argparse
 import datetime
+import json
 
 import numpy as np
+import pandas as pd
 import os
 import time
 from pathlib import Path
@@ -9,12 +11,18 @@ from pathlib import Path
 import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import Subset
+from torchvision import datasets, transforms
 from timm.models.layers import trunc_normal_
+from timm.data.mixup import Mixup
+from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
+from torch.optim import lr_scheduler
 from transformers import (
     ViTImageProcessor, ViTForImageClassification,
     AutoImageProcessor, EfficientNetForImageClassification,
     ResNetForImageClassification, AutoModel
 )
+import matplotlib.pyplot as plt
 
 import models_vit as models
 import vig as vig_models
@@ -37,8 +45,7 @@ from baselines.GradCAM import GradCAM
 from baselines.RISE import RISE, RISEBatch
 from baselines.GradCAM_v2 import PytorchCAM
 from huggingface_hub import hf_hub_download, login
-from engine_finetune import evaluate_half3D, train_one_epoch, evaluate
-from torchvision import datasets, transforms
+from engine_finetune import evaluate_half3D, train_one_epoch, evaluate, reinit_model_weights_
 import wandb
 from pytorch_pretrained_vit import ViT
 
@@ -152,6 +159,28 @@ def get_args_parser():
                         help='Output mask of the image based on thickness map')
     parser.add_argument('--no_amp', dest='use_amp', action='store_false', help='Disable AMP')
     parser.set_defaults(use_amp=False)
+    
+    #SMP parameters
+    parser.add_argument('--smp_fuse_mode', type=str, default='weighted_sum',
+                        choices=["weighted_sum", "add", "channel_merge", "channel_multiply", "multiply"],
+                        help='SMP fuse mode ("weighted_sum", "add", "channel_merge", "channel_multiply", "multiply") (default: "weighted_sum")')
+    parser.add_argument('--smp_learnable_alpha', action='store_true', default=False,
+                        help='SMP learnable alpha (default: False)')
+    parser.add_argument('--smp_alpha', type=float, default=0.5,help='SMP alpha (0.0-1.0)')
+    parser.add_argument('--smp_size_match', type=str, default='decoder_to_encoder',
+                        choices=["decoder_to_encoder", "encoder_to_decoder"],
+                        help='SMP size match (decoder_to_encoder, encoder_to_decoder) (default: "decoder_to_encoder")')
+    parser.add_argument('--seg_mask', action='store_true', default=False,
+                        help='Use segmentation mask output from SMP model')
+    parser.add_argument('--fusion_dim', type=int, default=0,
+                        help='Fusion dimension for SMP model (default: 0 means no projection)')
+    parser.add_argument('--enc_idx', type=int, default=-1,help='SMP encoder index for feature extraction')
+    parser.add_argument('--dec_idx', type=int, default=-1,help='SMP decoder index for feature extraction')
+    #
+    parser.add_argument('--target_module', type=str, default='encoder', choices=['encoder', 'decoder', 'head'],
+                        help='Target module for CAM methods')
+    parser.add_argument('--select_index', type=int, default=-1,
+                        help='Select index for CAM methods')
 
     return parser
 
@@ -383,12 +412,19 @@ def get_model(args):
             encoder_weights=SMPConfig.ENCODER_WEIGHTS,
             in_channels=SMPConfig.IN_CHANNELS,
             num_classes=args.nb_classes,
+            seg_classes=SMPConfig.SEG_CLASSES,
+            seg_activation=SMPConfig.ACTIVATION,
             mode=args.SMPMode,
-            fuse_mode=SMPConfig.FUSE_MODE,
-            learnable_alpha=SMPConfig.LEARNABLE_ALPHA,
-            alpha=SMPConfig.ALPHA,
+            fuse_mode=args.smp_fuse_mode,
+            fusion_dim= args.fusion_dim,
+            learnable_alpha=args.smp_learnable_alpha,
+            alpha=args.smp_alpha,
             pretrained_seg_ckpt=args.finetune,
             dropout=SMPConfig.DROPOUT,
+            size_match=args.smp_size_match,
+            use_mask=args.seg_mask,
+            enc_idx=args.enc_idx,
+            dec_idx=args.dec_idx,
         )
     else:
         model = models.__dict__[args.model](
@@ -591,13 +627,13 @@ def main(args, criterion):
     elif args.xai == 'gradcam':
         XAI_module = GradCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, device=device)
     elif args.xai == 'gradcamv2':
-        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=GradCAMv2, device=device)
+        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=GradCAMv2, target_module=args.target_module, select_index=args.select_index, device=device)
     elif args.xai == 'scorecam':
-        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=ScoreCAM, device=device)
+        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=ScoreCAM, target_module=args.target_module, select_index=args.select_index, device=device)
     elif args.xai == 'hirescam':
-        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=HiResCAM, device=device)
+        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=HiResCAM, target_module=args.target_module, select_index=args.select_index, device=device)
     elif args.xai == 'gradcam++':
-        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=GradCAMPlusPlus, device=device)
+        XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=GradCAMPlusPlus, target_module=args.target_module, select_index=args.select_index, device=device)
     elif args.xai == 'crp':
         from baselines.CRP_LXT import CRP
         XAI_module = CRP(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, device=device)
