@@ -26,6 +26,7 @@ ADDCMD2=${12:-""}
 NUM_K=0
 
 #sbatch baseline_multirun_irb2024_bootstrap.sh finetune_retfound_UFbenchmark_irb2024v5_bootstrap.sh AMD_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 roc_auc OCT 500 --bootstrap_runs
+#sbatch baseline_multirun_irb2024_bootstrap.sh finetune_retfound_UFbenchmark_irb2024v5_bootstrap.sh DR_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 6 0.05 roc_auc OCT 300 --bootstrap_runs
 SUBSET_SEEDS=(1 2 3 4 5 6 7 8 9 10)
 for i in "${!SUBSET_SEEDS[@]}"
 do
