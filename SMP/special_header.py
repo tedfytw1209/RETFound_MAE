@@ -395,6 +395,7 @@ class GeneralFusionHead(nn.Module):
         classifier_bias: bool = False,
         fixed_size: Optional[Tuple[int, int]] = None,
         use_mask: bool = False,
+        smp_classifier: str = "linear",
     ):
         super().__init__()
         merge_method = merge_method.lower()
@@ -422,6 +423,7 @@ class GeneralFusionHead(nn.Module):
         self.channel_multiply_layers: Optional[int] = None
         self.fixed_size = fixed_size
         self.use_mask = use_mask
+        self.smp_classifier = smp_classifier
         if resize_backend == "conv":
             self._upsample_layers = nn.ModuleDict()
             self._downsample_layers = nn.ModuleDict()
@@ -475,7 +477,12 @@ class GeneralFusionHead(nn.Module):
 
         # Classifier (Linear)
         self.dropout = nn.Dropout2d(classifier_dropout) if classifier_dropout and classifier_dropout > 0 else nn.Identity()
-        self.classifier = nn.Linear(final_dim, num_classes, bias=classifier_bias)
+        if self.smp_classifier == "conv":
+            self.classifier = nn.Conv2d(final_dim, num_classes, kernel_size=1, bias=classifier_bias)
+        elif self.smp_classifier == "linear":
+            self.classifier = nn.Linear(final_dim, num_classes, bias=classifier_bias)
+        else:
+            raise ValueError(f"Unsupported smp_classifier type: {self.smp_classifier}")
 
     @staticmethod
     def _make_align_layer(in_ch: int, out_ch: int) -> nn.Module:

@@ -232,6 +232,9 @@ def get_args_parser():
                         help='Fusion dimension for SMP model (default: 0 means no projection)')
     parser.add_argument('--enc_idx', type=int, default=-1,help='SMP encoder index for feature extraction')
     parser.add_argument('--dec_idx', type=int, default=-1,help='SMP decoder index for feature extraction')
+    parser.add_argument('--smp_classifier', type=str, default='linear',
+                        choices=["linear", "conv"],
+                        help='SMP classifier type ("linear", "conv") (default: "linear")')
 
     return parser
 

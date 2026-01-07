@@ -106,6 +106,8 @@ class SMPClassifier(nn.Module):
         
         enc_idx: int = -1,
         dec_idx: int = -1,
+        
+        smp_classifier: str = "linear",
     ):
         super().__init__()
         assert mode in ("enc", "dec", "fuse"), f"mode must be 'enc', 'dec', or 'fuse', got {mode}"
@@ -123,6 +125,7 @@ class SMPClassifier(nn.Module):
         self.size_match = size_match
         self.use_mask = use_mask
         self.enc_idx, self.dec_idx = enc_idx, dec_idx
+        self.smp_classifier = smp_classifier
 
         SegCls = getattr(smp, seg_arch)
         self.seg_model = SegCls(
@@ -198,6 +201,7 @@ class SMPClassifier(nn.Module):
                 classifier_dropout=dropout,
                 classifier_bias=False,
                 use_mask=self.use_mask,
+                smp_classifier=self.smp_classifier,
             )
 
         
