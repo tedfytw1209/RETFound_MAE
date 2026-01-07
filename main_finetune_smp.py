@@ -467,6 +467,7 @@ def get_model(args):
             use_mask=args.seg_mask,
             enc_idx=args.enc_idx,
             dec_idx=args.dec_idx,
+            smp_classifier=args.smp_classifier,
         )
     else:
         model = models.__dict__[args.model](
