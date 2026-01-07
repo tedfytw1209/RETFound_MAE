@@ -133,3 +133,14 @@ dmypy.json
 
 IDRiD_data
 /vis_notebook
+
+# experiment outputs (keep out of git)
+grid_heatmap_*/
+heatmap_results*/
+heatmap_*.zip
+heatmap*_statistics*.csv
+heatmap*_summary*.csv
+masks.npy
+output_dir/
+output_logs/
+wandb/
