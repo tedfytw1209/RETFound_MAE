@@ -38,6 +38,8 @@ BATCH_SIZE=16
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
+export TIMM_FUSED_ATTN=0
+
 echo $SUBSTUDY
 echo $Num_CLASS
 
