@@ -483,6 +483,11 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
     metric_logger = misc.MetricLogger(delimiter="  ")
     os.makedirs(os.path.join(args.output_dir, args.task), exist_ok=True)
     overall_metrics_dict = {k:[] for k in metric_func_dict.keys()}
+    # Track per-class scores (keyed by ground-truth class index)
+    classwise_metrics_dict = {
+        metric_name: {cls_idx: [] for cls_idx in range(num_class)}
+        for metric_name in metric_func_dict.keys()
+    }
     for batch in metric_logger.log_every(data_loader, 10, f'{mode}:'):
         images, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True)
         gt_mask = to_numpy(batch[4])
@@ -490,6 +495,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         if gt_mask is not None and gt_mask.ndim == 4 and gt_mask.shape[1] == 1:
             gt_mask = gt_mask.squeeze(1)
         bs = images.shape[0]
+        target_np = target.detach().cpu().numpy()
         each_dict = {}
         #with torch.cuda.amp.autocast():
         #print(f'Input images shape: {images.shape}', 'ground truth mask shape:', gt_mask.shape, 'target:', target)
@@ -498,7 +504,16 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         #print(f'Attention map shape: {attention_map_bs.shape}')
         for k, v in metric_func_dict.items():
             e_score_bs = v(images, attention_map_bs, gt_mask=gt_mask, batch_size=bs, y_batch=target, explain_func=xai_method, explain_func_kwargs={})
-            e_score_bs_mean = np.mean(e_score_bs)
+            e_score_bs_np = np.asarray(e_score_bs)
+            # Aggregate per-class metrics when the metric returns per-sample scores
+            if e_score_bs_np.ndim >= 1 and e_score_bs_np.shape[0] == bs:
+                for cls_idx in range(num_class):
+                    cls_mask = target_np == cls_idx
+                    if not np.any(cls_mask):
+                        continue
+                    class_score = float(np.mean(e_score_bs_np[cls_mask]))
+                    classwise_metrics_dict[k][cls_idx].append(class_score)
+            e_score_bs_mean = float(np.mean(e_score_bs_np))
             overall_metrics_dict[k].append(e_score_bs_mean)
             each_dict[k] = float(e_score_bs_mean)
             #print(f'{k}: {e_score_bs:.4f}')
@@ -512,6 +527,19 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         print(f'{k}: {score:.4f}')
         if log_writer is not None:
             log_writer.add_scalar(f'{mode}/{k}', score, epoch)
+
+    classwise_out_dict = {}
+    print("Class-wise metrics:")
+    for metric_name, class_dict in classwise_metrics_dict.items():
+        for cls_idx, scores in class_dict.items():
+            if len(scores) == 0:
+                continue
+            cls_score = float(np.mean(scores))
+            classwise_out_dict[f'{metric_name}_class_{cls_idx}'] = cls_score
+            print(f'Class {cls_idx} {metric_name}: {cls_score:.4f}')
+            if log_writer is not None:
+                log_writer.add_scalar(f'{mode}/{metric_name}_class_{cls_idx}', cls_score, epoch)
+
     # overall metrics
     for k, v in overall_metrics_dict.items():
         score = np.mean(v)
@@ -520,6 +548,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
             log_writer.add_scalar(f'{mode}/overall_{k}', score, epoch)
     
     out_dict = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    out_dict.update(classwise_out_dict)
     return out_dict, score
 
 def main(args, criterion):
