@@ -656,11 +656,13 @@ class GeneralFusionHead(nn.Module):
             dec_feats: decoder map [B, C_dec, H2, W2]
             decoder_logits: optional decoder segmentation logits (e.g. 8 layers)
         """
+        
+        enc_feats, dec_feats = self._match_spatial(enc_feats, dec_feats)
+        #print("After size match: enc_feats:", enc_feats.shape, "dec_feats:", dec_feats.shape)
         enc_feats = self.enc_align(enc_feats)
         dec_feats = self.dec_align(dec_feats)
         #print("After align: enc_feats:", enc_feats.shape, "dec_feats:", dec_feats.shape)
-        enc_feats, dec_feats = self._match_spatial(enc_feats, dec_feats)
-        #print("After size match: enc_feats:", enc_feats.shape, "dec_feats:", dec_feats.shape)
+        
         if self.merge_method == "channel_multiply":
             fused = self._channel_multiply(enc_feats, dec_feats)
         else:
