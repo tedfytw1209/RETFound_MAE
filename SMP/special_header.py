@@ -667,7 +667,7 @@ class GeneralFusionHead(nn.Module):
             fused = self._channel_multiply(enc_feats, dec_feats)
         else:
             fused = self._merge(enc_feats, dec_feats)
-        print("Fused feature shape:", fused.shape)
+        #print("Fused feature shape:", fused.shape)
         if self.smp_classifier == "linear":
             fused = self.dropout(fused)
             pooled = self._pool(fused)
@@ -675,9 +675,9 @@ class GeneralFusionHead(nn.Module):
             logits = self.classifier(pooled)
         else:  # conv classifier
             logits_map = self.classifier(self.dropout(fused))
-            print("Conv feature shape:", logits_map.shape)
+            #print("Conv feature shape:", logits_map.shape)
             logits = self._pool(logits_map)
-        print("Logits shape:", logits.shape)
+        #print("Logits shape:", logits.shape)
         if return_fused_feature:
             return logits, fused
         return logits
