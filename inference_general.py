@@ -112,7 +112,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--class-mode",
-        choices=["binary", "multiclass"],
+        choices=["binary", "multiclass", "resnet50", "efficientb4"],
         default="multiclass",
         help="Binary: background vs retinal layer. Multiclass: background + layer per class.",
     )
