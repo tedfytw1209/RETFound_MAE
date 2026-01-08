@@ -13,21 +13,21 @@
 SCRIPT=$1
 MODEL=${2:-"RETFound_mae"}
 FINETUNED_MODEL=${3:-"RETFound_mae_natureOCT"}
-INPUT_SIZE=${4:-224}
-SMPMode=${5:-"dec"} # dec, enc, fuse
-SMPFuseMode=${6:-"weighted_sum"} # ("weighted_sum", "add", "channel_merge", "channel_multiply", "multiply")
-SMPAlpha=${7:-0.5} # 0.0-1.0
-SMPSizeMatch=${8:-"decoder_to_encoder"} # decoder_to_encoder, encoder_to_decoder
-FUSION_DIM=${9:-0} # 0 for default
-ENC_IDX=${10:-"-1"} # -1 for last encoder layer
-DEC_IDX=${11:-"-1"} # -1 for last decoder layer
-TARGET_MODULE=${12:-"encoder"} # encoder, decoder, head
-SELECT_INDEX=${13:-"-1"} # -1 for last layer
-SMPClassifier=${14:-"linear"} # linear, conv
-ADDCMD=${15:-""}
-ADDCMD2=${16:-""}
-ADDCMD3=${17:-""}
-
+RESUME=${4:-""}
+INPUT_SIZE=${5:-224}
+SMPMode=${6:-"dec"} # dec, enc, fuse
+SMPFuseMode=${7:-"weighted_sum"} # ("weighted_sum", "add", "channel_merge", "channel_multiply", "multiply")
+SMPAlpha=${8:-0.5} # 0.0-1.0
+SMPSizeMatch=${9:-"decoder_to_encoder"} # decoder_to_encoder, encoder_to_decoder
+FUSION_DIM=${10:-0} # 0 for default
+ENC_IDX=${11:-"-1"} # -1 for last encoder layer
+DEC_IDX=${12:-"-1"} # -1 for last decoder layer
+TARGET_MODULE=${13:-"encoder"} # encoder, decoder, head
+SELECT_INDEX=${14:-"-1"} # -1 for last layer
+SMPClassifier=${15:-"linear"} # linear, conv
+ADDCMD=${16:-""}
+ADDCMD2=${17:-""}
+ADDCMD3=${18:-""}
 NUM_K=0
 MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
 #microsoft/resnet-50, timm_efficientnet-b4, google/vit-base-patch16-224-in21k, RETFound_mae_natureOCT
@@ -38,9 +38,8 @@ CLASSES=(2)  # Number of classes for each dataset
 STEP_PIXELS=1024
 Thickness_DIR="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 
-RESUME="/orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-dec-smpweighted_sum-{0}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth"
-
-#bash baseline_multirun_XAI_eval_tmp.sh finetune_retfound_UFbenchmark_v5_eval_smp.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth 512 enc weighted_sum 0.5 decoder_to_encoder 0 -1 -1 encoder -1 conv
+#sbatch baseline_multirun_XAI_eval_tmp.sh finetune_retfound_UFbenchmark_v5_eval_smp.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-dec-smpweighted_sum-{0}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth 512 enc weighted_sum 0.5 decoder_to_encoder 0 -1 -1 encoder -1 conv
+#sbatch baseline_multirun_XAI_eval_tmp.sh finetune_retfound_UFbenchmark_v5_eval_smp.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-dec-smpweighted_sum-{0}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth 512 dec weighted_sum 0.5 decoder_to_encoder 0 -1 -1 decoder -1 conv
 #XAI_METHODS=("gradcamv2" "scorecam" "crp")  # List of XAI methods
 XAI_METHODS=("gradcamv2" "hirescam" "gradcam++")  # List of XAI methods
 #XAI_METHODS=("crp")  # List of XAI methods
