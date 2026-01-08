@@ -506,12 +506,12 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         attention_map_bs = xai_method(images,targets=target)
         attention_map_bs = attention_map_bs - attention_map_bs.min(axis=(1, 2), keepdims=True) + 1e-9 # numpy shape: (B, img_size, img_size), add small value to avoid all-zero map
         #print(f'Attention map shape: {attention_map_bs.shape}')
-        print(target_np)
+        #print(target_np)
         for k, v in metric_func_dict.items():
             e_score_bs = v(images, attention_map_bs, gt_mask=gt_mask, batch_size=bs, y_batch=target, explain_func=xai_method, explain_func_kwargs={})
             e_score_bs_np = np.asarray(e_score_bs)
             # Aggregate per-class metrics when the metric returns per-sample scores
-            print(f'Batch {k} scores:', e_score_bs_np)
+            #print(f'Batch {k} scores:', e_score_bs_np)
             if e_score_bs_np.ndim >= 1 and e_score_bs_np.shape[0] == bs:
                 for cls_idx in range(num_class):
                     cls_mask = target_np == cls_idx
@@ -523,7 +523,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
             overall_metrics_dict[k].append(e_score_bs_mean)
             each_dict[k] = float(e_score_bs_mean)
             #print(f'{k}: {e_score_bs:.4f}')
-        print(classwise_metrics_dict)
+        #print(classwise_metrics_dict)
             
         metric_logger.update(**each_dict)
     
