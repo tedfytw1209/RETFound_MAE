@@ -23,9 +23,10 @@ ENC_IDX=${10:-"-1"} # -1 for last encoder layer
 DEC_IDX=${11:-"-1"} # -1 for last decoder layer
 TARGET_MODULE=${12:-"encoder"} # encoder, decoder, head
 SELECT_INDEX=${13:-"-1"} # -1 for last layer
-ADDCMD=${14:-""}
-ADDCMD2=${15:-""}
-ADDCMD3=${16:-""}
+SMPClassifier=${14:-"linear"} # linear, conv
+ADDCMD=${15:-""}
+ADDCMD2=${16:-""}
+ADDCMD3=${17:-""}
 
 NUM_K=0
 MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
@@ -38,7 +39,7 @@ STEP_PIXELS=1024
 Thickness_DIR="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 
 
-#bash baseline_multirun_XAI_eval_smpunmask.sh finetune_retfound_UFbenchmark_v5_eval_smp.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth 512 fuse multiply 0.5 encoder_to_decoder 16 -1 -1 head -1 --seg_mask
+#bash baseline_multirun_XAI_eval_smpunmask.sh finetune_retfound_UFbenchmark_v5_eval_smp.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth 512 fuse multiply 0.5 encoder_to_decoder 16 -1 -1 head -1 linear --seg_mask
 #XAI_METHODS=("gradcamv2" "scorecam" "crp")  # List of XAI methods
 XAI_METHODS=("gradcamv2" "hirescam" "gradcam++")  # List of XAI methods
 #XAI_METHODS=("crp")  # List of XAI methods
@@ -51,8 +52,8 @@ do
     for XAI in "${XAI_METHODS[@]}"
     do
         # Submit the job to Slurm
-        #/orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-fea-2-1-0.5-decoder_to_encoder---seg_mask--/checkpoint-best.pth
-        echo "sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-$SMPMode-smp$SMPFuseMode-fea${ENC_IDX}${DEC_IDX}-$SMPAlpha-$SMPSizeMatch-$ADDCMD-$ADDCMD2-$ADDCMD3/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $Thickness_DIR $SMPMode $SMPFuseMode $SMPAlpha $SMPSizeMatch $FUSION_DIM $ENC_IDX $DEC_IDX $TARGET_MODULE $SELECT_INDEX $ADDCMD $ADDCMD2 $ADDCMD3"
-        #sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-$SMPMode-smp$SMPFuseMode-fea${ENC_IDX}${DEC_IDX}-$SMPAlpha-$SMPSizeMatch-$ADDCMD-$ADDCMD2-$ADDCMD3/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $Thickness_DIR $SMPMode $SMPFuseMode $SMPAlpha $SMPSizeMatch $FUSION_DIM $ENC_IDX $DEC_IDX $TARGET_MODULE $SELECT_INDEX $ADDCMD $ADDCMD2 $ADDCMD3
+        #/orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-dec-smpweighted_sum-{0}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth
+        echo "sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-$SMPMode-smp$SMPFuseMode-${FUSION_DIM}-fea${ENC_IDX}${DEC_IDX}-$SMPAlpha-$SMPSizeMatch--$ADDCMD-$ADDCMD2-$ADDCMD3/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $Thickness_DIR $SMPMode $SMPFuseMode $SMPAlpha $SMPSizeMatch $FUSION_DIM $ENC_IDX $DEC_IDX $TARGET_MODULE $SELECT_INDEX $SMPClassifier $ADDCMD $ADDCMD2 $ADDCMD3"
+        #sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-$SMPMode-smp$SMPFuseMode-${FUSION_DIM}-fea${ENC_IDX}${DEC_IDX}-$SMPAlpha-$SMPSizeMatch--$ADDCMD-$ADDCMD2-$ADDCMD3/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $Thickness_DIR $SMPMode $SMPFuseMode $SMPAlpha $SMPSizeMatch $FUSION_DIM $ENC_IDX $DEC_IDX $TARGET_MODULE $SELECT_INDEX $SMPClassifier $ADDCMD $ADDCMD2 $ADDCMD3
     done
 done
