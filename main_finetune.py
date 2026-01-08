@@ -849,7 +849,8 @@ def main(args, criterion):
     if args.fix_extractor and not args.model.startswith('SAM2UNet'):
         print("Fixing the backbone parameters")
         # Hugging Face models with 'classifier' as the head
-        hf_models_with_classifier = ['vit_base_patch16_224', 'efficientnet_b0', 'efficientnet_b4', 'resnet-50', 'dinov3']
+        hf_models_with_classifier = ['vit_base_patch16_224', 'efficientnet_b0', 'efficientnet_b4', 'resnet_50', 'dinov3', 
+                                     'vit-base-patch16-224', 'resnet-50', 'efficientnet-b0', 'efficientnet-b4']
         if args.model in hf_models_with_classifier:
             head_keyword = 'classifier'
         else:
