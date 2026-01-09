@@ -24,7 +24,7 @@ Num_CLASS=${5:-"2"} # 2 for AMD, 5 for DR, 5 for Glaucoma, 2 for Cataract
 INPUT_SIZE=${6:-"224"}
 XAI=${7:-"attn"} # attn, rise, gradcam
 STEP_PIXELS=${8:-"224"}
-Thickness_DIR=${9:-"/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"}
+Thickness_DIR=${9:-"/orange/ruogu.fang/tienyuchang/OCTDL_masks/"}
 SMPMode=${10:-"dec"} # dec, enc, fuse
 SMPFuseMode=${11:-"weighted_sum"} # ("weighted_sum", "add", "channel_merge", "channel_multiply", "multiply")
 SMPAlpha=${12:-0.5} # 0.0-1.0
@@ -49,7 +49,7 @@ echo $SUBSTUDY
 echo $Num_CLASS
 
 # Modify the path to your singularity container 
-# sbatch finetune_retfound_OCTDL_smpeval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-\{0\}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth 2 512 hirescam 1024 0 enc weighted_sum 0.5 decoder_to_encoder 0 -1 -1 encoder -1 conv
+# sbatch finetune_retfound_OCTDL_smpeval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-\{0\}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth 2 512 hirescam 1024 /orange/ruogu.fang/tienyuchang/OCTDL_masks/ enc weighted_sum 0.5 decoder_to_encoder 0 -1 -1 encoder -1 conv
 
 #XAI_METHODS=("gradcamv2" "scorecam" "crp")  # List of XAI methods
 
