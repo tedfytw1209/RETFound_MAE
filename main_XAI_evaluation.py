@@ -37,7 +37,7 @@ from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.losses import FocalLoss, compute_alpha_from_labels
 from util.evaluation import (
-    InsertionMetric, DeletionMetric, RelevanceMetric
+    InsertionMetric, DeletionMetric, RelevanceMetric, LayerImportanceDistributionMetric
 )
 from util.misc import to_numpy,to_tensor
 from baselines.Attention import Attention_Map
@@ -88,6 +88,12 @@ def get_args_parser():
                         help='Whether to use quantus library for some metrics')
     parser.add_argument('--step_pixels', default=224, type=int,
                         help='Step size in pixels for insertion/deletion metrics')
+    parser.add_argument(
+        '--layer_metric_include_bg',
+        action='store_true',
+        default=False,
+        help='If set, include segmentation background label 0 as a layer for layer-importance distribution metrics.'
+    )
 
     # Dataset parameters
     parser.add_argument('--data_path', default='./data/', type=str,
@@ -694,6 +700,7 @@ def main(args, criterion):
     #    import quantus
     #    from util.evaluation_quantus import SufficiencyMetric, ConsistencyMetric, PointingGameMetric, ComplexityMetric, RandomLogitMetric
     step_pixels = args.step_pixels if hasattr(args, 'step_pixels') else 224
+    ignore_bg = not bool(getattr(args, "layer_metric_include_bg", False))
     metric_func_dict = {
             'insertion': InsertionMetric(model, img_size=args.input_size, step=step_pixels, n_classes=args.nb_classes),
             'deletion': DeletionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
@@ -701,6 +708,11 @@ def main(args, criterion):
             # 'consistency': ConsistencyMetric(model, device, discretise_func=quantus.discretise_func.rank),
             'relevance_mass': RelevanceMetric(pooling_type='l2-norm', output_type='mass'),
             'relevance_rank': RelevanceMetric(pooling_type='l2-norm', output_type='rank'),
+            # Layer-importance distribution metrics (computed from gt_mask labels and heatmap saliency mass)
+            'layer_entropy': LayerImportanceDistributionMetric(ignore_background=ignore_bg, output_type='entropy'),
+            'layer_gini': LayerImportanceDistributionMetric(ignore_background=ignore_bg, output_type='gini'),
+            'layer_dispersion': LayerImportanceDistributionMetric(ignore_background=ignore_bg, output_type='dispersion'),
+            'layer_top3_ratio': LayerImportanceDistributionMetric(ignore_background=ignore_bg, output_type='top3_ratio'),
             #'complexity': ComplexityMetric(model, device),
             #'random_logit': RandomLogitMetric(model, device, n_classes=args.nb_classes),
         }

@@ -12,6 +12,106 @@ from PIL import Image
 from typing import Optional
 import torch.nn.functional as F
 
+def _layer_importances_from_mask_and_heatmap(
+    seg_mask: np.ndarray,
+    heatmap_2d: np.ndarray,
+    *,
+    ignore_background: bool = True,
+) -> np.ndarray:
+    """
+    Compute per-layer (per-label) importance scores by summing saliency values inside each region.
+
+    Args:
+        seg_mask: int-like array of shape (H, W). Labels represent layers/regions; background is label 0.
+        heatmap_2d: non-negative array of shape (H, W).
+        ignore_background: if True, excludes label 0 from the returned score vector.
+
+    Returns:
+        scores: 1D float array of per-label summed saliency, sorted by label id ascending (optionally skipping 0).
+    """
+    seg_mask = np.asarray(seg_mask)
+    heatmap_2d = np.asarray(heatmap_2d, dtype=np.float64)
+    if seg_mask.shape != heatmap_2d.shape:
+        raise ValueError(f"seg_mask shape {seg_mask.shape} must match heatmap shape {heatmap_2d.shape}")
+
+    # Force non-negative saliency mass
+    heatmap_2d = np.where(heatmap_2d > 0.0, heatmap_2d, 0.0)
+
+    labels = np.unique(seg_mask)
+    if ignore_background:
+        labels = labels[labels != 0]
+
+    if labels.size == 0:
+        return np.zeros((0,), dtype=np.float64)
+
+    scores = np.zeros((labels.size,), dtype=np.float64)
+    for i, lab in enumerate(labels):
+        scores[i] = heatmap_2d[seg_mask == lab].sum()
+    return scores
+
+def shannon_entropy(scores: np.ndarray, eps: float = 1e-12) -> float:
+    """
+    Shannon entropy on normalized non-negative scores p_i = s_i / sum(s).
+    Low entropy => focused importance across few layers.
+    """
+    s = np.asarray(scores, dtype=np.float64)
+    if s.size == 0:
+        return 0.0
+    s = np.where(s > 0.0, s, 0.0)
+    total = float(s.sum())
+    if total <= 0.0:
+        return 0.0
+    p = s / (total + eps)
+    p = p[p > 0.0]
+    return float(-(p * np.log(p)).sum())
+
+def gini_coefficient(scores: np.ndarray, eps: float = 1e-12) -> float:
+    """
+    Gini coefficient for non-negative scores.
+    Close to 1 => few layers carry most importance.
+    """
+    x = np.asarray(scores, dtype=np.float64)
+    if x.size == 0:
+        return 0.0
+    x = np.where(x > 0.0, x, 0.0)
+    s = float(x.sum())
+    if s <= 0.0:
+        return 0.0
+    x_sorted = np.sort(x)
+    n = x_sorted.size
+    # Efficient Gini: (2*sum_i i*x_i)/(n*sum_x) - (n+1)/n where i is 1..n
+    i = np.arange(1, n + 1, dtype=np.float64)
+    g = (2.0 * (i * x_sorted).sum()) / (n * (s + eps)) - (n + 1.0) / n
+    return float(np.clip(g, 0.0, 1.0))
+
+def dispersion_cv(scores: np.ndarray, eps: float = 1e-12) -> float:
+    """
+    Dispersion defined as coefficient of variation: std(scores)/mean(scores).
+    """
+    x = np.asarray(scores, dtype=np.float64)
+    if x.size == 0:
+        return 0.0
+    mean = float(x.mean())
+    if abs(mean) <= eps:
+        return 0.0
+    std = float(x.std(ddof=0))
+    return float(std / (mean + eps))
+
+def topk_ratio(scores: np.ndarray, k: int = 3, eps: float = 1e-12) -> float:
+    """
+    Ratio of top-k score mass over total mass.
+    """
+    x = np.asarray(scores, dtype=np.float64)
+    if x.size == 0:
+        return 0.0
+    x = np.where(x > 0.0, x, 0.0)
+    total = float(x.sum())
+    if total <= 0.0:
+        return 0.0
+    kk = int(min(max(k, 1), x.size))
+    top = float(np.sort(x)[-kk:].sum())
+    return float(top / (total + eps))
+
 def _auc_trapz_update(prev_x, prev_y, x, y):
     return 0.5 * (y + prev_y) * (x - prev_x)
 '''
@@ -599,6 +699,11 @@ class RelevanceMetric():
         C, H, W = heatmap.shape
         assert ground_truth.shape == (H, W), f"Ground truth shape {ground_truth.shape} must match heatmap spatial dims ({H}, {W})"
 
+        # Support multiclass segmentation masks by treating any non-zero label as foreground.
+        # (This keeps backward-compat with existing binary masks as well.)
+        if ground_truth.dtype != np.bool_:
+            ground_truth = ground_truth > 0
+
         # Cast heatmap to float64 precision for better accuracy
         heatmap = heatmap.astype(dtype=np.float64)
         
@@ -688,6 +793,104 @@ class RelevanceMetric():
             return np.mean(results["rank"])
         else:
             return {"mass": np.mean(results["mass"]), "rank": np.mean(results["rank"])}
+
+# -----------------------------------------------------------------------------
+# Layer-importance distribution metrics (entropy / gini / dispersion / top-3 ratio)
+# -----------------------------------------------------------------------------
+
+class LayerImportanceDistributionMetric:
+    """
+    Computes a scalar metric on the distribution of per-layer importances.
+
+    Per-layer importance is defined as the summed (non-negative) saliency mass inside each label region
+    of the segmentation mask.
+    """
+
+    def __init__(
+        self,
+        *,
+        ignore_background: bool = True,
+        output_type: str = "entropy",
+        pooling_type: str = "sum,abs",
+    ):
+        """
+        Args:
+            ignore_background: if True, excludes label 0 from layer set.
+            output_type: one of {"entropy","gini","dispersion","top3_ratio"}.
+            pooling_type: how to pool multi-channel heatmaps (if provided as CxHxW). Reuses RelevanceMetric.
+        """
+        self.ignore_background = ignore_background
+        self.output_type = output_type
+        self._pooler = RelevanceMetric(pooling_type=pooling_type, output_type="mass")
+        valid = {"entropy", "gini", "dispersion", "top3_ratio"}
+        if self.output_type not in valid:
+            raise ValueError(f"output_type must be one of {sorted(valid)}, got {self.output_type}")
+
+    def _metric_from_scores(self, scores: np.ndarray) -> float:
+        if self.output_type == "entropy":
+            return shannon_entropy(scores)
+        if self.output_type == "gini":
+            return gini_coefficient(scores)
+        if self.output_type == "dispersion":
+            return dispersion_cv(scores)
+        if self.output_type == "top3_ratio":
+            return topk_ratio(scores, k=3)
+        raise RuntimeError("unreachable")
+
+    def single_run(self, heatmap: np.ndarray, seg_mask: np.ndarray) -> float:
+        """
+        heatmap: (H,W) or (C,H,W); seg_mask: (H,W) labels.
+        """
+        heatmap = np.asarray(heatmap)
+        seg_mask = np.asarray(seg_mask)
+
+        if heatmap.ndim == 3:
+            heatmap_2d = self._pooler.pool_heatmap(heatmap.astype(np.float64))
+        elif heatmap.ndim == 2:
+            heatmap_2d = heatmap.astype(np.float64)
+        else:
+            raise ValueError(f"Unsupported heatmap ndim={heatmap.ndim}, expected 2 or 3.")
+
+        scores = _layer_importances_from_mask_and_heatmap(
+            seg_mask,
+            heatmap_2d,
+            ignore_background=self.ignore_background,
+        )
+        return float(self._metric_from_scores(scores))
+
+    def __call__(self, images: torch.Tensor, exp_batch: np.ndarray, gt_mask: np.ndarray, **kwargs):
+        """
+        Args:
+            images: unused (kept for evaluator compatibility)
+            exp_batch: (B,H,W) or (H,W) or (B,C,H,W) or (C,H,W)
+            gt_mask: (B,H,W) or (H,W) segmentation labels
+        Returns:
+            Per-sample array of shape (B,) for batch inputs, else a scalar float for single input.
+        """
+        exp = np.asarray(exp_batch)
+        mask = np.asarray(gt_mask)
+
+        # Disambiguate single vs batch using gt_mask ndim (in this repo, gt_mask is provided alongside exp_batch).
+        if mask.ndim == 2:
+            # Single sample: exp can be (H,W) or (C,H,W)
+            if exp.ndim not in (2, 3):
+                raise ValueError(f"Unsupported exp_batch ndim={exp.ndim} for single sample.")
+            return self.single_run(exp, mask)
+
+        if mask.ndim == 3:
+            # Batch: exp can be (B,H,W) or (B,C,H,W)
+            if exp.ndim not in (3, 4):
+                raise ValueError(f"Unsupported exp_batch ndim={exp.ndim} for batch.")
+            if exp.shape[0] != mask.shape[0]:
+                raise ValueError(
+                    f"Batch mismatch: exp_batch has {exp.shape[0]} samples, gt_mask has {mask.shape[0]} samples."
+                )
+            out = np.zeros((exp.shape[0],), dtype=np.float64)
+            for i in range(exp.shape[0]):
+                out[i] = self.single_run(exp[i], mask[i])
+            return out
+
+        raise ValueError(f"Unsupported gt_mask ndim={mask.ndim}, expected 2 (single) or 3 (batch).")
 
 # Legacy functions for backward compatibility
 def pool_heatmap(heatmap: np.ndarray, pooling_type: str) -> np.ndarray:

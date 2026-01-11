@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset
 from PIL import Image
+from typing import Optional
 import pydicom
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -120,21 +121,103 @@ def _build_binary_mask(mask_slice: np.ndarray, image_size, add_bound=0):
 
     return Image.fromarray(binary_mask, mode="L")
 
-def masking_image_pil(image, mask_slice, fill_color=(0, 0, 0), transform_binary_mask=True):
+def _build_multiclass_mask_from_interfaces(mask_slice: np.ndarray, image_size, add_bound=0) -> Optional[np.ndarray]:
+    """
+    Build a multi-class label mask from layer-interface curves.
+
+    Args:
+        mask_slice: (L, Wm) where L is number of interfaces, each row is y(x).
+                   Regions between interface i and i+1 become class (i+1).
+        image_size: (W, H) of the target image.
+        add_bound: extra margin applied to first/last interface (mirrors binary mask logic).
+
+    Returns:
+        label_mask: (H, W) uint8 with values:
+            0 background
+            1..(L-1) layer regions
+        None if input is invalid.
+    """
+    W, H = image_size
+    if mask_slice is None:
+        return None
+    mask_slice = np.asarray(mask_slice)
+    if mask_slice.ndim != 2:
+        return None
+    L, Wm = mask_slice.shape
+    if L < 2 or H <= 0 or W <= 0:
+        return None
+
+    mask_slice = _resample_width(mask_slice, W)  # (L, W)
+    y = np.rint(mask_slice).astype(np.int32, copy=False)
+    y = np.clip(y, 0, H - 1)
+
+    label_mask = np.zeros((H, W), dtype=np.uint8)
+    rows = np.arange(H, dtype=np.int32)[:, None]  # (H,1)
+
+    for i in range(L - 1):
+        if i == 0:
+            upper = np.clip(y[i] - add_bound, 0, H - 1)
+        else:
+            upper = y[i]
+        if i == L - 2:
+            lower = np.clip(y[i + 1] + add_bound, 0, H - 1)
+        else:
+            lower = y[i + 1]
+
+        ul = np.minimum(upper, lower)[None, :]
+        ll = np.maximum(upper, lower)[None, :]
+        band = (rows >= ul) & (rows < ll)
+        eq = (rows == ul) & (ul == ll)
+        label_mask[band | eq] = np.uint8(i + 1)
+
+    return label_mask
+
+def masking_image_pil(
+    image,
+    mask_slice,
+    fill_color=(0, 0, 0),
+    transform_binary_mask=True,
+    *,
+    output_multiclass_mask: bool = True,
+):
     if not isinstance(image, Image.Image):
         image = Image.fromarray(np.asarray(image))
     image_rgb = image.convert("RGB")
     max_size = max(image_rgb.size)
     add_bound = int(max_size * 0.025)
+
+    # Build a label mask (multiclass) + an alpha mask (binary 0/255) for compositing
+    label_mask_img = None
+    alpha_mask_img = None
+
     if transform_binary_mask:
-        mask_img = _build_binary_mask(mask_slice, image_rgb.size, add_bound=add_bound)
+        # mask_slice is (interfaces, W) -> build multiclass labels
+        label_arr = _build_multiclass_mask_from_interfaces(mask_slice, image_rgb.size, add_bound=add_bound)
+        if label_arr is not None and output_multiclass_mask:
+            label_mask_img = Image.fromarray(label_arr, mode="L")  # values 0..(L-1)
+        # alpha is binary foreground/background
+        if label_arr is not None:
+            alpha = np.where(label_arr > 0, 255, 0).astype(np.uint8)
+            alpha_mask_img = Image.fromarray(alpha, mode="L")
     else:
-        mask_img = Image.fromarray(mask_slice, mode="L")
-    if mask_img is None:
+        # mask_slice is already a pixel-wise mask (H,W). Treat non-zero as foreground for alpha.
+        arr = np.asarray(mask_slice)
+        if arr.ndim != 2:
+            return image_rgb, None
+        if arr.dtype == np.bool_:
+            arr = arr.astype(np.uint8)
+        # If it's a binary 0/255 mask, keep; if it's multiclass, keep as labels.
+        arr_uint8 = arr.astype(np.uint8, copy=False)
+        if output_multiclass_mask:
+            label_mask_img = Image.fromarray(arr_uint8, mode="L")
+        alpha = np.where(arr_uint8 > 0, 255, 0).astype(np.uint8)
+        alpha_mask_img = Image.fromarray(alpha, mode="L")
+
+    if alpha_mask_img is None:
         return image_rgb, None
     bg = Image.new("RGB", image_rgb.size, fill_color)
-    masked_img = Image.composite(image_rgb, bg, mask_img)
-    return masked_img, mask_img
+    masked_img = Image.composite(image_rgb, bg, alpha_mask_img)
+    return masked_img, label_mask_img if output_multiclass_mask else alpha_mask_img
 
 def select_n_slices(k,depth):
     if k<1:
@@ -471,7 +554,8 @@ class CSV_Dataset_eval(CSV_Dataset):
             if output_mask is not None:
                 output_mask_tensor = self.mask_transforms(output_mask)
             else:
-                output_mask_tensor = torch.zeros(image.shape[0], image.shape[1]) #H,W
+                # image is [C,H,W] after transforms
+                output_mask_tensor = torch.zeros((1, image.shape[1], image.shape[2]), dtype=torch.uint8)
             image_len = 1
         #print(output_mask_tensor.shape,output_mask_tensor.min(), output_mask_tensor.max())
         label = int(sample[1])
@@ -578,10 +662,12 @@ def build_transform_mask(args):
         crop_pct = 1.0
     size = int(args.input_size / crop_pct)
     t.append(
-        transforms.Resize(size, interpolation=transforms.InterpolationMode.BICUBIC),
+        # IMPORTANT: segmentation labels must not be interpolated with bicubic
+        transforms.Resize(size, interpolation=transforms.InterpolationMode.NEAREST),
     )
     t.append(transforms.CenterCrop(args.input_size))
-    t.append(transforms.ToTensor())
+    # Keep integer labels (no normalization / scaling)
+    t.append(transforms.PILToTensor())
     return transforms.Compose(t)
 
 def build_transform_public(is_train, args):
