@@ -230,6 +230,8 @@ def get_args_parser():
                         help='Use segmentation mask output from SMP model')
     parser.add_argument('--fusion_dim', type=int, default=0,
                         help='Fusion dimension for SMP model (default: 0 means no projection)')
+    parser.add_argument('--align', type=str, default='pre',
+                        help='Aligment method for SMP model (pre, post) the size matching')
     parser.add_argument('--enc_idx', type=int, default=-1,help='SMP encoder index for feature extraction')
     parser.add_argument('--dec_idx', type=int, default=-1,help='SMP decoder index for feature extraction')
     parser.add_argument('--smp_classifier', type=str, default='linear',
@@ -459,6 +461,7 @@ def get_model(args):
             mode=args.SMPMode,
             fuse_mode=args.smp_fuse_mode,
             fusion_dim= args.fusion_dim,
+            align=args.align,
             learnable_alpha=args.smp_learnable_alpha,
             alpha=args.smp_alpha,
             pretrained_seg_ckpt=args.finetune,

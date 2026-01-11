@@ -386,6 +386,7 @@ class GeneralFusionHead(nn.Module):
         merge_method: str = "weighted_sum",
         pooling: str = "gap",
         fusion_dim: Optional[int] = 0,
+        align: str = "pre",
         learnable_alpha: bool = True,
         alpha_init: float = 0.5,
         size_match: str = "encoder_to_decoder",
@@ -421,6 +422,8 @@ class GeneralFusionHead(nn.Module):
         self.resize_backend = resize_backend
         self.channel_multiply_ignore_background = channel_multiply_ignore_background
         self.channel_multiply_layers: Optional[int] = None
+        self.fusion_dim = fusion_dim
+        self.align = align
         self.fixed_size = fixed_size
         self.use_mask = use_mask
         self.smp_classifier = smp_classifier
@@ -435,13 +438,13 @@ class GeneralFusionHead(nn.Module):
         self.enc_align = nn.Identity()
         self.dec_align = nn.Identity()
         if merge_method in ("weighted_sum", "add", "multiply"):
-            target_dim = max(enc_channels, dec_channels) if not fusion_dim else fusion_dim
+            target_dim = max(enc_channels, dec_channels) if not self.fusion_dim else self.fusion_dim
             self.enc_align = self._make_align_layer(enc_channels, target_dim)
             self.dec_align = self._make_align_layer(dec_channels, target_dim)
             final_dim = target_dim
         elif merge_method == "channel_merge":
             merged_dim = enc_channels + dec_channels
-            final_dim = merged_dim if not fusion_dim else fusion_dim
+            final_dim = merged_dim if not self.fusion_dim else self.fusion_dim
             '''
             if final_dim != merged_dim:
                 self.channel_reduce = nn.Conv2d(merged_dim, final_dim, kernel_size=1, bias=False)
@@ -463,7 +466,7 @@ class GeneralFusionHead(nn.Module):
                 effective_layers = dec_channels
             self.channel_multiply_layers = effective_layers
             multiply_dim = enc_channels * effective_layers
-            final_dim = multiply_dim if not fusion_dim else fusion_dim
+            final_dim = multiply_dim if not self.fusion_dim else self.fusion_dim
             if final_dim != multiply_dim:
                 self.enc_align = self._make_align_layer(enc_channels, final_dim // effective_layers)
         #print("Final fused feature dim:", final_dim)
@@ -656,12 +659,14 @@ class GeneralFusionHead(nn.Module):
             dec_feats: decoder map [B, C_dec, H2, W2]
             decoder_logits: optional decoder segmentation logits (e.g. 8 layers)
         """
-        
-        enc_feats, dec_feats = self._match_spatial(enc_feats, dec_feats)
-        #print("After size match: enc_feats:", enc_feats.shape, "dec_feats:", dec_feats.shape)
-        enc_feats = self.enc_align(enc_feats)
-        dec_feats = self.dec_align(dec_feats)
-        #print("After align: enc_feats:", enc_feats.shape, "dec_feats:", dec_feats.shape)
+        if self.align=='pre':
+            enc_feats = self.enc_align(enc_feats)
+            dec_feats = self.dec_align(dec_feats)
+            enc_feats, dec_feats = self._match_spatial(enc_feats, dec_feats)
+        else:
+            enc_feats, dec_feats = self._match_spatial(enc_feats, dec_feats)
+            enc_feats = self.enc_align(enc_feats)
+            dec_feats = self.dec_align(dec_feats)
         
         if self.merge_method == "channel_multiply":
             fused = self._channel_multiply(enc_feats, dec_feats)

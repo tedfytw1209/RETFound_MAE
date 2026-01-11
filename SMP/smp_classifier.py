@@ -103,6 +103,7 @@ class SMPClassifier(nn.Module):
         size_match: str = "decoder_to_encoder",
         use_mask: bool = False,
         fusion_dim: Optional[int] = None,
+        align: str = "pre",
         
         enc_idx: int = -1,
         dec_idx: int = -1,
@@ -122,6 +123,7 @@ class SMPClassifier(nn.Module):
         self.dropout = dropout
         self.encoder_name = encoder_name
         self.fusion_dim = fusion_dim
+        self.align = align
         self.size_match = size_match
         self.use_mask = use_mask
         self.enc_idx, self.dec_idx = enc_idx, dec_idx
@@ -172,20 +174,6 @@ class SMPClassifier(nn.Module):
             final_ch = self.dec_out_ch
             self.head = ConvGAPHead(final_ch, num_classes, bias=False, dropout=dropout)
         else:  # fuse
-            '''
-            if self.fuse_mode == "concat":
-                final_ch = int(fuse_dim) if fuse_dim is not None else self.enc_last_ch
-                # Input to fuse_proj is enc_last_ch + dec_out_ch
-                self.fuse_proj = nn.Conv2d(self.enc_last_ch + self.dec_out_ch, final_ch, 1, bias=False)
-            else:  # sum
-                final_ch = self.enc_last_ch
-                self.dec_align = nn.Conv2d(self.dec_out_ch, self.enc_last_ch, 1, bias=False)
-                if self.learnable_alpha:
-                    init_logit = math.log(alpha) - math.log(1 - alpha)
-                    self.alpha_logit = nn.Parameter(torch.tensor([init_logit], dtype=torch.float32))
-                else:
-                    self.alpha = alpha
-            '''
             self.head = GeneralFusionHead(
                 enc_channels=self.enc_last_ch,
                 dec_channels=self.dec_out_ch,
@@ -193,6 +181,7 @@ class SMPClassifier(nn.Module):
                 merge_method=self.fuse_mode,
                 pooling="gap",
                 fusion_dim=fusion_dim,
+                align=self.align,
                 learnable_alpha=self.learnable_alpha,
                 alpha_init=alpha,
                 size_match=size_match,
