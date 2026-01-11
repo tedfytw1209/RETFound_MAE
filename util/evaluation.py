@@ -869,11 +869,6 @@ class LayerImportanceDistributionMetric:
         """
         exp = np.asarray(exp_batch)
         mask = np.asarray(gt_mask)
-        print('exp.shape:',exp.shape, 'mask.shape:',mask.shape)
-        print('exp.min:',exp.min(), 'exp.max:',exp.max())
-        print('mask.min:',mask.min(), 'mask.max:',mask.max())
-        print('exp.mean:',exp.mean(), 'exp.std:',exp.std())
-        print('mask.mean:',mask.mean(), 'mask.std:',mask.std())
 
         # Disambiguate single vs batch using gt_mask ndim (in this repo, gt_mask is provided alongside exp_batch).
         if mask.ndim == 2:

@@ -37,7 +37,14 @@ from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.losses import FocalLoss, compute_alpha_from_labels
 from util.evaluation import (
-    InsertionMetric, DeletionMetric, RelevanceMetric, LayerImportanceDistributionMetric
+    InsertionMetric,
+    DeletionMetric,
+    RelevanceMetric,
+    LayerImportanceDistributionMetric,
+    shannon_entropy,
+    gini_coefficient,
+    dispersion_cv,
+    topk_ratio,
 )
 from util.misc import to_numpy,to_tensor
 from baselines.Attention import Attention_Map
@@ -93,6 +100,18 @@ def get_args_parser():
         action='store_true',
         default=False,
         help='If set, include segmentation background label 0 as a layer for layer-importance distribution metrics.'
+    )
+    parser.add_argument(
+        '--print_layer_metrics',
+        action='store_true',
+        default=False,
+        help='If set, print per-sample layer-importance details for debugging.'
+    )
+    parser.add_argument(
+        '--print_layer_metrics_num',
+        default=8,
+        type=int,
+        help='Number of samples to print layer-importance debug details for.'
     )
 
     # Dataset parameters
@@ -499,6 +518,15 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
     metric_logger = misc.MetricLogger(delimiter="  ")
     os.makedirs(os.path.join(args.output_dir, args.task), exist_ok=True)
     overall_metrics_dict = {k:[] for k in metric_func_dict.keys()}
+
+    # Optional debug printing (main process only)
+    print_layer_dbg = bool(getattr(args, "print_layer_metrics", False)) and misc.is_main_process()
+    layer_print_left = int(getattr(args, "print_layer_metrics_num", 0))
+    if layer_print_left < 0:
+        layer_print_left = 0
+    include_bg = bool(getattr(args, "layer_metric_include_bg", False))
+    ignore_bg = not include_bg
+
     # Track per-class scores (keyed by ground-truth class index)
     classwise_metrics_dict = {
         metric_name: {cls_idx: [] for cls_idx in range(num_class)}
@@ -506,6 +534,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
     }
     for batch in metric_logger.log_every(data_loader, 10, f'{mode}:'):
         images, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True)
+        sample_ids = batch[3] if (isinstance(batch, (list, tuple)) and len(batch) > 3) else None
         gt_mask = to_numpy(batch[4])
         # Remove channel dimension: (B, 1, H, W) -> (B, H, W)
         if gt_mask is not None and gt_mask.ndim == 4 and gt_mask.shape[1] == 1:
@@ -517,6 +546,50 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         #print(f'Input images shape: {images.shape}', 'ground truth mask shape:', gt_mask.shape, 'target:', target)
         attention_map_bs = xai_method(images,targets=target)
         attention_map_bs = attention_map_bs - attention_map_bs.min(axis=(1, 2), keepdims=True) + 1e-9 # numpy shape: (B, img_size, img_size), add small value to avoid all-zero map
+
+        # Print per-sample layer-importance breakdown for debugging (throttled)
+        if print_layer_dbg and layer_print_left > 0 and gt_mask is not None and gt_mask.ndim == 3:
+            for bi in range(bs):
+                if layer_print_left <= 0:
+                    break
+                seg = gt_mask[bi]
+                heat = attention_map_bs[bi]
+                seg_i64 = np.asarray(seg).astype(np.int64, copy=False)
+                labels = np.unique(seg_i64)
+                if ignore_bg:
+                    labels = labels[labels != 0]
+
+                scores = np.zeros((labels.size,), dtype=np.float64)
+                for li, lab in enumerate(labels):
+                    scores[li] = np.asarray(heat, dtype=np.float64)[seg_i64 == lab].sum()
+
+                total = float(np.maximum(scores, 0.0).sum()) if scores.size else 0.0
+                probs = (scores / (total + 1e-12)) if (scores.size and total > 0.0) else np.zeros_like(scores, dtype=np.float64)
+
+                ent = shannon_entropy(scores)
+                gin = gini_coefficient(scores)
+                disp = dispersion_cv(scores)
+                top3 = topk_ratio(scores, k=3)
+
+                sid = None
+                try:
+                    if sample_ids is not None:
+                        sid = sample_ids[bi]
+                except Exception:
+                    sid = None
+                sid_str = str(sid) if sid is not None else f"batch_item_{bi}"
+
+                pairs = [(int(lab), float(sc), float(p)) for lab, sc, p in zip(labels.tolist(), scores.tolist(), probs.tolist())]
+                head = pairs[:12]
+                tail = pairs[-3:] if len(pairs) > 15 else []
+                mid = " ... " if len(pairs) > 15 else ""
+                print(
+                    f"[layer-metrics] {mode} epoch={epoch} id={sid_str} y={int(target_np[bi])} "
+                    f"include_bg={include_bg} layers={len(pairs)} total={total:.4e} "
+                    f"entropy={ent:.4f} gini={gin:.4f} disp={disp:.4f} top3={top3:.4f}\n"
+                    f"  (label, sum, p): {head}{mid}{tail}"
+                )
+                layer_print_left -= 1
         #print(f'Attention map shape: {attention_map_bs.shape}')
         #print(target_np)
         for k, v in metric_func_dict.items():
