@@ -20,14 +20,15 @@ SMPFuseMode=${7:-"weighted_sum"} # ("weighted_sum", "add", "channel_merge", "cha
 SMPAlpha=${8:-0.5} # 0.0-1.0
 SMPSizeMatch=${9:-"decoder_to_encoder"} # decoder_to_encoder, encoder_to_decoder
 FUSION_DIM=${10:-0} # 0 for default
-ENC_IDX=${11:-"-1"} # -1 for last encoder layer
-DEC_IDX=${12:-"-1"} # -1 for last decoder layer
-TARGET_MODULE=${13:-"encoder"} # encoder, decoder, head
-SELECT_INDEX=${14:-"-1"} # -1 for last layer
-SMPClassifier=${15:-"linear"} # linear, conv
-ADDCMD=${16:-""}
-ADDCMD2=${17:-""}
-ADDCMD3=${18:-""}
+ALIGN=${11:-"pre"} # 0 for default
+ENC_IDX=${12:-"-1"} # -1 for last encoder layer
+DEC_IDX=${13:-"-1"} # -1 for last decoder layer
+TARGET_MODULE=${14:-"encoder"} # encoder, decoder, head
+SELECT_INDEX=${15:-"-1"} # -1 for last layer
+SMPClassifier=${16:-"linear"} # linear, conv
+ADDCMD=${17:-""}
+ADDCMD2=${18:-""}
+ADDCMD3=${19:-""}
 NUM_K=0
 MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
 #microsoft/resnet-50, timm_efficientnet-b4, google/vit-base-patch16-224-in21k, RETFound_mae_natureOCT
@@ -53,7 +54,7 @@ do
     do
         # Submit the job to Slurm
         #/orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-dec-smpweighted_sum-{0}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth
-        echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $RESUME $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $Thickness_DIR $SMPMode $SMPFuseMode $SMPAlpha $SMPSizeMatch $FUSION_DIM $ENC_IDX $DEC_IDX $TARGET_MODULE $SELECT_INDEX $SMPClassifier $ADDCMD $ADDCMD2 $ADDCMD3"
-        bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $RESUME $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $Thickness_DIR $SMPMode $SMPFuseMode $SMPAlpha $SMPSizeMatch $FUSION_DIM $ENC_IDX $DEC_IDX $TARGET_MODULE $SELECT_INDEX $SMPClassifier $ADDCMD $ADDCMD2 $ADDCMD3
+        echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $RESUME $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $Thickness_DIR $SMPMode $SMPFuseMode $SMPAlpha $SMPSizeMatch $FUSION_DIM $ALIGN $ENC_IDX $DEC_IDX $TARGET_MODULE $SELECT_INDEX $SMPClassifier $ADDCMD $ADDCMD2 $ADDCMD3"
+        bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $RESUME $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $Thickness_DIR $SMPMode $SMPFuseMode $SMPAlpha $SMPSizeMatch $FUSION_DIM $ALIGN $ENC_IDX $DEC_IDX $TARGET_MODULE $SELECT_INDEX $SMPClassifier $ADDCMD $ADDCMD2 $ADDCMD3
     done
 done

@@ -69,6 +69,9 @@ def get_args_parser():
                         help='finetune from checkpoint')
     parser.add_argument('--task', default='', type=str,
                         help='finetune from checkpoint')
+    parser.add_argument('--use_split', default='test', type=str,
+                        choices=['test', 'val', 'train'],
+                        help='Name of xai method to use, e.g., test, val, train')
     parser.add_argument('--input_size', default=256, type=int,
                         help='images input size')
     parser.add_argument('--xai', default='attn', type=str,
@@ -174,6 +177,8 @@ def get_args_parser():
                         help='Use segmentation mask output from SMP model')
     parser.add_argument('--fusion_dim', type=int, default=0,
                         help='Fusion dimension for SMP model (default: 0 means no projection)')
+    parser.add_argument('--align', type=str, default='pre',
+                        help='Aligment method for SMP model (pre, post) the size matching')
     parser.add_argument('--enc_idx', type=int, default=-1,help='SMP encoder index for feature extraction')
     parser.add_argument('--dec_idx', type=int, default=-1,help='SMP decoder index for feature extraction')
     parser.add_argument('--smp_classifier', type=str, default='linear',
@@ -420,6 +425,7 @@ def get_model(args):
             mode=args.SMPMode,
             fuse_mode=args.smp_fuse_mode,
             fusion_dim= args.fusion_dim,
+            align=args.align,
             learnable_alpha=args.smp_learnable_alpha,
             alpha=args.smp_alpha,
             pretrained_seg_ckpt=args.finetune,
@@ -590,31 +596,30 @@ def main(args, criterion):
     os.makedirs(args.log_dir, exist_ok=True)
     log_writer = SummaryWriter(log_dir=os.path.join(args.log_dir,args.task))
 
-    '''
-    data_loader_train = torch.utils.data.DataLoader(
-        dataset_train, sampler=sampler_train,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        pin_memory=args.pin_mem,
-        drop_last=False,
-    )
-
-    data_loader_val = torch.utils.data.DataLoader(
-        dataset_val, sampler=sampler_val,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        pin_memory=args.pin_mem,
-        drop_last=False
-    )
-    '''
-
-    data_loader_test = torch.utils.data.DataLoader(
-        dataset_test, sampler=sampler_test,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        pin_memory=args.pin_mem,
-        drop_last=False
-    )
+    if args.use_split == 'train':
+        data_loader_test = torch.utils.data.DataLoader(
+            dataset_train, sampler=sampler_train,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=False,
+        )
+    elif args.use_split == 'val':
+        data_loader_test = torch.utils.data.DataLoader(
+            dataset_val, sampler=sampler_val,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=False
+        )
+    else:
+        data_loader_test = torch.utils.data.DataLoader(
+            dataset_test, sampler=sampler_test,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=False
+        )
     #visualize some samples
     if misc.is_main_process():
         print("Generating dataset visualizations...")
