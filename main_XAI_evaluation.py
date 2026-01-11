@@ -725,6 +725,18 @@ if __name__ == '__main__':
 
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    # Build up the common task name
+    study_name = args.task.split('-')[0]
+    data_type = args.task.split('-')[1]
+    finetune_model = args.finetune.split('/')[-1].replace('.pth','')
+    if args.model=='SMP':
+        if args.SMPMode=='fuse':
+            args.task = f"{study_name}-{data_type}-{finetune_model}-{args.modality}-{args.SMPMode}-smp{args.smp_fuse_mode}-{args.align}-{args.fusion_dim}-fea{args.enc_idx}{args.dec_idx}-{args.smp_alpha}-{args.smp_size_match}-{args.smp_classifier}-{args.target_module}{args.select_index}-seed{args.seed}"
+        else:
+            args.task = f"{study_name}-{data_type}-{finetune_model}-{args.modality}-{args.SMPMode}-fea{args.enc_idx}{args.dec_idx}-{args.target_module}{args.select_index}-seed{args.seed}"
+    else:
+        args.task = f"{study_name}-{data_type}-{args.model}-{finetune_model}-{args.xai}-{args.modality}-{args.input_size}-seed{args.seed}"
+    
     main(args, criterion)
 
 
