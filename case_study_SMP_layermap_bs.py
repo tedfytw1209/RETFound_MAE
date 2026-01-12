@@ -678,9 +678,10 @@ def _model_run_name(args) -> str:
     base = str(getattr(args, "model", "model"))
     if base == "SMP":
         mode = str(getattr(args, "SMPMode", "dec"))
+        finetune_model = args.finetune.split('/')[-1].replace('.pth','')
         if mode == "fuse":
             return (
-                f"SMP-{mode}-"
+                f"SMP-{finetune_model}-{mode}-"
                 f"{getattr(args,'smp_fuse_mode','weighted_sum')}-"
                 f"align{getattr(args,'align','pre')}-"
                 f"fus{int(getattr(args,'fusion_dim',0))}-"
@@ -690,7 +691,7 @@ def _model_run_name(args) -> str:
                 f"{getattr(args,'smp_classifier','linear')}"
             )
         return (
-            f"SMP-{mode}-"
+            f"SMP-{finetune_model}-{mode}-"
             f"fea{int(getattr(args,'enc_idx',-1))}{int(getattr(args,'dec_idx',-1))}-"
             f"{getattr(args,'smp_classifier','linear')}"
         )
