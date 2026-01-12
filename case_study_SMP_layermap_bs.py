@@ -446,7 +446,7 @@ class XAIGenerator:
         heatmap = self.gradcam(image_tensor, targets)
         if hasattr(self.gradcam, "remove_hooks"):
             self.gradcam.remove_hooks()
-        return heatmap[0] if len(heatmap) > 0 else None
+        return heatmap if len(heatmap) > 0 else None
     
     def generate_scorecam(self, image_tensor, target_class=None):
         """Generate ScoreCAM heatmap"""
@@ -465,7 +465,7 @@ class XAIGenerator:
         heatmap = self.scorecam(image_tensor, targets)
         if hasattr(self.scorecam, "remove_hooks"):
             self.scorecam.remove_hooks()
-        return heatmap[0] if len(heatmap) > 0 else None
+        return heatmap if len(heatmap) > 0 else None
     
     def generate_gardcamplusplus(self, image_tensor, target_class=None):
         """Generate gardcamplusplus heatmap"""
@@ -485,7 +485,7 @@ class XAIGenerator:
         heatmap = self.gardcamplusplus(image_tensor, targets)
         if hasattr(self.gardcamplusplus, "remove_hooks"):
             self.gardcamplusplus.remove_hooks()
-        return heatmap[0] if len(heatmap) > 0 else None
+        return heatmap if len(heatmap) > 0 else None
     
     def generate_hirescam(self, image_tensor, target_class=None):
         """Generate hirescam heatmap"""
@@ -494,6 +494,8 @@ class XAIGenerator:
         self.model.zero_grad(set_to_none=True)
         # Detach tensor to prevent gradient contamination
         image_tensor = image_tensor.detach().to(self.device)
+        print(image_tensor.shape)
+        print(target_class)
         image_tensor.requires_grad = True
         if target_class is None:
             # Get predicted class
@@ -505,7 +507,7 @@ class XAIGenerator:
         heatmap = self.hirescam(image_tensor, targets)
         if hasattr(self.hirescam, "remove_hooks"):
             self.hirescam.remove_hooks()
-        return heatmap[0] if len(heatmap) > 0 else None
+        return heatmap if len(heatmap) > 0 else None
     
     def generate_rise(self, image_tensor, target_class=None):
         """Generate RISE heatmap"""
@@ -520,7 +522,7 @@ class XAIGenerator:
                 target_class = outputs.argmax(dim=1).item()
 
         heatmap = self.rise(image_tensor,[target_class])
-        return heatmap[0] if heatmap is not None else None
+        return heatmap if heatmap is not None else None
 
     def generate_attention(self, image_tensor, target_class=None):
         """Generate Attention heatmap"""
@@ -528,7 +530,7 @@ class XAIGenerator:
             return None
         image_tensor = image_tensor.to(self.device)
         attention_map = self.attention(image_tensor)
-        return attention_map[0] if attention_map is not None else None
+        return attention_map if attention_map is not None else None
     
     def generate_all_heatmaps(self, image_tensor, target_class=None, xai_name=None):
         """Generate requested heatmaps for an image (safe, no hook interference)"""
@@ -1009,6 +1011,8 @@ def generate_comprehensive_heatmaps_v2(
                     if idx % batch_size == batch_size - 1 or idx == len(images) - 1:
                         image_tensors = torch.stack(image_tensor_list)
                         labels_np = np.stack(label_list)
+                        print("image_tensors shape:", image_tensors.shape)
+                        print("labels_np shape:", labels_np.shape)
                         for xai_name in XAI_list:
                             heatmap_dict = xai_generator.generate_all_heatmaps(
                                 image_tensors, target_class=labels_np, xai_name=xai_name
