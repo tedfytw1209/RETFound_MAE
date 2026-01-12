@@ -49,13 +49,13 @@ DATASET_DIR="/blue/ruogu.fang/tienyuchang/OCT_EDA"
 DATASET_FNAME="sampled_labels01.csv"
 THICKNESS_DIR="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 THICKNESS_CSV="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/thickness_map.csv"
-BATCH_SIZE=8
-NUM_SAMPLES=50
+BATCH_SIZE=16
+NUM_SAMPLES=100
 Num_CLASS=2
 STEP_PIXELS=1024
 #XAI_METHODS="gradcamv2 scorecam crp"
-#XAI_METHODS="gradcamv2 hirescam gradcam++"
-XAI_METHODS="hirescam"
+XAI_METHODS="gradcamv2 hirescam gradcam++"
+#XAI_METHODS="hirescam"
 
 #sbatch run_xai_layermap_bs.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-\{0\}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth 512 enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
 
