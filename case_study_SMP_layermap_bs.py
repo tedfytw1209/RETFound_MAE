@@ -442,8 +442,10 @@ class XAIGenerator:
             with torch.no_grad():
                 outputs = self.model(image_tensor)
                 target_class = outputs.argmax(dim=1).item()
-        targets = [ClassifierOutputTarget(target_class)]
-        heatmap = self.gradcam(image_tensor, targets)
+        # IMPORTANT:
+        # - self.gradcam is baselines.GradCAM_v2.PytorchCAM, which accepts targets as
+        #   int / list[int] / np.ndarray / torch.Tensor and converts internally.
+        heatmap = self.gradcam(image_tensor, target_class)
         if hasattr(self.gradcam, "remove_hooks"):
             self.gradcam.remove_hooks()
         return heatmap if len(heatmap) > 0 else None
@@ -460,9 +462,7 @@ class XAIGenerator:
             with torch.no_grad():
                 outputs = self.model(image_tensor)
                 target_class = outputs.argmax(dim=1).item()
-
-        targets = [ClassifierOutputTarget(target_class)]
-        heatmap = self.scorecam(image_tensor, targets)
+        heatmap = self.scorecam(image_tensor, target_class)
         if hasattr(self.scorecam, "remove_hooks"):
             self.scorecam.remove_hooks()
         return heatmap if len(heatmap) > 0 else None
@@ -480,9 +480,7 @@ class XAIGenerator:
             with torch.no_grad():
                 outputs = self.model(image_tensor)
                 target_class = outputs.argmax(dim=1).item()
-
-        targets = [ClassifierOutputTarget(target_class)]
-        heatmap = self.gardcamplusplus(image_tensor, targets)
+        heatmap = self.gardcamplusplus(image_tensor, target_class)
         if hasattr(self.gardcamplusplus, "remove_hooks"):
             self.gardcamplusplus.remove_hooks()
         return heatmap if len(heatmap) > 0 else None
@@ -494,17 +492,14 @@ class XAIGenerator:
         self.model.zero_grad(set_to_none=True)
         # Detach tensor to prevent gradient contamination
         image_tensor = image_tensor.detach().to(self.device)
-        print(image_tensor.shape)
-        print(target_class)
         image_tensor.requires_grad = True
         if target_class is None:
             # Get predicted class
             with torch.no_grad():
                 outputs = self.model(image_tensor)
                 target_class = outputs.argmax(dim=1).item()
-
-        targets = [ClassifierOutputTarget(target_class)]
-        heatmap = self.hirescam(image_tensor, targets)
+        # Pass raw targets (int / list / np / tensor) so PytorchCAM can convert per-sample.
+        heatmap = self.hirescam(image_tensor, target_class)
         if hasattr(self.hirescam, "remove_hooks"):
             self.hirescam.remove_hooks()
         return heatmap if len(heatmap) > 0 else None
@@ -521,7 +516,16 @@ class XAIGenerator:
                 outputs = self.model(image_tensor)
                 target_class = outputs.argmax(dim=1).item()
 
-        heatmap = self.rise(image_tensor,[target_class])
+        # RISEBatch expects a list/array of class indices (one per sample) or a single class.
+        if isinstance(target_class, np.ndarray):
+            targets = target_class.tolist()
+        elif isinstance(target_class, torch.Tensor):
+            targets = target_class.detach().cpu().tolist()
+        elif isinstance(target_class, (list, tuple)):
+            targets = list(target_class)
+        else:
+            targets = [int(target_class)]
+        heatmap = self.rise(image_tensor, targets)
         return heatmap if heatmap is not None else None
 
     def generate_attention(self, image_tensor, target_class=None):
@@ -1009,10 +1013,9 @@ def generate_comprehensive_heatmaps_v2(
                     mask_slice_list.append(mask_slice)
 
                     if idx % batch_size == batch_size - 1 or idx == len(images) - 1:
-                        image_tensors = torch.concat(image_tensor_list)
-                        labels_np = np.stack(label_list)
-                        print("image_tensors shape:", image_tensors.shape)
-                        print("labels_np shape:", labels_np.shape)
+                        # Each preprocessed tensor is [1, C, H, W]; concat -> [B, C, H, W]
+                        image_tensors = torch.concat(image_tensor_list, dim=0)
+                        labels_np = np.asarray(label_list)
                         for xai_name in XAI_list:
                             heatmap_dict = xai_generator.generate_all_heatmaps(
                                 image_tensors, target_class=labels_np, xai_name=xai_name
