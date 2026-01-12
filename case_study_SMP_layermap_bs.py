@@ -108,48 +108,12 @@ dataset_dir = '/blue/ruogu.fang/tienyuchang/OCT_EDA'
 img_p_fmt = "label_%d/%s" #label index and oct_img name
 
 # model
-Model_root = "/blue/ruogu.fang/tienyuchang/RETFound_MAE/output_dir"
-Model_fname = "checkpoint-best.pth"
-smp_default_params = {
-    'fuse_mode': "weighted_sum",
-    'learnable_alpha': True,
-    'alpha': 0.5,
-    'pretrained_seg_ckpt': None,
-    'dropout': 0.0,
-    'size_match': "decoder_to_encoder",
-    'use_mask': False,
-    'fusion_dim': 0,
-    'enc_idx': -1,
-    'dec_idx': -1,
-}
-# fuse model parameters
-data = [
-    {"seg_mask": True,  "smp_fuse_mode": "multiply"},
-    {"seg_mask": True,  "smp_fuse_mode": "channel_merge"},
-    {"seg_mask": True,  "smp_fuse_mode": "channel_multiply"},
-    {"seg_mask": True,  "smp_fuse_mode": "weighted_sum"},
-    {"seg_mask": False, "smp_fuse_mode": "channel_merge"},
-    {"seg_mask": False, "smp_fuse_mode": "add"},
-    {"seg_mask": False, "smp_fuse_mode": "multiply"},
-    {"seg_mask": False, "smp_fuse_mode": "weighted_sum"},
-    {"seg_mask": True, 'enc_idx': -2, "smp_fuse_mode": "add", "fusion_dim": 8},
-    {"seg_mask": True, 'enc_idx': -2, "smp_fuse_mode": "channel_merge", "fusion_dim": 8},
-    {"seg_mask": True, 'enc_idx': -2, "smp_fuse_mode": "channel_multiply", "fusion_dim": 0},
-    {"seg_mask": True, 'enc_idx': -2, "smp_fuse_mode": "multiply", "fusion_dim": 8},
-    {"seg_mask": True, 'enc_idx': -2, "smp_fuse_mode": "weighted_sum", "fusion_dim": 8},
-]
-Model_list = ['SMP_enc', 'SMP_dec'] + ['SMP_enc_fix', 'SMP_dec_fix']
-
-Model_param_dict_list = [{} for _ in Model_list]
-for param_dict in data:
-    each_dict = smp_default_params.copy()
-    each_dict.update(param_dict)
-    Model_param_dict_list.append(each_dict)
-Fusemodel_list = [f'SMP_fuse_{v["smp_fuse_mode"]}_fus{v["fusion_dim"]}enc{v["enc_idx"]}dec{v["dec_idx"]}_{"seg" if v["seg_mask"] else "dec"}' for v in Model_param_dict_list[len(Model_list):]]
-Model_list += Fusemodel_list
-Model_image_size_list = [512] * len(Model_list)
-
 Model_root = "/orange/ruogu.fang/tienyuchang/RETfound_results"
+Model_fname = "checkpoint-best.pth"
+# NOTE:
+# - The previous preset-based multi-model lists (Model_list/Model_param_dict_list/Model_image_size_list)
+#   have been removed.
+# - We now build the model from CLI args (main_XAI_evaluation.py style) and optionally load --resume.
 
 Module_list = ['encoder', 'decoder', 'head']
 # Visualization functions
@@ -615,12 +579,7 @@ class XAIGenerator:
 
         return heatmaps
 
-#test
-'''
-for model_name in Model_list:
-    model, processor = load_trained_model('DME', model_name, 224)
-    XAIGenerator(model, model_name)
-'''
+# (removed) legacy multi-model test snippet
 
 def masked_heatmap_func(heatmap, mask_slice):
     if heatmap is None:
@@ -708,117 +667,167 @@ from util.evaluation import RelevanceMetric
 rel_metric = RelevanceMetric()
 rank_metric = RelevanceMetric(output_type='rank')
 
+def _model_run_name(args) -> str:
+    """Create a readable model name for output folders."""
+    base = str(getattr(args, "model", "model"))
+    if base == "SMP":
+        mode = str(getattr(args, "SMPMode", "dec"))
+        if mode == "fuse":
+            return (
+                f"SMP-{mode}-"
+                f"{getattr(args,'smp_fuse_mode','weighted_sum')}-"
+                f"align{getattr(args,'align','pre')}-"
+                f"fus{int(getattr(args,'fusion_dim',0))}-"
+                f"fea{int(getattr(args,'enc_idx',-1))}{int(getattr(args,'dec_idx',-1))}-"
+                f"alpha{float(getattr(args,'smp_alpha',0.5))}-"
+                f"{getattr(args,'smp_size_match','decoder_to_encoder')}-"
+                f"{getattr(args,'smp_classifier','linear')}"
+            )
+        return (
+            f"SMP-{mode}-"
+            f"fea{int(getattr(args,'enc_idx',-1))}{int(getattr(args,'dec_idx',-1))}-"
+            f"{getattr(args,'smp_classifier','linear')}"
+        )
+    return base
+
+def build_and_load_model_main_style(args):
+    """Build model like main_XAI_evaluation.py and load --resume checkpoint if provided."""
+    from main_XAI_evaluation import get_model as main_get_model
+
+    device = torch.device(getattr(args, "device", "cuda"))
+    model, processor, patch_size = main_get_model(args)
+
+    # Load finetuned model checkpoint (main_XAI_evaluation.py pattern)
+    resume = getattr(args, "resume", "0")
+    if resume and str(resume).strip() and str(resume).strip() != "0":
+        resume = str(resume).strip()
+        if resume.startswith('https'):
+            checkpoint = torch.hub.load_state_dict_from_url(resume, map_location='cpu', check_hash=True)
+        else:
+            with torch.serialization.safe_globals([argparse.Namespace]):
+                checkpoint = torch.load(resume, map_location='cpu', weights_only=False)
+        checkpoint_model = checkpoint['model'] if isinstance(checkpoint, dict) and 'model' in checkpoint else checkpoint
+        model.load_state_dict(checkpoint_model, strict=False)
+        print(f"Resume checkpoint {resume}")
+
+    model.to(torch.float32)
+    model.to(device)
+    model.eval()
+    return model, processor, patch_size
+
 module_select_dict_default = {'encoder':[10, 23, 42, 52],'decoder':[1,3,5,7,9]}
 
 def get_args_parser():
-    """Create argument parser for command-line interface"""
-    parser = argparse.ArgumentParser(description='Generate XAI heatmaps for SMP models with layer-wise analysis')
-    
-    # ==================== Data paths ====================
-    parser.add_argument('--dataset_dir', type=str, default=dataset_dir,
-                        help=f'Root directory for dataset. Default: {dataset_dir}')
-    parser.add_argument('--dataset_fname', type=str, default=dataset_fname,
-                        help=f'Dataset CSV filename. Default: {dataset_fname}')
-    parser.add_argument('--thickness_dir', type=str, default=Thickness_DIR,
-                        help=f'Directory for thickness mask data. Default: {Thickness_DIR}')
-    parser.add_argument('--thickness_csv', type=str, default=Thickness_CSV,
-                        help=f'CSV file for thickness mapping. Default: {Thickness_CSV}')
-    
-    # ==================== Model paths ====================
-    parser.add_argument('--model_root', type=str, default=Model_root,
-                        help=f'Root directory for model checkpoints. Default: {Model_root}')
-    parser.add_argument('--model_fname', type=str, default=Model_fname,
-                        help=f'Model checkpoint filename. Default: {Model_fname}')
-    
-    # ==================== Model selection ====================
-    parser.add_argument('--model', type=str, nargs='+', default=None,
-                        help='Model name(s) to use. Available: SMP_enc, SMP_dec, SMP_fuse_*. If not specified, use all models.')
-    parser.add_argument('--model_idx', type=int, nargs='+', default=None,
-                        help='Model index(es) from Model_list. Alternative to --model.')
-    parser.add_argument('--nb_classes', type=int, default=2,
-                        help='Number of classes for classification. Default: 2')
-    
-    # ==================== Target module selection ====================
-    parser.add_argument(
-        '--target_module',
-        type=str,
-        nargs='+',
-        default=['encoder', 'decoder', 'head'],
-        help='Target module(s) for XAI methods. Default: encoder decoder head (or "all")'
-    )
-    
-    # ==================== Layer selection ====================
-    parser.add_argument('--select_idx', type=int, nargs='+', default=None,
-                        help='Specific layer indices to analyze. If not specified, use module_select_dict or all layers.')
-    parser.add_argument('--encoder_idx', type=int, nargs='+', default=None,
-                        help='Specific encoder layer indices. Overrides --select_idx for encoder.')
-    parser.add_argument('--decoder_idx', type=int, nargs='+', default=None,
-                        help='Specific decoder layer indices. Overrides --select_idx for decoder.')
-    parser.add_argument('--choose_last_layer', action='store_true', default=False,
-                        help='Only analyze the last layer of each module.')
-    parser.add_argument('--all_layers', action='store_true', default=False,
-                        help='Analyze all layers (ignores module_select_dict).')
-    
-    # ==================== Task and data ====================
-    parser.add_argument('--task', type=str, nargs='+', default=['DME'],
-                        help='Task name(s). Default: DME')
-    parser.add_argument('--num_samples', type=int, default=-1,
-                        help='Number of samples to process. -1 for all samples. Default: -1')
-    
-    # ==================== XAI methods ====================
-    parser.add_argument('--xai_method', type=str, nargs='+', default=['GradCAM', 'HiResCAM', 'GradCAMPlusPlus'],
-                        choices=['Attention', 'RISE', 'GradCAM', 'ScoreCAM', 'HiResCAM', 'GradCAMPlusPlus', 'all'],
-                        help='XAI method(s) to use. Default: GradCAM HiResCAM GradCAMPlusPlus')
-    
-    # ==================== Output and batch processing ====================
-    parser.add_argument('--output_dir', type=str, default='./heatmap_results_layerwise',
-                        help='Output directory for heatmaps. Default: ./heatmap_results_layerwise')
-    parser.add_argument('--batch_size', type=int, default=4,
-                        help='Batch size for XAI methods (process multiple XAI methods per image). Default: 4')
-    
-    # ==================== Image and mask options ====================
-    parser.add_argument('--input_size', type=int, default=512,
-                        help='Input image size. Default: 512')
-    parser.add_argument('--load_mask', action='store_true', default=True,
-                        help='Load thickness mask for images.')
-    parser.add_argument('--no_load_mask', action='store_false', dest='load_mask',
-                        help='Do not load thickness mask.')
-    parser.add_argument('--img_mask', action='store_true', default=False,
-                        help='Apply mask to input images.')
-    parser.add_argument('--heatmap_mask', action='store_true', default=False,
-                        help='Apply mask to heatmaps.')
-    parser.add_argument('--draw_layer', action='store_true', default=True,
-                        help='Draw layer boundaries on overlay images.')
-    parser.add_argument('--no_draw_layer', action='store_false', dest='draw_layer',
-                        help='Do not draw layer boundaries.')
-    
-    # ==================== Other options ====================
-    parser.add_argument('--save_mask', action='store_true', default=False,
-                        help='Save binary mask as numpy file.')
-    parser.add_argument('--verbose', action='store_true', default=False,
-                        help='Print verbose output.')
-    parser.add_argument('--list_models', action='store_true', default=False,
-                        help='List available models and exit.')
-    parser.add_argument('--list_xai', action='store_true', default=False,
-                        help='List available XAI methods and exit.')
-    parser.add_argument('--device', type=str, default='cuda',
-                        choices=['cuda', 'cpu'],
-                        help='Device to use for computation. Default: cuda')
-    
+    """Create argument parser (aligned to main_XAI_evaluation.py flags)"""
+    parser = argparse.ArgumentParser(description='Generate XAI heatmaps with layer-wise analysis (main-style model build/load)')
+
+    # ---- main_XAI_evaluation.py compatible core flags ----
+    parser.add_argument('--batch_size', default=4, type=int, help='Batch size. Here: XAI batch size per image.')
+    parser.add_argument('--model', default='SMP', type=str, help='Model name (main-style). Use "SMP" for SMPClassifier.')
+    parser.add_argument('--finetune', default='', type=str, help='Finetune from checkpoint (main-style). For SMP: pretrained seg ckpt.')
+    parser.add_argument('--task', default='DME', type=str, help='Task name(s). Supports comma/space separated list.')
+    parser.add_argument('--use_split', default='test', type=str, choices=['test', 'val', 'train'], help='(unused) main-style.')
+    parser.add_argument('--input_size', default=512, type=int, help='Input image size.')
+    parser.add_argument('--xai', default='gradcam', type=str, help='XAI method (main-style: attn/rise/gradcam/hirescam/scorecam/gradcam++/all).')
+    parser.add_argument('--use_rollout', action='store_true', help='Use rollout (main-style).')
+    parser.add_argument('--drop_path', type=float, default=0.2, metavar='PCT', help='(unused) main-style.')
+    parser.add_argument('--SMPMode', type=str, default='dec', help='SMP mode (fuse, enc, dec).')
+
+    # ---- main-style checkpoint/device ----
+    parser.add_argument('--device', default='cuda', choices=['cuda', 'cpu'], help='Device to use.')
+    parser.add_argument('--seed', default=0, type=int, help='Random seed.')
+    parser.add_argument('--resume', default='0', type=str, help='Resume from checkpoint (classifier checkpoint).')
+    parser.add_argument('--eval', action='store_true', help='(unused) main-style.')
+
+    # ---- main-style SMP knobs ----
+    parser.add_argument('--smp_fuse_mode', type=str, default='weighted_sum',
+                        choices=["weighted_sum", "add", "channel_merge", "channel_multiply", "multiply"])
+    parser.add_argument('--smp_learnable_alpha', action='store_true', default=False)
+    parser.add_argument('--smp_alpha', type=float, default=0.5)
+    parser.add_argument('--smp_size_match', type=str, default='decoder_to_encoder',
+                        choices=["decoder_to_encoder", "encoder_to_decoder"])
+    parser.add_argument('--seg_mask', action='store_true', default=False)
+    parser.add_argument('--fusion_dim', type=int, default=0)
+    parser.add_argument('--align', type=str, default='pre')
+    parser.add_argument('--enc_idx', type=int, default=-1)
+    parser.add_argument('--dec_idx', type=int, default=-1)
+    parser.add_argument('--smp_classifier', type=str, default='linear', choices=["linear", "conv"])
+
+    # ---- CAM selection (main-style) ----
+    parser.add_argument('--target_module', type=str, nargs='+', default=['encoder', 'decoder', 'head'],
+                        help='Target module(s): encoder/decoder/head/all')
+    parser.add_argument('--select_index', type=int, default=-1, help='Select index for CAM methods (single index).')
+
+    # ---- this script: dataset + sampling ----
+    parser.add_argument('--dataset_dir', type=str, default=dataset_dir, help='Root directory for dataset.')
+    parser.add_argument('--dataset_fname', type=str, default=dataset_fname, help='Dataset CSV filename.')
+    parser.add_argument('--thickness_dir', type=str, default=Thickness_DIR, help='Directory for thickness mask data.')
+    parser.add_argument('--thickness_csv', type=str, default=Thickness_CSV, help='CSV file for thickness mapping.')
+    parser.add_argument('--num_samples', type=int, default=-1, help='Number of samples to process. -1 for all.')
+    parser.add_argument('--nb_classes', type=int, default=2, help='Number of classes for classification.')
+
+    # ---- layer selection helpers ----
+    parser.add_argument('--select_idx', type=int, nargs='+', default=None, help='Layer indices to analyze (list).')
+    parser.add_argument('--encoder_idx', type=int, nargs='+', default=None, help='Encoder indices override.')
+    parser.add_argument('--decoder_idx', type=int, nargs='+', default=None, help='Decoder indices override.')
+    parser.add_argument('--choose_last_layer', action='store_true', default=False, help='Only analyze last layer.')
+    parser.add_argument('--all_layers', action='store_true', default=False, help='Analyze all layers.')
+
+    # ---- output + masks ----
+    parser.add_argument('--output_dir', type=str, default='./heatmap_results_layerwise', help='Output directory.')
+    parser.add_argument('--load_mask', action='store_true', default=True, help='Load thickness mask for images.')
+    parser.add_argument('--no_load_mask', action='store_false', dest='load_mask', help='Do not load thickness mask.')
+    parser.add_argument('--img_mask', action='store_true', default=False, help='Apply mask to input images.')
+    parser.add_argument('--heatmap_mask', action='store_true', default=False, help='Apply mask to heatmaps.')
+    parser.add_argument('--draw_layer', action='store_true', default=True, help='Draw layer boundaries on overlay.')
+    parser.add_argument('--no_draw_layer', action='store_false', dest='draw_layer', help='Do not draw layer boundaries.')
+    parser.add_argument('--save_mask', action='store_true', default=False, help='Save binary mask as numpy file.')
+    parser.add_argument('--verbose', action='store_true', default=False)
+
+    # ---- keep list_xai only ----
+    parser.add_argument('--list_xai', action='store_true', default=False, help='List available XAI methods and exit.')
     return parser
 
 def parse_args():
     """Parse command-line arguments"""
     parser = get_args_parser()
     args = parser.parse_args()
-    
-    # Handle 'all' in xai_method
-    if 'all' in args.xai_method:
-        args.xai_method = ['Attention', 'RISE', 'GradCAM', 'ScoreCAM', 'HiResCAM', 'GradCAMPlusPlus']
-    
+
+    # task: main-style string -> task_list; keep args.task as first task (main expects a string)
+    task_list = [t for t in str(getattr(args, "task", "")).replace(",", " ").split() if t]
+    if not task_list:
+        task_list = ['DME']
+    args.task_list = task_list
+    args.task = task_list[0]
+
+    # xai: main-style string -> xai_method_list (this script uses the full names)
+    xai_parts = [p for p in str(getattr(args, "xai", "")).replace(",", " ").split() if p]
+    mapping = {
+        "attn": "Attention",
+        "attention": "Attention",
+        "rise": "RISE",
+        "gradcam": "GradCAM",
+        "gradcamv2": "GradCAM",
+        "scorecam": "ScoreCAM",
+        "hirescam": "HiResCAM",
+        "gradcam++": "GradCAMPlusPlus",
+        "gradcamplusplus": "GradCAMPlusPlus",
+        "all": "all",
+    }
+    xai_method_list: List[str] = []
+    for p in (xai_parts or ["gradcam"]):
+        key = p.strip().lower()
+        if key == "all":
+            xai_method_list = ['Attention', 'RISE', 'GradCAM', 'ScoreCAM', 'HiResCAM', 'GradCAMPlusPlus']
+            break
+        if key not in mapping:
+            parser.error(f"Unknown --xai '{p}'. Supported: {sorted([k for k in mapping.keys() if k != 'all'])} or 'all'.")
+        xai_method_list.append(mapping[key])
+    args.xai_method_list = xai_method_list
+
     # Normalize target_module to support quoted/space/comma separated values
     allowed_modules = {'encoder', 'decoder', 'head'}
-    normalized_target_modules = []
+    normalized_target_modules: List[str] = []
     for item in args.target_module or []:
         parts = str(item).replace(',', ' ').split()
         normalized_target_modules.extend([p for p in parts if p])
@@ -830,7 +839,11 @@ def parse_args():
     if invalid:
         parser.error(f"--target_module accepts {sorted(allowed_modules)}, got {invalid}")
     args.target_module = normalized_target_modules
-    
+
+    # Map main-style --select_index (single) into list selection if user didn't provide list args.
+    if args.select_idx is None and getattr(args, "select_index", None) is not None:
+        args.select_idx = [int(args.select_index)]
+
     return args
 
 def build_module_select_dict(args):
@@ -882,32 +895,31 @@ def get_all_conv_layers(model, module_name=None):
             conv_layers.append(module)
     return conv_layers
 # Updated function with new directory structure for heatmap saving and batch processing
-def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model_list=Model_list, 
-                                       img_size_list=Model_image_size_list, model_fname=Model_fname,
-                                       Model_param_dict_list=None, XAI_list=None, heatmap_dir="./heatmap_results", module_list=None,
-                                       module_select_dict={}, choose_last_layer=True, batch_size=4, verbose=False,
-                                       load_mask_flag=True, img_mask_flag=False, heatmap_mask_flag=False, draw_layer_flag=True,
-                                       save_mask_flag=False, nb_classes=2):
-    """Generate heatmaps for all task-model combinations with new directory structure and batch processing
-    
-    Args:
-        num_samples: Number of samples to process (-1 for all)
-        task_list: List of tasks to process
-        model_list: List of model names
-        img_size_list: List of input sizes for each model
-        Model_param_dict_list: List of parameter dicts for each model
-        XAI_list: List of XAI methods to use
-        heatmap_dir: Output directory
-        module_list: List of target modules (encoder, decoder, head)
-        module_select_dict: Dict mapping module names to layer indices
-        choose_last_layer: If True, only analyze last layer
-        batch_size: Number of XAI methods to process together when generating heatmaps
-        verbose: Print verbose output
-        load_mask_flag: Load thickness mask
-        img_mask_flag: Apply mask to input images
-        heatmap_mask_flag: Apply mask to heatmaps
-        draw_layer_flag: Draw layer boundaries on overlay
-        save_mask_flag: Save binary mask as numpy file
+def generate_comprehensive_heatmaps_v2(
+    model,
+    processor,
+    model_name: str,
+    input_size: int,
+    num_samples=3,
+    task_list=Task_list,
+    XAI_list=None,
+    heatmap_dir="./heatmap_results",
+    module_list=None,
+    module_select_dict=None,
+    choose_last_layer=True,
+    batch_size=4,
+    verbose=False,
+    load_mask_flag=True,
+    img_mask_flag=False,
+    heatmap_mask_flag=False,
+    draw_layer_flag=True,
+    save_mask_flag=False,
+    nb_classes=2,
+):
+    """Generate heatmaps for (tasks × modules × layers × XAI) for a single built model.
+
+    This function assumes the caller already built the model (main_XAI_evaluation.py style)
+    and loaded checkpoints if needed, then passes `model` and `processor` in.
     """
     global LOAD_MASK, IMG_MASK, HEATMAP_MASK, DRAW_LAYER
     
@@ -920,12 +932,14 @@ def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model
     results = {}
     if XAI_list is None:
         XAI_list = ['Attention', 'RISE', 'GradCAM', 'ScoreCAM', 'HiResCAM', 'GradCAMPlusPlus']
+    if module_select_dict is None:
+        module_select_dict = {}
     
     print("=" * 60)
     print("Starting comprehensive heatmap generation...")
     print("=" * 60)
     print(f"Tasks: {task_list}")
-    print(f"Models: {model_list}")
+    print(f"Model: {model_name}")
     print(f"Modules: {module_list}")
     print(f"XAI Methods: {XAI_list}")
     print(f"Samples per task: {num_samples if num_samples > 0 else 'all'}")
@@ -944,128 +958,113 @@ def generate_comprehensive_heatmaps_v2(num_samples=3, task_list=Task_list, model
         images, labels, filenames, mask_slices = load_sample_data(task, num_samples, save_mask=save_mask_flag)
         print(f"Loaded {len(images)} images for {task}")
         
-        if not Model_param_dict_list:
-            Model_param_dict_list = [{} for _ in model_list]
         out_df = []
-        for model_idx, (model_name, input_size, model_param_dict) in enumerate(zip(model_list, img_size_list, Model_param_dict_list)):
-            print(f"\n--- Processing Model [{model_idx+1}/{len(model_list)}]: {model_name} ---") 
-            # Load trained model
-            model, processor = load_trained_model(task, model_name, Model_fname=model_fname, input_size=input_size, nb_classes=nb_classes, model_param_dict=model_param_dict)
-            for module_name in module_list:
-                if model_name.startswith('SMP_enc') and module_name=='decoder':
-                    continue
-                # Get all Conv layers
-                if module_select_dict.get(module_name, False):
-                    select_indexs = module_select_dict[module_name]
-                elif choose_last_layer:
-                    select_indexs = [-1]
-                else:
-                    conv_layers = get_all_conv_layers(model, module_name)
-                    select_indexs = list(range(len(conv_layers)))
-                
+        # One model per run (built outside like main_XAI_evaluation.py)
+        for module_name in module_list:
+            # Skip modules that don't exist for the current model/mode
+            conv_layers = get_all_conv_layers(model, module_name)
+            if not conv_layers:
                 if verbose:
-                    print(f'  Module: {module_name}, Select Indices: {select_indexs}')
-                
-                for select_index in select_indexs:
-                    # Initialize XAI generator
-                    xai_generator = XAIGenerator(
-                        model,
-                        model_name,
-                        input_size,
-                        batch_size=batch_size,
-                        target_module=module_name,
-                        select_index=select_index
-                    )
-                    
-                    # Store results for this model
-                    results[task][model_name] = {
-                        'images': filenames,
-                        'labels': labels,
-                        "mask_slices": mask_slices,
-                        'module_name': module_name,
-                        'select_index': select_index
-                    }
-                    # Process each image individually, batch XAI methods
-                    image_tensor_list, label_list, filename_list, mask_slice_list = [],[],[],[]
-                    for idx, (image, label, filename, mask_slice) in enumerate(zip(images, labels, filenames, mask_slices)):
-                        print(f"Processing image {idx+1}/{len(images)} (Label: {label}, File: {filename})")
-                        # Preprocess image
-                        image_tensor = preprocess_image(image, processor, input_size)
-                        image_tensor_list.append(image_tensor)
-                        label_list.append(label)
-                        filename_list.append(filename)
-                        mask_slice_list.append(mask_slice)
-                        
-                        if idx%batch_size==batch_size-1 or idx==len(images)-1:
-                            image_tensors = torch.stack(image_tensor_list)
-                            labels = np.stack(label_list)
-                            for xai_name in XAI_list:
-                                heatmap_dict = xai_generator.generate_all_heatmaps(image_tensors, target_class=labels, xai_name=xai_name)
-                                heatmaps = heatmap_dict.get(xai_name,None)
-                                for b_idx in range(len(heatmaps)):
-                                    heatmap = heatmaps[b_idx]
-                                    image = images[idx - batch_size + b_idx + 1]
-                                    label = label_list[b_idx]
-                                    filename = filename_list[b_idx]
-                                    mask_slice = mask_slice_list[b_idx]
-                                    if heatmap is None:
-                                        continue
-                                    #print("XAI & heatmap: ",xai_name, heatmap.shape)
-                                    heatmap = heatmap + 1e-9
-                                    overlay, heatmap_resized = overlay_heatmap_on_image(image, heatmap, mask_slice)
-                                    binary_mask = _build_binary_mask(mask_slice, overlay) if mask_slice is not None else None
-                                    #print(binary_mask.shape)
-                                    mass_acc = rel_metric(images,heatmap_resized, binary_mask)
-                                    rank_acc = rank_metric(images,heatmap_resized, binary_mask)
-                                    #print(f"Image: {filename}, XAI: {xai_name}, Relevance Mass Accuracy: {mass_acc:.4f}")
-                                    if DRAW_LAYER:
-                                        overlay = add_layer_line(overlay, mask_slice)
-                                    # overlay is np.uint8 HxWx3 per implementation
-                                    # Create directory structure: ./heatmap_results/<task_name>/<label_idx>/<image_name>/<baselinemodel>/<XAI>.jpg
-                                    module_idx = f'{module_name}_{select_index}' if module_name is not None else f'all_{select_index}'
-                                    img_dir = Path(heatmap_dir) / task / str(label) / filename / model_name
-                                    save_dir = img_dir / module_idx
-                                    save_dir.mkdir(parents=True, exist_ok=True)
-                                    out_path = save_dir / f"{xai_name}.jpg"
-                                    try:
-                                        if not isinstance(overlay, Image.Image):
-                                            overlay = Image.fromarray(overlay)
-                                        overlay.save(out_path, format='JPEG', quality=95)
-                                        # Save the heatmap as numpy array
-                                        np.save(save_dir / f"{xai_name}.npy", heatmap)
-                                        #save the image
-                                        image.save(img_dir / f"{xai_name}_image.jpg")
-                                        #save the mask_slice
+                    print(f"  Skipping module '{module_name}' (no conv layers found)")
+                continue
+
+                # Get all Conv layers
+            if module_select_dict.get(module_name, False):
+                select_indexs = module_select_dict[module_name]
+            elif choose_last_layer:
+                select_indexs = [-1]
+            else:
+                select_indexs = list(range(len(conv_layers)))
+
+            if verbose:
+                print(f'  Module: {module_name}, Select Indices: {select_indexs}')
+
+            for select_index in select_indexs:
+                xai_generator = XAIGenerator(
+                    model,
+                    model_name,
+                    input_size,
+                    batch_size=batch_size,
+                    target_module=module_name,
+                    select_index=select_index,
+                )
+
+                results[task][model_name] = {
+                    'images': filenames,
+                    'labels': labels,
+                    "mask_slices": mask_slices,
+                    'module_name': module_name,
+                    'select_index': select_index,
+                }
+
+                image_tensor_list, label_list, filename_list, mask_slice_list = [], [], [], []
+                for idx, (image, label, filename, mask_slice) in enumerate(zip(images, labels, filenames, mask_slices)):
+                    print(f"Processing image {idx+1}/{len(images)} (Label: {label}, File: {filename})")
+                    image_tensor = preprocess_image(image, processor, input_size)
+                    image_tensor_list.append(image_tensor)
+                    label_list.append(label)
+                    filename_list.append(filename)
+                    mask_slice_list.append(mask_slice)
+
+                    if idx % batch_size == batch_size - 1 or idx == len(images) - 1:
+                        image_tensors = torch.stack(image_tensor_list)
+                        labels_np = np.stack(label_list)
+                        for xai_name in XAI_list:
+                            heatmap_dict = xai_generator.generate_all_heatmaps(
+                                image_tensors, target_class=labels_np, xai_name=xai_name
+                            )
+                            heatmaps = heatmap_dict.get(xai_name, None)
+                            if heatmaps is None:
+                                continue
+                            for b_idx in range(len(heatmaps)):
+                                heatmap = heatmaps[b_idx]
+                                image_b = images[idx - len(image_tensor_list) + b_idx + 1]
+                                label_b = label_list[b_idx]
+                                filename_b = filename_list[b_idx]
+                                mask_slice_b = mask_slice_list[b_idx]
+                                if heatmap is None:
+                                    continue
+                                heatmap = heatmap + 1e-9
+                                overlay, heatmap_resized = overlay_heatmap_on_image(image_b, heatmap, mask_slice_b)
+                                binary_mask = _build_binary_mask(mask_slice_b, overlay) if mask_slice_b is not None else None
+                                mass_acc = rel_metric(images, heatmap_resized, binary_mask)
+                                rank_acc = rank_metric(images, heatmap_resized, binary_mask)
+                                if DRAW_LAYER and mask_slice_b is not None:
+                                    overlay = add_layer_line(overlay, mask_slice_b)
+
+                                module_idx = f'{module_name}_{select_index}' if module_name is not None else f'all_{select_index}'
+                                img_dir = Path(heatmap_dir) / task / str(label_b) / filename_b / model_name
+                                save_dir = img_dir / module_idx
+                                save_dir.mkdir(parents=True, exist_ok=True)
+                                out_path = save_dir / f"{xai_name}.jpg"
+                                try:
+                                    if not isinstance(overlay, Image.Image):
+                                        overlay = Image.fromarray(overlay)
+                                    overlay.save(out_path, format='JPEG', quality=95)
+                                    np.save(save_dir / f"{xai_name}.npy", heatmap)
+                                    image_b.save(img_dir / f"{xai_name}_image.jpg")
+                                    if binary_mask is not None:
                                         plt.imshow(binary_mask, cmap='gray')
                                         plt.savefig(img_dir / f"{xai_name}_mask.jpg")
-                                    except Exception as e:
-                                        print(f"Failed to save {out_path}: {e}")
-                                    out_df.append({
-                                        'task': task,
-                                        'image_name': filename,
-                                        'label': label,
-                                        'output_path': str(out_path),
-                                        'model_name': model_name,
-                                        'xai_method': xai_name,
-                                        'relevance_mass_accuracy': mass_acc,
-                                        'relevance_rank_accuracy': rank_acc
-                                    })
-                            #clear list
-                            image_tensor_list, label_list, filename_list, mask_slice_list = [],[],[],[]
+                                        plt.close()
+                                except Exception as e:
+                                    print(f"Failed to save {out_path}: {e}")
+                                out_df.append({
+                                    'task': task,
+                                    'image_name': filename_b,
+                                    'label': label_b,
+                                    'output_path': str(out_path),
+                                    'model_name': model_name,
+                                    'xai_method': xai_name,
+                                    'relevance_mass_accuracy': mass_acc,
+                                    'relevance_rank_accuracy': rank_acc,
+                                })
+                        image_tensor_list, label_list, filename_list, mask_slice_list = [], [], [], []
 
         # Save out_df to CSV
         df = pd.DataFrame(out_df)
         df.to_csv(Path(heatmap_dir) / f"{task}_results.csv", index=False)
     return results
-
-def list_available_models():
-    """Print available models and their indices"""
-    print("\nAvailable Models:")
-    print("-" * 60)
-    for idx, model_name in enumerate(Model_list):
-        print(f"  [{idx}] {model_name}")
-    print("-" * 60)
-    print(f"\nTotal: {len(Model_list)} models")
 
 def list_available_xai():
     """Print available XAI methods"""
@@ -1079,11 +1078,6 @@ def list_available_xai():
 def main():
     """Main function with argument parsing"""
     args = parse_args()
-    
-    # Handle list options
-    if args.list_models:
-        list_available_models()
-        return
     
     if args.list_xai:
         list_available_xai()
@@ -1099,48 +1093,6 @@ def main():
         config=args,
     )
     
-    # Determine which models to use
-    if args.model is not None:
-        # Use specified model names
-        selected_models = []
-        selected_img_sizes = []
-        selected_param_dicts = []
-        for model_name in args.model:
-            if model_name in Model_list:
-                idx = Model_list.index(model_name)
-                selected_models.append(model_name)
-                selected_img_sizes.append(Model_image_size_list[idx])
-                selected_param_dicts.append(Model_param_dict_list[idx])
-            else:
-                print(f"Warning: Model '{model_name}' not found in Model_list. Skipping.")
-        if not selected_models:
-            print("Error: No valid models specified. Use --list_models to see available models.")
-            return
-    elif args.model_idx is not None:
-        # Use specified model indices
-        selected_models = []
-        selected_img_sizes = []
-        selected_param_dicts = []
-        for idx in args.model_idx:
-            if 0 <= idx < len(Model_list):
-                selected_models.append(Model_list[idx])
-                selected_img_sizes.append(Model_image_size_list[idx])
-                selected_param_dicts.append(Model_param_dict_list[idx])
-            else:
-                print(f"Warning: Model index {idx} out of range. Skipping.")
-        if not selected_models:
-            print("Error: No valid model indices specified. Use --list_models to see available models.")
-            return
-    else:
-        # Use all models
-        selected_models = Model_list
-        selected_img_sizes = Model_image_size_list
-        selected_param_dicts = Model_param_dict_list
-    
-    # Override input size if specified
-    if args.input_size != 512:
-        selected_img_sizes = [args.input_size] * len(selected_models)
-    
     # Build module select dict
     module_select_dict = build_module_select_dict(args)
     
@@ -1153,23 +1105,28 @@ def main():
     dataset_fname = args.dataset_fname
     Thickness_DIR = args.thickness_dir
     Thickness_CSV = args.thickness_csv
-    Model_root = args.model_root
-    Model_fname = args.model_fname
+    # Model_root/Model_fname kept as globals for legacy but not required when using --resume
+    # Model_root = args.model_root
+    # Model_fname = args.model_fname
     
     print("\n" + "=" * 60)
     print("Configuration Summary:")
     print("=" * 60)
     print("=" * 60 + "\n")
     
-    # Run heatmap generation
+    # Build model like main_XAI_evaluation.py and load --resume
+    model_main, processor, patch_size = build_and_load_model_main_style(args)
+    model_name = _model_run_name(args)
+
+    # Run heatmap generation (single model per run)
     heatmap_results = generate_comprehensive_heatmaps_v2(
+        model=model_main,
+        processor=processor,
+        model_name=model_name,
+        input_size=int(args.input_size),
         num_samples=args.num_samples,
-        task_list=args.task,
-        model_list=selected_models,
-        model_fname=args.model_fname,
-        img_size_list=selected_img_sizes,
-        Model_param_dict_list=selected_param_dicts,
-        XAI_list=args.xai_method,
+        task_list=args.task_list,
+        XAI_list=args.xai_method_list,
         heatmap_dir=args.output_dir,
         module_list=target_modules,
         module_select_dict=module_select_dict,
