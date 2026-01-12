@@ -1009,7 +1009,7 @@ def generate_comprehensive_heatmaps_v2(
                     mask_slice_list.append(mask_slice)
 
                     if idx % batch_size == batch_size - 1 or idx == len(images) - 1:
-                        image_tensors = torch.stack(image_tensor_list)
+                        image_tensors = torch.concat(image_tensor_list)
                         labels_np = np.stack(label_list)
                         print("image_tensors shape:", image_tensors.shape)
                         print("labels_np shape:", labels_np.shape)
