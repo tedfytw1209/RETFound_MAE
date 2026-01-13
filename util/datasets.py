@@ -184,7 +184,7 @@ def masking_image_pil(
         image = Image.fromarray(np.asarray(image))
     image_rgb = image.convert("RGB")
     max_size = max(image_rgb.size)
-    add_bound = int(max_size * 0.025)
+    add_bound = int(max_size * 0.01)
 
     # Build a label mask (multiclass) + an alpha mask (binary 0/255) for compositing
     label_mask_img = None

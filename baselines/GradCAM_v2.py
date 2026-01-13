@@ -268,44 +268,18 @@ class PytorchCAM(torch.nn.Module):
             pixel_values = pixel_values.unsqueeze(0)
         B = pixel_values.size(0)
 
-        # Expand inputs/targets to match pytorch-grad-cam expectations (batch len == len(targets))
-        if len(targets_for_gradcam) == B:
-            # One-to-one mapping: each image has its corresponding target (most common case)
-            targets_expanded = targets_for_gradcam
-            repeated_tensor = pixel_values
-            num_outputs = B
-        elif len(targets_for_gradcam) == 1 and B > 1:
-            # One target applied to all images
-            targets_expanded = [targets_for_gradcam[0]] * B
-            repeated_tensor = pixel_values
-            num_outputs = B
-        elif len(targets_for_gradcam) > 1 and B == 1:
-            # Multiple targets for one image (create CAM for each target)
-            targets_expanded = targets_for_gradcam
-            repeated_tensor = pixel_values.repeat(len(targets_for_gradcam), 1, 1, 1)
-            num_outputs = len(targets_for_gradcam)
-        elif len(targets_for_gradcam) > 1 and B > 1:
-            # All combinations: replicate each image for each target
-            repeated_tensor = pixel_values.repeat_interleave(len(targets_for_gradcam), dim=0)
-            targets_expanded = targets_for_gradcam * B
-            num_outputs = B * len(targets_for_gradcam)
-        else:
-            targets_expanded = targets_for_gradcam
-            repeated_tensor = pixel_values
-            num_outputs = max(B, len(targets_for_gradcam))
-        
         with torch.set_grad_enabled(True):
-            batch_results = torch.as_tensor(self.method(input_tensor=repeated_tensor, targets=targets_expanded))  # shape: (B', H', W')
+            batch_results = torch.as_tensor(self.method(input_tensor=pixel_values, targets=targets_for_gradcam))  # shape: (B', H', W')
         
-        # Normalize per image using actual output size
+        # Normalize per image using actual output size to 0~1
         if self.normalize_cam:
-            cam_min = batch_results.view(num_outputs, -1).min(dim=1)[0].view(num_outputs, 1, 1)
-            cam_max = batch_results.view(num_outputs, -1).max(dim=1)[0].view(num_outputs, 1, 1)
+            cam_min = batch_results.view(B, -1).min(dim=1)[0].view(B, 1, 1)
+            cam_max = batch_results.view(B, -1).max(dim=1)[0].view(B, 1, 1)
             cam = (batch_results - cam_min) / (cam_max - cam_min + 1e-8)
         else:
             cam = batch_results
 
-        return cam  # shape: (B', H, W)
+        return cam  # shape: (B, H, W)
 
     def forward(self, inputs=None, targets=None, model=None, **kwargs):
         if inputs is None:
@@ -319,11 +293,17 @@ class PytorchCAM(torch.nn.Module):
             targets = [ClassifierOutputTarget(int(t)) for t in targets]
         elif isinstance(targets, (list, tuple)) and not callable(targets[0]):
             targets = [ClassifierOutputTarget(int(t)) for t in targets]
+        elif targets is None:
+            pass
+        elif isinstance(targets, int):
+            targets = [ClassifierOutputTarget(targets)]
+        else:
+            raise ValueError(f"Unsupported targets type: {type(targets)}, {targets}")
         #print(targets)
         cam_bs = self.compute_cam(inputs, targets).detach().cpu()
         # back to original image size
-        cam_bs = F.interpolate(cam_bs.unsqueeze(1), size=(self.img_size, self.img_size), mode='bilinear', align_corners=False)
-        return cam_bs.squeeze(1).numpy() #shape: (B, img_size, img_size)
+        cam_bs = F.interpolate(cam_bs.unsqueeze(1), size=(self.img_size, self.img_size), mode='bilinear', align_corners=False) #add fake channel dimension
+        return cam_bs.squeeze(1).numpy() #remove fake channel dimension, shape: (B, img_size, img_size)
 
     def overlay_cam(self, image, cam):
         cam = np.uint8(255 * cam.detach().cpu().numpy())

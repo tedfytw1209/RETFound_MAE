@@ -16,7 +16,6 @@ from tqdm import tqdm
 os.environ['TIMM_FUSED_ATTN'] = '0'
 from torchvision import transforms
 from pytorch_grad_cam import run_dff_on_image, GradCAM
-from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 from pytorch_grad_cam.utils.image import show_cam_on_image
 
 # Import XAI methods
@@ -478,8 +477,7 @@ class XAIGenerator:
             with torch.no_grad():
                 outputs = self.model(image_tensor)
                 target_class = outputs.argmax(dim=1).item()
-        targets = [ClassifierOutputTarget(target_class)]
-        heatmap = self.gradcam(image_tensor, targets)
+        heatmap = self.gradcam(image_tensor, target_class)
         if hasattr(self.gradcam, "remove_hooks"):
             self.gradcam.remove_hooks()
         return heatmap[0] if len(heatmap) > 0 else None
@@ -497,8 +495,7 @@ class XAIGenerator:
                 outputs = self.model(image_tensor)
                 target_class = outputs.argmax(dim=1).item()
 
-        targets = [ClassifierOutputTarget(target_class)]
-        heatmap = self.scorecam(image_tensor, targets)
+        heatmap = self.scorecam(image_tensor, target_class)
         if hasattr(self.scorecam, "remove_hooks"):
             self.scorecam.remove_hooks()
         return heatmap[0] if len(heatmap) > 0 else None
@@ -517,8 +514,7 @@ class XAIGenerator:
                 outputs = self.model(image_tensor)
                 target_class = outputs.argmax(dim=1).item()
 
-        targets = [ClassifierOutputTarget(target_class)]
-        heatmap = self.gardcamplusplus(image_tensor, targets)
+        heatmap = self.gardcamplusplus(image_tensor, target_class)
         if hasattr(self.gardcamplusplus, "remove_hooks"):
             self.gardcamplusplus.remove_hooks()
         return heatmap[0] if len(heatmap) > 0 else None
@@ -537,8 +533,7 @@ class XAIGenerator:
                 outputs = self.model(image_tensor)
                 target_class = outputs.argmax(dim=1).item()
 
-        targets = [ClassifierOutputTarget(target_class)]
-        heatmap = self.hirescam(image_tensor, targets)
+        heatmap = self.hirescam(image_tensor, target_class)
         if hasattr(self.hirescam, "remove_hooks"):
             self.hirescam.remove_hooks()
         return heatmap[0] if len(heatmap) > 0 else None
