@@ -16,6 +16,11 @@ from util.misc import to_tensor
 def _get(obj, name, default=None):
     return getattr(obj, name, default)
 def _resolve_target_layer(model, model_name=None, module_name=None, select_index=-1):
+    
+    # --- RETFound
+    if 'RETFound' in model_name:
+        return model.blocks[select_index]
+    
     # --- SMP Classifier (Segmentation Models PyTorch)
     # Check for SMP model structure: has encoder and seg_model
     seg_model = _get(model, "seg_model")
@@ -65,6 +70,8 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
                     conv_list.append(module)
             if len(conv_list) > 0:
                 return conv_list[select_index]
+            else:
+                raise ValueError(f"Cannot resolve target layer for SMP model. {target_module} {select_index}")
         else:
             raise ValueError(f"Cannot resolve mode {mode} {module_name} target layer {target_module} {select_index} for SMP model.")
     
@@ -80,7 +87,11 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
         enc = _get(vit, "encoder")
         layers = _get(enc, "layer")
         if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
-            return layers[select_index-1].output
+            # Keep indexing consistent with other branches:
+            # - select_index=-1 means "last layer"
+            # - select_index=0 means "first layer"
+            layer = layers[select_index]
+            return layer.output if hasattr(layer, "output") else layer
 
     # --- HF 某些包裝在 base_model
     base = _get(model, "base_model")
@@ -90,7 +101,8 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
             enc = _get(vit, "encoder")
             layers = _get(enc, "layer")
             if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
-                return layers[select_index-1].output
+                layer = layers[select_index]
+                return layer.output if hasattr(layer, "output") else layer
 
     # --- timm Swin
     if _get(model, "layers") is not None:
@@ -145,9 +157,10 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
 
 def reshape_transform_vit_huggingface(x, num_patches=14):
     activations = x[:, 1:, :]
-    activations = activations.view(activations.shape[0],
+    # x.shape: (B, num_patches*num_patches, C)=>(B, num_patches, num_patches, C)
+    activations = activations.view(x.shape[0],
                                    num_patches, num_patches, activations.shape[2])
-    activations = activations.transpose(2, 3).transpose(1, 2)
+    activations = activations.transpose(2, 3).transpose(1, 2) #(B, num_patches, num_patches, C)=>(B, C, num_patches, num_patches)
     return activations
 
 """ Model wrapper to return a tensor"""
@@ -234,11 +247,7 @@ class PytorchCAM(torch.nn.Module):
         self.device = device
         
         # Register hooks on the last layer of the encoder
-        if 'RETFound' in model_name:
-            # timm or HuggingFace ViT
-            self.target_layer = model.blocks[-1]
-        else:
-            self.target_layer = _resolve_target_layer(model, model_name, module_name=target_module, select_index=select_index)
+        self.target_layer = _resolve_target_layer(model, model_name, module_name=target_module, select_index=select_index)
         
         # Set reshape transform if needed
         if reshape_transform is None:

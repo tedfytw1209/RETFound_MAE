@@ -779,8 +779,8 @@ def main(args, criterion):
             'deletion': DeletionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
             # 'sufficiency': SufficiencyMetric(model, device),
             # 'consistency': ConsistencyMetric(model, device, discretise_func=quantus.discretise_func.rank),
-            'relevance_mass': RelevanceMetric(pooling_type='l2-norm', output_type='mass'),
-            'relevance_rank': RelevanceMetric(pooling_type='l2-norm', output_type='rank'),
+            'relevance_mass': RelevanceMetric(pooling_type='sum,abs', output_type='mass'),
+            'relevance_rank': RelevanceMetric(pooling_type='sum,abs', output_type='rank'),
             # Layer-importance distribution metrics (computed from gt_mask labels and heatmap saliency mass)
             'layer_entropy': LayerImportanceDistributionMetric(ignore_background=ignore_bg, output_type='entropy'),
             'layer_gini': LayerImportanceDistributionMetric(ignore_background=ignore_bg, output_type='gini'),

@@ -626,7 +626,7 @@ class DeletionMetric(CausalMetric):
 
 class RelevanceMetric():
     
-    def __init__(self, pooling_type='l2-norm', output_type='mass'):
+    def __init__(self, pooling_type='l2-norm', output_type='mass', reduce_type='none'):
         r"""Create relevance metric instance.
         
         Args:
@@ -634,11 +634,28 @@ class RelevanceMetric():
                 Options: 'sum,abs', 'sum,pos', 'max-norm', 'l1-norm', 'l2-norm', 'l2-norm,sq'
             output_type (str): Output type for the relevance metric.
                 Options: 'mass', 'rank'
+            reduce_type (str): Reduction type for the relevance metric.
+                Options: 'mean', 'sum', 'max', 'min', 'median', 'none'
         """
         valid_pooling_types = ['sum,abs', 'sum,pos', 'max-norm', 'l1-norm', 'l2-norm', 'l2-norm,sq']
         assert pooling_type in valid_pooling_types, f"pooling_type must be one of {valid_pooling_types}"
         self.pooling_type = pooling_type
         self.output_type = output_type
+        self.reduce_type = reduce_type
+        if self.reduce_type == 'mean':
+            self.process_func = np.mean
+        elif self.reduce_type == 'sum':
+            self.process_func = np.sum
+        elif self.reduce_type == 'max':
+            self.process_func = np.max
+        elif self.reduce_type == 'min':
+            self.process_func = np.min
+        elif self.reduce_type == 'median':
+            self.process_func = np.median
+        elif self.reduce_type == 'none':
+            self.process_func = lambda x: x
+        else:
+            raise ValueError(f"Unsupported reduce_type: {self.reduce_type}")
         
     def pool_heatmap(self, heatmap: np.ndarray) -> np.ndarray:
         """
@@ -788,11 +805,11 @@ class RelevanceMetric():
         # Handle batch case
         results = self.evaluate(exp_batch, gt_mask)
         if self.output_type == 'mass':
-            return np.mean(results["mass"])
+            return self.process_func(results["mass"])
         elif self.output_type == 'rank':
-            return np.mean(results["rank"])
+            return self.process_func(results["rank"])
         else:
-            return {"mass": np.mean(results["mass"]), "rank": np.mean(results["rank"])}
+            return {"mass": self.process_func(results["mass"]), "rank": self.process_func(results["rank"])}
 
 # -----------------------------------------------------------------------------
 # Layer-importance distribution metrics (entropy / gini / dispersion / top-3 ratio)
