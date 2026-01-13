@@ -435,15 +435,16 @@ class XAIGenerator:
         self.model.zero_grad(set_to_none=True)
         # Detach tensor to prevent gradient contamination from previous computations
         image_tensor = image_tensor.detach().to(self.device)
-        image_tensor.requires_grad = True
         if target_class is None:
             # Get predicted class
             with torch.no_grad():
                 outputs = self.model(image_tensor)
-                target_class = outputs.argmax(dim=1).item()
+                target_class = outputs.argmax(dim=1).reshape(-1)
+        image_tensor.requires_grad = True
         heatmap = self.gradcam(image_tensor, target_class)
         if hasattr(self.gradcam, "remove_hooks"):
             self.gradcam.remove_hooks()
+        image_tensor.requires_grad = False
         return heatmap if len(heatmap) > 0 else None
     
     def generate_scorecam(self, image_tensor, target_class=None):
@@ -457,11 +458,12 @@ class XAIGenerator:
             # Get predicted class
             with torch.no_grad():
                 outputs = self.model(image_tensor)
-                target_class = outputs.argmax(dim=1).item()
+                target_class = outputs.argmax(dim=1).reshape(-1)
 
         heatmap = self.scorecam(image_tensor, target_class)
         if hasattr(self.scorecam, "remove_hooks"):
             self.scorecam.remove_hooks()
+        image_tensor.requires_grad = False
         return heatmap if len(heatmap) > 0 else None
     
     def generate_gardcamplusplus(self, image_tensor, target_class=None):
@@ -476,11 +478,12 @@ class XAIGenerator:
             # Get predicted class
             with torch.no_grad():
                 outputs = self.model(image_tensor)
-                target_class = outputs.argmax(dim=1).item()
+                target_class = outputs.argmax(dim=1).reshape(-1)
 
         heatmap = self.gardcamplusplus(image_tensor, target_class)
         if hasattr(self.gardcamplusplus, "remove_hooks"):
             self.gardcamplusplus.remove_hooks()
+        image_tensor.requires_grad = False
         return heatmap if len(heatmap) > 0 else None
     
     def generate_hirescam(self, image_tensor, target_class=None):
@@ -495,11 +498,12 @@ class XAIGenerator:
             # Get predicted class
             with torch.no_grad():
                 outputs = self.model(image_tensor)
-                target_class = outputs.argmax(dim=1).item()
+                target_class = outputs.argmax(dim=1).reshape(-1)
 
         heatmap = self.hirescam(image_tensor, target_class)
         if hasattr(self.hirescam, "remove_hooks"):
             self.hirescam.remove_hooks()
+        image_tensor.requires_grad = False
         return heatmap if len(heatmap) > 0 else None
     
     def generate_rise(self, image_tensor, target_class=None):
@@ -512,9 +516,10 @@ class XAIGenerator:
             # Get predicted class
             with torch.no_grad():
                 outputs = self.model(image_tensor)
-                target_class = outputs.argmax(dim=1).item()
+                target_class = outputs.argmax(dim=1).reshape(-1)
 
         heatmap = self.rise(image_tensor,[target_class])
+        image_tensor.requires_grad = False
         return heatmap if heatmap is not None else None
 
     def generate_attention(self, image_tensor, target_class=None):
@@ -526,7 +531,15 @@ class XAIGenerator:
         return attention_map if attention_map is not None else None
     
     def generate_all_heatmaps(self, image_tensor, target_class=None, xai_name=None):
-        """Generate requested heatmaps for an image (safe, no hook interference)"""
+        """Generate requested heatmaps for an image (safe, no hook interference)
+        
+        Args:
+            image_tensor (tensor): [B,3,H,W]
+            target_class (np.array): [B]
+            xai_name: str or list of str, default is all xai methods
+        Returns:
+            heatmaps: dict of heatmaps, key is xai name, value is heatmap [B,H,W]
+        """
         if xai_name is None:
             xai_names = self.xai_list
         elif isinstance(xai_name, (list, tuple, set)):
@@ -659,8 +672,8 @@ def overlay_heatmap_on_image(image, heatmap, mask_slice = None, alpha=0.4, color
     return (overlay * 255).astype(np.uint8), heatmap_resized
 
 from util.evaluation import RelevanceMetric
-rel_metric = RelevanceMetric()
-rank_metric = RelevanceMetric(output_type='rank')
+rel_metric = RelevanceMetric(pooling_type='sum,abs', output_type='mass')
+rank_metric = RelevanceMetric(pooling_type='sum,abs', output_type='rank')
 
 def _model_run_name(args) -> str:
     """Create a readable model name for output folders."""
@@ -683,7 +696,7 @@ def _model_run_name(args) -> str:
             f"fea{int(getattr(args,'enc_idx',-1))}{int(getattr(args,'dec_idx',-1))}-"
             f"{getattr(args,'smp_classifier','linear')}"
         )
-    return base
+    return f"{args.task}-{base}"
 
 def build_and_load_model_main_style(args):
     """Build model like main_XAI_evaluation.py and load --resume checkpoint if provided."""
@@ -691,7 +704,7 @@ def build_and_load_model_main_style(args):
 
     device = torch.device(getattr(args, "device", "cuda"))
     model, processor, patch_size = main_get_model(args)
-
+    print('Model:', model)
     # Load finetuned model checkpoint (main_XAI_evaluation.py pattern)
     resume = getattr(args, "resume", "0")
     if resume and str(resume).strip() and str(resume).strip() != "0":
@@ -702,8 +715,11 @@ def build_and_load_model_main_style(args):
             with torch.serialization.safe_globals([argparse.Namespace]):
                 checkpoint = torch.load(resume, map_location='cpu', weights_only=False)
         checkpoint_model = checkpoint['model'] if isinstance(checkpoint, dict) and 'model' in checkpoint else checkpoint
-        model.load_state_dict(checkpoint_model, strict=False)
+        model.load_state_dict(checkpoint_model, strict=True)
         print(f"Resume checkpoint {resume}")
+    else:
+        print('No checkpoint to resume')
+        raise ValueError('No checkpoint to resume')
 
     model.to(torch.float32)
     model.to(device)
@@ -839,7 +855,7 @@ def parse_args():
     # Map main-style --select_index (single) into list selection if user didn't provide list args.
     if args.select_idx is None and getattr(args, "select_index", None) is not None:
         args.select_idx = [int(args.select_index)]
-
+    print('Parsed arguments:', args)
     return args
 
 def build_module_select_dict(args):
@@ -964,7 +980,7 @@ def generate_comprehensive_heatmaps_v2(
                     print(f"  Skipping module '{module_name}' (no conv layers found)")
                 continue
 
-                # Get all Conv layers
+            # Get all Conv layers
             if module_select_dict.get(module_name, False):
                 select_indexs = module_select_dict[module_name]
             elif choose_last_layer:
@@ -976,6 +992,7 @@ def generate_comprehensive_heatmaps_v2(
                 print(f'  Module: {module_name}, Select Indices: {select_indexs}')
 
             for select_index in select_indexs:
+                # Initialize XAI generator
                 xai_generator = XAIGenerator(
                     model,
                     model_name,
@@ -993,20 +1010,21 @@ def generate_comprehensive_heatmaps_v2(
                     'select_index': select_index,
                 }
 
-                image_tensor_list, label_list, filename_list, mask_slice_list = [], [], [], []
+                image_tensor_list, image_list, label_list, filename_list, mask_slice_list = [], [], [], [], []
                 for idx, (image, label, filename, mask_slice) in enumerate(zip(images, labels, filenames, mask_slices)):
                     print(f"Processing image {idx+1}/{len(images)} (Label: {label}, File: {filename})")
-                    image_tensor = preprocess_image(image, processor, input_size)
+                    image_tensor = preprocess_image(image, processor, input_size) # [1,3,H,W]
+                    image_list.append(image)
                     image_tensor_list.append(image_tensor)
                     label_list.append(label)
                     filename_list.append(filename)
                     mask_slice_list.append(mask_slice)
 
                     if idx % batch_size == batch_size - 1 or idx == len(images) - 1:
-                        image_tensors = torch.concat(image_tensor_list)
+                        #first assert the length are the same
+                        assert len(image_tensor_list) == len(image_list) == len(label_list) == len(filename_list) == len(mask_slice_list)
+                        image_tensors = torch.concat(image_tensor_list) # [B,3,H,W]
                         labels_np = np.stack(label_list)
-                        print("image_tensors shape:", image_tensors.shape)
-                        print("labels_np shape:", labels_np.shape)
                         for xai_name in XAI_list:
                             heatmap_dict = xai_generator.generate_all_heatmaps(
                                 image_tensors, target_class=labels_np, xai_name=xai_name
@@ -1015,18 +1033,25 @@ def generate_comprehensive_heatmaps_v2(
                             if heatmaps is None:
                                 continue
                             for b_idx in range(len(heatmaps)):
+                                if verbose:
+                                    print(f"Processing heatmap {b_idx+1}/{len(heatmaps)} (Label: {label_list[b_idx]}, File: {filename_list[b_idx]})")
+                                    print(f"Heatmap shape: {heatmaps[b_idx].shape}")
+                                    print(f"Image shape: {image_list[b_idx].shape}")
+                                    print(f"Label: {label_list[b_idx]}")
+                                    print(f"Filename: {filename_list[b_idx]}")
+                                    print(f"Mask slice: {mask_slice_list[b_idx]}")
                                 heatmap = heatmaps[b_idx]
-                                image_b = images[idx - len(image_tensor_list) + b_idx + 1]
+                                image_b = image_list[b_idx]
                                 label_b = label_list[b_idx]
                                 filename_b = filename_list[b_idx]
                                 mask_slice_b = mask_slice_list[b_idx]
                                 if heatmap is None:
                                     continue
-                                heatmap = heatmap + 1e-9
+                                heatmap = heatmap + 1e-9 # add small value to avoid all zeros
                                 overlay, heatmap_resized = overlay_heatmap_on_image(image_b, heatmap, mask_slice_b)
                                 binary_mask = _build_binary_mask(mask_slice_b, overlay) if mask_slice_b is not None else None
-                                mass_acc = rel_metric(images, heatmap_resized, binary_mask)
-                                rank_acc = rank_metric(images, heatmap_resized, binary_mask)
+                                mass_acc = rel_metric(image_b, heatmap_resized, binary_mask)
+                                rank_acc = rank_metric(image_b, heatmap_resized, binary_mask)
                                 if DRAW_LAYER and mask_slice_b is not None:
                                     overlay = add_layer_line(overlay, mask_slice_b)
 
@@ -1057,7 +1082,7 @@ def generate_comprehensive_heatmaps_v2(
                                     'relevance_mass_accuracy': mass_acc,
                                     'relevance_rank_accuracy': rank_acc,
                                 })
-                        image_tensor_list, label_list, filename_list, mask_slice_list = [], [], [], []
+                        image_tensor_list, image_list, label_list, filename_list, mask_slice_list = [], [], [], [], []
 
         # Save out_df to CSV
         df = pd.DataFrame(out_df)
@@ -1082,15 +1107,7 @@ def main():
         return
     
     # Build up the common task name
-    study_name = args.task
-    finetune_model = args.finetune.split('/')[-1].replace('.pth','')
-    if args.model=='SMP':
-        if args.SMPMode=='fuse':
-            args.theme = f"{study_name}-{finetune_model}-{args.modality}-{args.SMPMode}-smp{args.smp_fuse_mode}-{args.align}-{args.fusion_dim}-fea{args.enc_idx}{args.dec_idx}-{args.smp_alpha}-{args.smp_size_match}-{args.smp_classifier}-{args.target_module}{args.select_index}-seed{args.seed}"
-        else:
-            args.theme = f"{study_name}-{finetune_model}-{args.modality}-{args.SMPMode}-fea{args.enc_idx}{args.dec_idx}-{args.target_module}{args.select_index}-seed{args.seed}"
-    else:
-        args.theme = f"{study_name}-{args.model}-{finetune_model}-{args.xai}-{args.modality}-{args.input_size}-seed{args.seed}"
+    args.theme = _model_run_name(args)
     
     project_name = "RETFound_MAE_XAI_Evaluation"
     group_name = None
@@ -1101,12 +1118,12 @@ def main():
         group=group_name,
         config=args,
     )
-    
-    # Build module select dict
-    module_select_dict = build_module_select_dict(args)
-    
     # Determine target modules
     target_modules = args.target_module if args.target_module else Module_list
+    print('Target modules:', target_modules)
+    # Build module select dict
+    module_select_dict = build_module_select_dict(args)
+    print('Module select dict:', module_select_dict)
     
     # Update global paths based on arguments
     global dataset_dir, dataset_fname, Thickness_DIR, Thickness_CSV, Model_root, Model_fname
@@ -1114,24 +1131,15 @@ def main():
     dataset_fname = args.dataset_fname
     Thickness_DIR = args.thickness_dir
     Thickness_CSV = args.thickness_csv
-    # Model_root/Model_fname kept as globals for legacy but not required when using --resume
-    # Model_root = args.model_root
-    # Model_fname = args.model_fname
-    
-    print("\n" + "=" * 60)
-    print("Configuration Summary:")
-    print("=" * 60)
-    print("=" * 60 + "\n")
     
     # Build model like main_XAI_evaluation.py and load --resume
     model_main, processor, patch_size = build_and_load_model_main_style(args)
-    model_name = _model_run_name(args)
 
     # Run heatmap generation (single model per run)
     heatmap_results = generate_comprehensive_heatmaps_v2(
         model=model_main,
         processor=processor,
-        model_name=model_name,
+        model_name=args.theme,
         input_size=int(args.input_size),
         num_samples=args.num_samples,
         task_list=args.task_list,

@@ -698,8 +698,8 @@ def overlay_heatmap_on_image(image, heatmap, mask_slice = None, alpha=0.4, color
     return (overlay * 255).astype(np.uint8), heatmap_resized
 
 from util.evaluation import RelevanceMetric
-rel_metric = RelevanceMetric()
-rank_metric = RelevanceMetric(output_type='rank')
+rel_metric = RelevanceMetric(pooling_type='sum,abs', output_type='mass')
+rank_metric = RelevanceMetric(pooling_type='sum,abs', output_type='rank')
 
 module_select_dict_default = {'encoder':[10, 23, 42, 52],'decoder':[1,3,5,7,9]}
 
