@@ -733,6 +733,7 @@ def get_args_parser():
     parser.add_argument('--model', default='SMP', type=str, help='Model name (main-style). Use "SMP" for SMPClassifier.')
     parser.add_argument('--finetune', default='', type=str, help='Finetune from checkpoint (main-style). For SMP: pretrained seg ckpt.')
     parser.add_argument('--task', default='DME', type=str, help='Task name(s). Supports comma/space separated list.')
+    parser.add_argument('--theme', default='', type=str, help='Theme name for wandb')
     parser.add_argument('--use_split', default='test', type=str, choices=['test', 'val', 'train'], help='(unused) main-style.')
     parser.add_argument('--input_size', default=512, type=int, help='Input image size.')
     parser.add_argument('--xai', default='gradcam', type=str, help='XAI method (main-style: attn/rise/gradcam/hirescam/scorecam/gradcam++/all).')
@@ -1091,12 +1092,23 @@ def main():
         list_available_xai()
         return
     
-    project_name = "RETFound_MAE_XAI"
+    # Build up the common task name
+    study_name = args.task
+    finetune_model = args.finetune.split('/')[-1].replace('.pth','')
+    if args.model=='SMP':
+        if args.SMPMode=='fuse':
+            args.theme = f"{study_name}-{finetune_model}-{args.modality}-{args.SMPMode}-smp{args.smp_fuse_mode}-{args.align}-{args.fusion_dim}-fea{args.enc_idx}{args.dec_idx}-{args.smp_alpha}-{args.smp_size_match}-{args.smp_classifier}-{args.target_module}{args.select_index}-seed{args.seed}"
+        else:
+            args.theme = f"{study_name}-{finetune_model}-{args.modality}-{args.SMPMode}-fea{args.enc_idx}{args.dec_idx}-{args.target_module}{args.select_index}-seed{args.seed}"
+    else:
+        args.theme = f"{study_name}-{args.model}-{finetune_model}-{args.xai}-{args.modality}-{args.input_size}-seed{args.seed}"
+    
+    project_name = "RETFound_MAE_XAI_Evaluation"
     group_name = None
     model_add_dir = ""
     wandb.init(
         project=project_name,
-        name="case_study_SMP_layermap_ori",
+        name=args.theme,
         group=group_name,
         config=args,
     )
