@@ -20,8 +20,10 @@ DATASET=$1
 STUDY=$2
 CLASS_MODE=$3
 MAX_IMAGES=$4
+IMG_SIZE=${5:-512}
 
 # sbatch inference_mask.sh uf DME_all_split binary 500
 # sbatch inference_mask.sh uf DME_all_split multiclass 500
+# sbatch inference_mask.sh uf DME_all_split multiclass_resnet50_224x224 500 224
 # sbatch inference_mask.sh celldata DME_all multiclass_resnet50 500
-python inference_general.py --dataset $DATASET --study $STUDY --class-mode $CLASS_MODE --max-images $MAX_IMAGES --save-composite --checkpoint /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_${CLASS_MODE}.pth
+python inference_general.py --dataset $DATASET --study $STUDY --class-mode $CLASS_MODE --max-images $MAX_IMAGES --save-composite --checkpoint /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_${CLASS_MODE}.pth --image-size $IMG_SIZE
