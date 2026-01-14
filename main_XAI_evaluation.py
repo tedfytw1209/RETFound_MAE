@@ -7,6 +7,7 @@ import pandas as pd
 import os
 import time
 from pathlib import Path
+from scipy.ndimage import zoom
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -113,6 +114,16 @@ def get_args_parser():
         type=int,
         help='Number of samples to print layer-importance debug details for.'
     )
+    
+    # Fair evaluation parameters
+    parser.add_argument('--normalize_saliency_size', action='store_true', default=False,
+                        help='Normalize saliency maps to a common resolution for fair comparison across models with different input sizes')
+    parser.add_argument('--eval_resolution', default=224, type=int,
+                        help='Common resolution for saliency map evaluation when normalize_saliency_size is enabled (default: 224)')
+    parser.add_argument('--proportional_step', action='store_true', default=False,
+                        help='Make step_pixels proportional to image size for fair comparison')
+    parser.add_argument('--skip_model_dependent_metrics', action='store_true', default=False,
+                        help='Skip insertion/deletion metrics (useful for faster evaluation, as these metrics require model inference at each pixel step)')
 
     # Dataset parameters
     parser.add_argument('--data_path', default='./data/', type=str,
@@ -526,6 +537,12 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         layer_print_left = 0
     include_bg = bool(getattr(args, "layer_metric_include_bg", False))
     ignore_bg = not include_bg
+    
+    # Fair evaluation settings
+    normalize_saliency = getattr(args, "normalize_saliency_size", False)
+    eval_resolution = getattr(args, "eval_resolution", 224)
+    if normalize_saliency:
+        print(f"[Fair Evaluation Mode] Normalizing saliency maps to {eval_resolution}x{eval_resolution} for fair comparison")
 
     # Track per-class scores (keyed by ground-truth class index)
     classwise_metrics_dict = {
@@ -544,8 +561,38 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         each_dict = {}
         #with torch.cuda.amp.autocast():
         #print(f'Input images shape: {images.shape}', 'ground truth mask shape:', gt_mask.shape, 'target:', target)
+        
+        # Keep original images for model-dependent metrics (insertion/deletion)
+        images_original = images
+        
         attention_map_bs = xai_method(images,targets=target)
         attention_map_bs = attention_map_bs - attention_map_bs.min(axis=(1, 2), keepdims=True) + 1e-9 # numpy shape: (B, img_size, img_size), add small value to avoid all-zero map
+        
+        # Keep original saliency for model-dependent metrics
+        attention_map_original = attention_map_bs
+        gt_mask_original = gt_mask
+        
+        # Normalize saliency maps to common resolution for fair comparison
+        if normalize_saliency and attention_map_bs.shape[1] != eval_resolution:
+            original_size = attention_map_bs.shape[1]
+            scale_factor = eval_resolution / original_size
+            attention_map_bs_normalized = np.zeros((bs, eval_resolution, eval_resolution), dtype=attention_map_bs.dtype)
+            for i in range(bs):
+                attention_map_bs_normalized[i] = zoom(attention_map_bs[i], scale_factor, order=1)  # bilinear interpolation
+            attention_map_bs = attention_map_bs_normalized
+            
+            # Also resize gt_mask to match the normalized saliency map size
+            if gt_mask is not None:
+                gt_mask_normalized = np.zeros((bs, eval_resolution, eval_resolution), dtype=gt_mask.dtype)
+                for i in range(bs):
+                    gt_mask_normalized[i] = zoom(gt_mask[i], scale_factor, order=0)  # nearest neighbor for mask
+                gt_mask = gt_mask_normalized
+            
+            # Resize images to match the normalized resolution (for non-model-dependent metrics)
+            images_normalized = torch.nn.functional.interpolate(
+                images, size=(eval_resolution, eval_resolution), mode='bilinear', align_corners=False
+            )
+            images = images_normalized
 
         # Print per-sample layer-importance breakdown for debugging (throttled)
         if print_layer_dbg and layer_print_left > 0 and gt_mask is not None and gt_mask.ndim == 3:
@@ -593,7 +640,19 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         #print(f'Attention map shape: {attention_map_bs.shape}')
         #print(target_np)
         for k, v in metric_func_dict.items():
-            e_score_bs = v(images, attention_map_bs, gt_mask=gt_mask, batch_size=bs, y_batch=target, explain_func=xai_method, explain_func_kwargs={})
+            # Use original images/saliency for model-dependent metrics (insertion/deletion)
+            # These metrics need to pass images through the model at its native resolution
+            if k in ['insertion', 'deletion']:
+                metric_images = images_original
+                metric_saliency = attention_map_original
+                metric_gt_mask = gt_mask_original
+            else:
+                # Use normalized versions for other metrics
+                metric_images = images
+                metric_saliency = attention_map_bs
+                metric_gt_mask = gt_mask
+            
+            e_score_bs = v(metric_images, metric_saliency, gt_mask=metric_gt_mask, batch_size=bs, y_batch=target, explain_func=xai_method, explain_func_kwargs={})
             e_score_bs_np = np.asarray(e_score_bs)
             # Aggregate per-class metrics when the metric returns per-sample scores
             #print(f'Batch {k} scores:', e_score_bs_np)
@@ -772,11 +831,44 @@ def main(args, criterion):
     #if args.used_quantus:
     #    import quantus
     #    from util.evaluation_quantus import SufficiencyMetric, ConsistencyMetric, PointingGameMetric, ComplexityMetric, RandomLogitMetric
-    step_pixels = args.step_pixels if hasattr(args, 'step_pixels') else 224
+    
+    # Determine step size for insertion/deletion metrics
+    normalize_saliency = getattr(args, "normalize_saliency_size", False)
+    eval_resolution = getattr(args, "eval_resolution", 224)
+    proportional_step = getattr(args, "proportional_step", False)
+    skip_model_dependent = getattr(args, "skip_model_dependent_metrics", False)
+    
+    # For insertion/deletion, always use model's native resolution (args.input_size)
+    # since these metrics need to pass images through the model
+    insertion_deletion_img_size = args.input_size
+    
+    # Calculate step_pixels for insertion/deletion at native resolution
+    if proportional_step:
+        # Make step proportional to image size (e.g., ~0.5% of total pixels)
+        step_pixels = max(1, int((insertion_deletion_img_size * insertion_deletion_img_size) * 0.005))
+        print(f"[Proportional Step Mode] Using step_pixels={step_pixels} for img_size={insertion_deletion_img_size} (~0.5% of pixels)")
+    else:
+        step_pixels = args.step_pixels if hasattr(args, 'step_pixels') else 224
+        print(f"[Fixed Step Mode] Using step_pixels={step_pixels} for img_size={insertion_deletion_img_size}")
+    
     ignore_bg = not bool(getattr(args, "layer_metric_include_bg", False))
-    metric_func_dict = {
-            'insertion': InsertionMetric(model, img_size=args.input_size, step=step_pixels, n_classes=args.nb_classes),
-            'deletion': DeletionMetric(model, img_size=args.input_size, n_classes=args.nb_classes),
+    
+    print(f"[Metric Configuration] insertion/deletion_img_size={insertion_deletion_img_size}, step_pixels={step_pixels}, normalize_saliency={normalize_saliency}")
+    
+    # Build metric dictionary conditionally
+    metric_func_dict = {}
+    
+    # Add insertion/deletion metrics if not skipped
+    if not skip_model_dependent:
+        metric_func_dict['insertion'] = InsertionMetric(model, img_size=insertion_deletion_img_size, step=step_pixels, n_classes=args.nb_classes)
+        metric_func_dict['deletion'] = DeletionMetric(model, img_size=insertion_deletion_img_size, step=step_pixels, n_classes=args.nb_classes)
+        print("[Metrics] Including insertion metric")
+        print("[Metrics] Including deletion metric")
+    else:
+        print("[Metrics] Skipping insertion/deletion metrics (skip_model_dependent_metrics enabled)")
+    
+    # Add model-independent metrics (these work with normalized saliency)
+    metric_func_dict.update({
             # 'sufficiency': SufficiencyMetric(model, device),
             # 'consistency': ConsistencyMetric(model, device, discretise_func=quantus.discretise_func.rank),
             'relevance_mass': RelevanceMetric(pooling_type='sum,abs', output_type='mass'),
@@ -788,7 +880,9 @@ def main(args, criterion):
             'layer_top3_ratio': LayerImportanceDistributionMetric(ignore_background=ignore_bg, output_type='top3_ratio'),
             #'complexity': ComplexityMetric(model, device),
             #'random_logit': RandomLogitMetric(model, device, n_classes=args.nb_classes),
-        }
+        })
+    
+    print(f"[Metrics] Total metrics to evaluate: {len(metric_func_dict)}")
     test_stats, auc_roc = evaluate_XAI(data_loader_test, XAI_module,metric_func_dict, device, args, epoch=0, mode='test',
                                     num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
     wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
