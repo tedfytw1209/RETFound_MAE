@@ -330,6 +330,13 @@ def get_timm_model(args):
             transforms.ToTensor(),
             transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225]),
         ])
+    elif 'efficientnet-b0' in args.model:
+        model = timm.create_model('efficientnet_b0', pretrained=True, num_classes=args.nb_classes)
+        processor  = transforms.Compose([
+            transforms.Resize((args.input_size,args.input_size)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225]),
+        ])
     else:
         print(f"Model {args.model} not supported in timm.")
         exit(1)
