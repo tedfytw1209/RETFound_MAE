@@ -14,6 +14,8 @@ SCRIPT=$1
 MODEL=${2:-"RETFound_mae"}
 FINETUNED_MODEL=${3:-"RETFound_mae_natureOCT"}
 INPUT_SIZE=${4:-224}
+ADD_WORD1=${5:-"--add_mask"}
+ADD_WORD2=${6:-"--train_no_aug"}
 
 NUM_K=0
 MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
@@ -22,7 +24,7 @@ MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
 #CLASSES=(2 2 2)  # Number of classes for each dataset
 DATASETS=(DME_binary_all_split)  # List of datasets
 CLASSES=(2)  # Number of classes for each dataset
-ADD_WORDS="--add_mask"
+
 
 #sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh RETFound_mae RETFound_mae_natureOCT 224
 #sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh resnet-50 microsoft/resnet-50 224
@@ -39,7 +41,7 @@ do
     for XAI in "${XAI_METHODS[@]}"
     do
         # Submit the job to Slurm
-        echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0---add_mask---train_no_aug/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE $ADD_WORDS"
-        bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0---add_mask---train_no_aug/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE $ADD_WORDS
+        echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE $ADD_WORD1 $ADD_WORD2"
+        bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE $ADD_WORD1 $ADD_WORD2
     done
 done

@@ -783,6 +783,8 @@ def main(args, criterion):
             checkpoint_model = checkpoint
         model.load_state_dict(checkpoint_model, strict=False)
         print("Resume checkpoint %s" % args.resume)
+    else:
+        raise ValueError("Please provide finetuned model checkpoint for evaluation using --resume")
 
     model = model.float()
     model.to(device)

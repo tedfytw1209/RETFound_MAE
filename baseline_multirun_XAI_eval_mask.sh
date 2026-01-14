@@ -25,10 +25,14 @@ DATASETS=(DME_binary_all_split)  # List of datasets
 CLASSES=(2)  # Number of classes for each dataset
 ADD_WORDS="--add_mask"
 
-#sbatch baseline_multirun_XAI_eval_mask.sh finetune_retfound_UFbenchmark_v5_eval.sh RETFound_mae RETFound_mae_natureOCT 224 224
-#XAI_METHODS=("hirescam" "gradcam++")  # List of XAI methods
-#XAI_METHODS=("attn" "gradcamv2" "scorecam" "crp")  # List of XAI methods
-XAI_METHODS=("gradcamv2" "scorecam" "crp")  # List of XAI methods
+#sbatch baseline_multirun_XAI_eval_mask.sh finetune_retfound_UFbenchmark_v5_eval.sh RETFound_mae RETFound_mae_natureOCT 224
+#sbatch baseline_multirun_XAI_eval_mask.sh finetune_retfound_UFbenchmark_v5_eval.sh resnet-50 microsoft/resnet-50 224
+#sbatch baseline_multirun_XAI_eval_mask.sh finetune_retfound_UFbenchmark_v5_eval.sh vit-base-patch16-224 google/vit-base-patch16-224-in21k 224
+#sbatch baseline_multirun_XAI_eval_mask.sh finetune_retfound_UFbenchmark_v5_eval.sh timm_efficientnet-b4 timm_efficientnet-b4 224
+#sbatch baseline_multirun_XAI_eval_mask.sh finetune_retfound_UFbenchmark_v5_eval.sh timm_efficientnet-b0 timm_efficientnet-b0 224
+
+XAI_METHODS=("hirescam" "gradcam++" "attn" "gradcamv2" "crp" "scorecam")  # List of XAI methods
+#XAI_METHODS=("gradcamv2" "scorecam" "crp")  # List of XAI methods
 for i in "${!DATASETS[@]}"
 do
     # Create a job name based on the variables
