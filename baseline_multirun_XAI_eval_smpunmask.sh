@@ -36,6 +36,7 @@ MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
 #CLASSES=(2 2 2)  # Number of classes for each dataset
 DATASETS=(DME_binary_all_split)  # List of datasets
 CLASSES=(2)  # Number of classes for each dataset
+#STEP_PIXELS=1024
 STEP_PIXELS=$INPUT_SIZE
 Thickness_DIR="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 
