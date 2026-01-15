@@ -880,6 +880,9 @@ def build_module_select_dict(args):
     else:
         module_select_dict['decoder'] = module_select_dict_default.get('decoder', [-1])
     
+    if args.select_idx is not None:
+        module_select_dict['head'] = args.select_idx
+    
     return module_select_dict
 
 def _get(obj, name, default=None):
