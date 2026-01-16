@@ -924,6 +924,15 @@ if __name__ == '__main__':
     else:
         args.task = f"{study_name}-{data_type}-{args.model}-{finetune_model}-{args.xai}-{args.modality}-{args.input_size}-seed{args.seed}"
     
+    if args.seg_mask and args.mask_softmax:
+        args.task += '-softsegmask'
+    elif args.seg_mask:
+        args.task += '-segmask'
+    if args.ignore_background:
+        args.task += '-ignbg'
+    if args.fix_extractor:
+        args.task += '-fixext'
+    
     main(args, criterion)
 
 
