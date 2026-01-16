@@ -34,8 +34,10 @@ MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
 #microsoft/resnet-50, timm_efficientnet-b4, google/vit-base-patch16-224-in21k, RETFound_mae_natureOCT
 #DATASETS=(AMD_all_split DR_binary_all_split DME_binary_all_split)  # List of datasets
 #CLASSES=(2 2 2)  # Number of classes for each dataset
-DATASETS=(DME_binary_all_split)  # List of datasets
-CLASSES=(2)  # Number of classes for each dataset
+#DATASETS=(DME_binary_all_split)  # List of datasets
+#CLASSES=(2)  # Number of classes for each dataset
+DATASETS=(multiclass6_all_split)  # List of datasets
+CLASSES=(6)  # Number of classes for each dataset
 STEP_PIXELS=1024
 Thickness_DIR="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 
@@ -43,7 +45,7 @@ Thickness_DIR="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 #sbatch baseline_multirun_XAI_eval_smp.sh finetune_retfound_UFbenchmark_v5_eval_smp.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-dec-smpweighted_sum-{0}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth 512 dec weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 decoder -1 conv
 
 #XAI_METHODS=("gradcamv2" "scorecam" "crp")  # List of XAI methods
-XAI_METHODS=("gradcamv2" "hirescam")  # List of XAI methods
+XAI_METHODS=("hirescam" "gradcamv2" "gradcam++")  # List of XAI methods
 #XAI_METHODS=("hirescam")  # List of XAI methods
 #XAI_METHODS=("crp")  # List of XAI methods
 for i in "${!DATASETS[@]}"
