@@ -932,6 +932,8 @@ if __name__ == '__main__':
         args.task += '-ignbg'
     if args.fix_extractor:
         args.task += '-fixext'
+    if args.skip_model_dependent_metrics:
+        args.task += '-skipMD'
     
     main(args, criterion)
 
