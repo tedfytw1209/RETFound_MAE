@@ -228,6 +228,10 @@ def get_args_parser():
                         help='SMP size match (decoder_to_encoder, encoder_to_decoder) (default: "decoder_to_encoder")')
     parser.add_argument('--seg_mask', action='store_true', default=False,
                         help='Use segmentation mask output from SMP model')
+    parser.add_argument('--mask_softmax', action='store_true', default=False,
+                        help='Softmax the segmentation mask output from SMP model')
+    parser.add_argument('--ignore_background', action='store_true', default=False,
+                        help='Ignore the background class in segmentation mask output from SMP model')
     parser.add_argument('--fusion_dim', type=int, default=0,
                         help='Fusion dimension for SMP model (default: 0 means no projection)')
     parser.add_argument('--align', type=str, default='pre',
@@ -468,6 +472,8 @@ def get_model(args):
             dropout=SMPConfig.DROPOUT,
             size_match=args.smp_size_match,
             use_mask=args.seg_mask,
+            mask_softmax=args.mask_softmax,
+            ignore_background=args.ignore_background,
             enc_idx=args.enc_idx,
             dec_idx=args.dec_idx,
             smp_classifier=args.smp_classifier,

@@ -458,10 +458,13 @@ class GeneralFusionHead(nn.Module):
             if dec_channels <= 0:
                 raise ValueError("dec_channels must be > 0 for channel_multiply.")
             if self.channel_multiply_ignore_background and self.use_mask:
-                if dec_channels == 1:
-                    effective_layers = 1
-                else:
+                if dec_channels == 9: #NOTE: hardcoded for 8-layer decoder output
                     effective_layers = dec_channels - 1
+                elif dec_channels == 8: # Already no background channel
+                    effective_layers = dec_channels
+                else:
+                    print("Warning: channel_multiply_ignore_background is True but dec_channels != 9.")
+                    raise ValueError("Please ensure the decoder output has background channel to ignore.")
             else:
                 effective_layers = dec_channels
             self.channel_multiply_layers = effective_layers

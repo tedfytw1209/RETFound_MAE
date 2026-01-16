@@ -759,6 +759,10 @@ def get_args_parser():
     parser.add_argument('--smp_size_match', type=str, default='decoder_to_encoder',
                         choices=["decoder_to_encoder", "encoder_to_decoder"])
     parser.add_argument('--seg_mask', action='store_true', default=False)
+    parser.add_argument('--mask_softmax', action='store_true', default=False,
+                        help='Softmax the segmentation mask output from SMP model')
+    parser.add_argument('--ignore_background', action='store_true', default=False,
+                        help='Ignore the background class in segmentation mask output from SMP model')
     parser.add_argument('--fusion_dim', type=int, default=0)
     parser.add_argument('--align', type=str, default='pre')
     parser.add_argument('--enc_idx', type=int, default=-1)

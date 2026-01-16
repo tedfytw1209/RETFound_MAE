@@ -102,6 +102,8 @@ class SMPClassifier(nn.Module):
         dropout: float = 0.0,
         size_match: str = "decoder_to_encoder",
         use_mask: bool = False,
+        mask_softmax: bool = False,
+        ignore_background: bool = False, # New parameter to ignore background class in fusion
         fusion_dim: Optional[int] = None,
         align: str = "pre",
         
@@ -126,6 +128,8 @@ class SMPClassifier(nn.Module):
         self.align = align
         self.size_match = size_match
         self.use_mask = use_mask
+        self.ignore_background = ignore_background
+        self.mask_softmax = mask_softmax
         self.enc_idx, self.dec_idx = enc_idx, dec_idx
         self.smp_classifier = smp_classifier
 
@@ -151,7 +155,9 @@ class SMPClassifier(nn.Module):
         self.enc_last_ch = int(enc_chs[self.enc_idx])
         print(f"Encoder last feature channels: {self.enc_last_ch}")
         # Infer decoder output channels by running a dummy forward pass
-        if use_mask:
+        if use_mask and ignore_background:
+            self.dec_out_ch = seg_classes - 1
+        elif use_mask:
             self.dec_out_ch = seg_classes
         elif decoder_out_ch is None:
             with torch.no_grad():
@@ -206,6 +212,10 @@ class SMPClassifier(nn.Module):
             return dec[-1]
         if self.use_mask:
             dec = self.seg_model.segmentation_head(dec)
+            if self.mask_softmax:
+                dec = F.softmax(dec, dim=1) # (B, C, H, W)
+            if self.ignore_background:
+                dec = dec[:, 1:, :, :]  # Ignore background class
         return dec
     
     def _get_enc_and_dec(self, x, enc_idx: int = -1, dec_idx: int = -1) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -229,6 +239,10 @@ class SMPClassifier(nn.Module):
         final_dec = dec[dec_idx] if isinstance(dec, (list, tuple)) else dec
         if self.use_mask:
             final_dec = self.seg_model.segmentation_head(final_dec)
+            if self.mask_softmax:
+                final_dec = F.softmax(final_dec, dim=1) # (B, C, H, W)
+            if self.ignore_background:
+                final_dec = final_dec[:, 1:, :, :]  # Ignore background class
         return final_enc, final_dec
 
     def forward(self, x: torch.Tensor, mode_dict=False) -> Dict[str, Dict[str, torch.Tensor]]:
