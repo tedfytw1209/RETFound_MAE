@@ -43,8 +43,8 @@ Thickness_DIR="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 #sbatch baseline_multirun_XAI_eval_smp.sh finetune_retfound_UFbenchmark_v5_eval_smp.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-dec-smpweighted_sum-{0}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth 512 dec weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 decoder -1 conv
 
 #XAI_METHODS=("gradcamv2" "scorecam" "crp")  # List of XAI methods
-#XAI_METHODS=("gradcamv2" "hirescam" "gradcam++")  # List of XAI methods
-XAI_METHODS=("hirescam")  # List of XAI methods
+XAI_METHODS=("gradcamv2" "gradcam++")  # List of XAI methods
+#XAI_METHODS=("hirescam")  # List of XAI methods
 #XAI_METHODS=("crp")  # List of XAI methods
 for i in "${!DATASETS[@]}"
 do
