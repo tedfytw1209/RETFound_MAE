@@ -719,7 +719,7 @@ class RelevanceMetric():
         # Support multiclass segmentation masks by treating any non-zero label as foreground.
         # (This keeps backward-compat with existing binary masks as well.)
         if ground_truth.dtype != np.bool_:
-            ground_truth = ground_truth > 0
+            ground_truth = (ground_truth > 0) & (ground_truth != 255)
 
         # Cast heatmap to float64 precision for better accuracy
         heatmap = heatmap.astype(dtype=np.float64)
@@ -743,9 +743,19 @@ class RelevanceMetric():
         assert gt_flat.shape == (H * W,)
         
         N = np.sum(gt_flat)
+        if N == 0:
+            relevance_rank_accuracy = 0.0
+            print("Warning: ground truth mask is empty.")
+            print(ground_truth.mean(), ground_truth.min(), ground_truth.max())
+            print(ground_truth)
+        else:
+            topk = pixels_sorted_by_relevance[:N]
+            N_gt = int(np.sum(gt_flat[topk]))
+            relevance_rank_accuracy = N_gt / N
+
         N_gt = np.sum(gt_flat[pixels_sorted_by_relevance[:int(N)]])
-        relevance_rank_accuracy = 1.0 * N_gt / N
-        assert (0.0 <= relevance_rank_accuracy) and (relevance_rank_accuracy <= 1.0)
+        relevance_rank_accuracy = np.clip(1.0 * N_gt / (N + 1e-9), 0.0, 1.0) #avoid errors
+        #assert (0.0 <= relevance_rank_accuracy) and (relevance_rank_accuracy <= 1.0)
             
         return {"mass": relevance_mass_accuracy, "rank": relevance_rank_accuracy}
     

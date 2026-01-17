@@ -571,7 +571,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         # Keep original images for model-dependent metrics (insertion/deletion)
         images_original = images
         
-        attention_map_bs = xai_method(images,targets=target)
+        attention_map_bs = xai_method(images,targets=target) # numpy shape: (B, img_size, img_size)
         attention_map_bs = attention_map_bs - attention_map_bs.min(axis=(1, 2), keepdims=True) + 1e-9 # numpy shape: (B, img_size, img_size), add small value to avoid all-zero map
         
         # Keep original saliency for model-dependent metrics
