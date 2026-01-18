@@ -463,7 +463,7 @@ class CSV_Dataset(Dataset):
                     slice_index = int(os.path.basename(img_name).split("_")[-1].split(".")[0])
                     mask_slice = mask[:, slice_index, :]
                     image_masked, output_mask = masking_image_pil(image.copy(), mask_slice)
-                else:
+                else: #OCT DL, Cell Data
                     image_name = Path(img_name)
                     mask_path = os.path.join(self.thickness_dir, image_name.stem + '.npy')
                     #print('Loading mask from: ', mask_path)
@@ -549,8 +549,8 @@ class CSV_Dataset_eval(CSV_Dataset):
                     image_masked, output_mask = masking_image_pil(image.copy(), mask, transform_binary_mask=False)
                 if self.add_mask:
                     image = image_masked
-            # (H,W,C)
-            image = self.transfroms(image)
+            
+            image = self.transfroms(image) # (H,W,C)
             if output_mask is not None:
                 output_mask_tensor = self.mask_transforms(output_mask)
             else:
