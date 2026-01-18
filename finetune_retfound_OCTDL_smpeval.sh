@@ -30,14 +30,15 @@ SMPFuseMode=${11:-"weighted_sum"} # ("weighted_sum", "add", "channel_merge", "ch
 SMPAlpha=${12:-0.5} # 0.0-1.0
 SMPSizeMatch=${13:-"decoder_to_encoder"} # decoder_to_encoder, encoder_to_decoder
 FUSION_DIM=${14:-0} # 0 for default
-ENC_IDX=${15:-"-1"} # -1 for last encoder layer
-DEC_IDX=${16:-"-1"} # -1 for last decoder layer
-TARGET_MODULE=${17:-"encoder"} # encoder, decoder, head
-SELECT_INDEX=${18:-"-1"} # -1 for last layer
-SMPClassifier=${19:-"linear"} # linear, conv
-ADDCMD=${20:-""}
-ADDCMD2=${21:-""}
-ADDCMD3=${22:-""}
+ALIGN=${15:-"pre"} # 0 for default
+ENC_IDX=${16:-"-1"} # -1 for last encoder layer
+DEC_IDX=${17:-"-1"} # -1 for last decoder layer
+TARGET_MODULE=${18:-"encoder"} # encoder, decoder, head
+SELECT_INDEX=${19:-"-1"} # -1 for last layer
+SMPClassifier=${20:-"linear"} # linear, conv
+ADDCMD=${21:-""}
+ADDCMD2=${22:-""}
+ADDCMD3=${23:-""}
 NUM_K="0"
 data_type="OCTDL"
 IMG_Path="/orange/ruogu.fang/tienyuchang/OCTDL/"
@@ -49,7 +50,9 @@ echo $SUBSTUDY
 echo $Num_CLASS
 
 # Modify the path to your singularity container 
-# sbatch finetune_retfound_OCTDL_smpeval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-\{0\}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth 2 512 hirescam 1024 /orange/ruogu.fang/tienyuchang/OCTDL_masks/ enc weighted_sum 0.5 decoder_to_encoder 0 -1 -1 encoder -1 conv
+# sbatch finetune_retfound_OCTDL_smpeval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-enc--/checkpoint-best.pth 2 512 hirescam 1024 /orange/ruogu.fang/tienyuchang/OCTDL_masks_multiclass_resnet50_new/ enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
+# sbatch finetune_retfound_OCTDL_smpeval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-dec--/checkpoint-best.pth 2 512 hirescam 1024 /orange/ruogu.fang/tienyuchang/OCTDL_masks_multiclass_resnet50_new/ dec weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 decoder -1 conv
+# sbatch finetune_retfound_OCTDL_smpeval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth-OCT-bs16ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask---smp_learnable_alpha-/checkpoint-best.pth 2 512 hirescam 1024 /orange/ruogu.fang/tienyuchang/OCTDL_masks_multiclass_resnet50_new/ fuse weighted_sum 0.5 decoder_to_encoder 9 pre -2 -1 head -1 conv --seg_mask --smp_learnable_alpha
 
 XAI_METHODS=("hirescam" "gradcamv2" "gradcam++")  # List of XAI methods
 
