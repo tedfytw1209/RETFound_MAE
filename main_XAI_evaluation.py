@@ -559,6 +559,8 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         images, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True)
         sample_ids = batch[3] if (isinstance(batch, (list, tuple)) and len(batch) > 3) else None
         gt_mask = to_numpy(batch[4])
+        #debug
+        print(np.unique(to_numpy(gt_mask), return_counts=True))
         # Remove channel dimension: (B, 1, H, W) -> (B, H, W)
         if gt_mask is not None and gt_mask.ndim == 4 and gt_mask.shape[1] == 1:
             gt_mask = gt_mask.squeeze(1)
@@ -645,6 +647,8 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
                 layer_print_left -= 1
         #print(f'Attention map shape: {attention_map_bs.shape}')
         #print(target_np)
+        print('gt_mask: ',np.unique(to_numpy(gt_mask_original), return_counts=True))
+        print('gt_mask: ',(np.unique(to_numpy(gt_mask), return_counts=True)))
         for k, v in metric_func_dict.items():
             # Use original images/saliency for model-dependent metrics (insertion/deletion)
             # These metrics need to pass images through the model at its native resolution

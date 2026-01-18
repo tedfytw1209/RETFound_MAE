@@ -24,7 +24,7 @@ Num_CLASS=${5:-"2"} # 2 for AMD, 5 for DR, 5 for Glaucoma, 2 for Cataract
 INPUT_SIZE=${6:-"224"}
 XAI=${7:-"attn"} # attn, rise, gradcam
 STEP_PIXELS=${8:-"224"}
-Thickness_DIR=${9:-"/orange/ruogu.fang/tienyuchang/CellData_masks/"}
+Thickness_DIR=${9:-"/orange/ruogu.fang/tienyuchang/CellData_masks_multiclass_resnet50_new/"}
 SMPMode=${10:-"dec"} # dec, enc, fuse
 SMPFuseMode=${11:-"weighted_sum"} # ("weighted_sum", "add", "channel_merge", "channel_multiply", "multiply")
 SMPAlpha=${12:-0.5} # 0.0-1.0
@@ -42,14 +42,14 @@ NUM_K="0"
 data_type="CellData"
 Modality="OCT"
 IMG_Path="/orange/ruogu.fang/tienyuchang/CellData/"
-MASK_DIR="/orange/ruogu.fang/tienyuchang/CellData_masks/"
+MASK_DIR="/orange/ruogu.fang/tienyuchang/CellData_masks_multiclass_resnet50_new/"
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
 echo $Num_CLASS
 
 
-# sbatch finetune_retfound_Celldata_eval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-\{0\}-fea-1-1-0.5-decoder_to_encoder---/checkpoint-best.pth 2 512 hirescam 1024 /orange/ruogu.fang/tienyuchang/CellData_masks/ enc weighted_sum 0.5 decoder_to_encoder 0 -1 -1 encoder -1 conv
+# sbatch finetune_retfound_Celldata_smpeval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-\{0\}-fea-1-1-0.5-decoder_to_encoder---/checkpoint-best.pth 2 512 hirescam 1024 /orange/ruogu.fang/tienyuchang/CellData_masks/ enc weighted_sum 0.5 decoder_to_encoder 0 -1 -1 encoder -1 conv
 
 #XAI_METHODS=("gradcamv2" "scorecam" "crp")  # List of XAI methods
 

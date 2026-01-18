@@ -24,7 +24,7 @@ Num_CLASS=${5:-"2"} # 2 for AMD, 5 for DR, 5 for Glaucoma, 2 for Cataract
 INPUT_SIZE=${6:-"224"}
 XAI=${7:-"attn"} # attn, rise, gradcam
 STEP_PIXELS=${8:-"224"}
-Thickness_DIR=${9:-"/orange/ruogu.fang/tienyuchang/OCTDL_masks/"}
+Thickness_DIR=${9:-"/orange/ruogu.fang/tienyuchang/OCTDL_masks_multiclass_resnet50_new/"}
 SMPMode=${10:-"dec"} # dec, enc, fuse
 SMPFuseMode=${11:-"weighted_sum"} # ("weighted_sum", "add", "channel_merge", "channel_multiply", "multiply")
 SMPAlpha=${12:-0.5} # 0.0-1.0
@@ -41,7 +41,7 @@ ADDCMD3=${22:-""}
 NUM_K="0"
 data_type="OCTDL"
 IMG_Path="/orange/ruogu.fang/tienyuchang/OCTDL/"
-MASK_DIR="/orange/ruogu.fang/tienyuchang/OCTDL_masks/"
+MASK_DIR="/orange/ruogu.fang/tienyuchang/OCTDL_masks_multiclass_resnet50_new/"
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
