@@ -413,11 +413,12 @@ def should_skip_outputs(record: ImageRecord, cfg: RuntimeConfig, export_formats:
     return all(existing)
 
 
-def save_mask(mask: np.ndarray, record: ImageRecord, cfg: RuntimeConfig, export_formats: Sequence[str]) -> None:
+def save_mask(mask: np.ndarray, record: ImageRecord, cfg: RuntimeConfig, export_formats: Sequence[str], num_classes: int) -> None:
     for fmt in export_formats:
         if fmt == "png":
+            mask_color = _colorize_mask(mask, num_classes)
             target = cfg.output_dir / f"{record.output_stem}.png"
-            cv2.imwrite(str(target), mask)
+            cv2.imwrite(str(target), mask_color)
         elif fmt == "npy":
             target = cfg.output_dir / f"{record.output_stem}.npy"
             np.save(str(target), mask)
