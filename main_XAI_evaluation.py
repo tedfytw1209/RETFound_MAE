@@ -647,8 +647,6 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
                 layer_print_left -= 1
         #print(f'Attention map shape: {attention_map_bs.shape}')
         #print(target_np)
-        print('gt_mask: ',np.unique(to_numpy(gt_mask_original), return_counts=True))
-        print('gt_mask: ',(np.unique(to_numpy(gt_mask), return_counts=True)))
         for k, v in metric_func_dict.items():
             # Use original images/saliency for model-dependent metrics (insertion/deletion)
             # These metrics need to pass images through the model at its native resolution
