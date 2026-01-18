@@ -718,10 +718,10 @@ class RelevanceMetric():
 
         # Support multiclass segmentation masks by treating any non-zero label as foreground.
         # (This keeps backward-compat with existing binary masks as well.)
-        print('gt_mask: ',np.unique(ground_truth, return_counts=True))
+        #print('gt_mask: ',np.unique(ground_truth, return_counts=True))
         if ground_truth.dtype != np.bool_:
             ground_truth = (ground_truth > 0) & (ground_truth != 255)
-        print('binary gt_mask: ',np.unique(ground_truth, return_counts=True))
+        #print('binary gt_mask: ',np.unique(ground_truth, return_counts=True))
         # Cast heatmap to float64 precision for better accuracy
         heatmap = heatmap.astype(dtype=np.float64)
         
