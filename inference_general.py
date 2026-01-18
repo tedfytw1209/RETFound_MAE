@@ -491,7 +491,7 @@ def main():
         if args.save_composite:
             save_composite_image(original_image, mask, record, cfg, args)
         else:
-            save_mask(mask, record, cfg, args.export_formats)
+            save_mask(mask, record, cfg, args.export_formats, args.num_classes)
         processed += 1
 
     print(f"Inference complete! Processed {processed} images.")
