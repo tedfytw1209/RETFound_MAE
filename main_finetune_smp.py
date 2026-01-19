@@ -224,7 +224,6 @@ def get_args_parser():
                         help='SMP learnable alpha (default: False)')
     parser.add_argument('--smp_alpha', type=float, default=0.5,help='SMP alpha (0.0-1.0)')
     parser.add_argument('--smp_size_match', type=str, default='decoder_to_encoder',
-                        choices=["decoder_to_encoder", "encoder_to_decoder"],
                         help='SMP size match (decoder_to_encoder, encoder_to_decoder) (default: "decoder_to_encoder")')
     parser.add_argument('--seg_mask', action='store_true', default=False,
                         help='Use segmentation mask output from SMP model')

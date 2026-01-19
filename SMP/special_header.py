@@ -529,10 +529,8 @@ class GeneralFusionHead(nn.Module):
         elif self.size_match == "decoder_to_encoder":
             target = (h_enc, w_enc)
             dec_feats = self._resize(dec_feats, target, "downsample")
-        elif self.size_match == "fixed":
-            if self.fixed_size is None:
-                raise ValueError("fixed_size must be provided when size_match is 'fixed'.")
-            target = self.fixed_size
+        elif self.size_match.isdigit():
+            target = int(self.size_match)
             enc_feats = self._resize(enc_feats, target, "resize")
             dec_feats = self._resize(dec_feats, target, "resize")
         return enc_feats, dec_feats
@@ -548,11 +546,13 @@ class GeneralFusionHead(nn.Module):
                 return F.interpolate(feat, size=target_spatial, mode="bilinear", align_corners=False)
             elif mode == "downsample":
                 return F.adaptive_avg_pool2d(feat, output_size=target_spatial)
-        else:  # conv backend, not true
+        elif self.resize_backend == "conv":  # conv backend, not true
             if mode == "upsample":
                 return self._resize_with_deconv(feat, target_spatial)
             elif mode == "downsample":
                 return self._resize_with_conv(feat, target_spatial)
+        else:
+            raise ValueError(f"Unsupported resize_backend: {self.resize_backend}")
 
     def _get_or_create_deconv(self, channels: int) -> nn.ConvTranspose2d:
         key = str(channels)
