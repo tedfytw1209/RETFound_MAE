@@ -55,6 +55,8 @@ echo $Num_CLASS
 # sbatch finetune_retfound_Celldata_eval.sh DME_all vit-base-patch16-224 google/vit-base-patch16-224-in21k output_dir/DME_all-CellData-all-google/vit-base-patch16-224-in21k-OCT-bs16ep3lr5e-4optadamw-defaulteval--/checkpoint-best.pth 2 224 hirescam 224 /orange/ruogu.fang/tienyuchang/CellData_masks_multiclass_resnet50_new/ enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
 # sbatch finetune_retfound_Celldata_eval.sh DME_all resnet-50 microsoft/resnet-50 output_dir/DME_all-CellData-all-microsoft/resnet-50-OCT-bs16ep3lr5e-4optadamw-defaulteval--/checkpoint-best.pth 2 224 hirescam 224 /orange/ruogu.fang/tienyuchang/CellData_masks_multiclass_resnet50_new/ enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
 
+# sbatch finetune_retfound_Celldata_eval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-\{0\}-fea-1-1-0.5-decoder_to_encoder---/checkpoint-best.pth 2 512 hirescam 1024 /orange/ruogu.fang/tienyuchang/CellData_masks/ enc weighted_sum 0.5 decoder_to_encoder 0 -1 -1 encoder -1 conv
+
 XAI_METHODS=("hirescam" "gradcamv2" "gradcam++" "crp")  # List of XAI methods
 #XAI_METHODS=("crp")  # List of XAI methods
 
