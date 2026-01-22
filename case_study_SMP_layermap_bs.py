@@ -700,7 +700,7 @@ def _model_run_name(args) -> str:
         )
     else:
         pass
-    return f"{args.task}-{base}"
+    return base
 
 def build_and_load_model_main_style(args):
     """Build model like main_XAI_evaluation.py and load --resume checkpoint if provided."""
@@ -1131,7 +1131,7 @@ def main():
     model_add_dir = ""
     wandb.init(
         project=project_name,
-        name=args.theme,
+        name=f"{args.task}-{args.theme}",
         group=group_name,
         config=args,
     )
