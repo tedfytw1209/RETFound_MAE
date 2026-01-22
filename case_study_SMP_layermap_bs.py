@@ -1126,7 +1126,7 @@ def main():
     # Build up the common task name
     args.theme = _model_run_name(args)
     
-    project_name = "RETFound_MAE_XAI_Evaluation"
+    project_name = "RETFound_MAE_XAI_Case_Study"
     group_name = None
     model_add_dir = ""
     wandb.init(
