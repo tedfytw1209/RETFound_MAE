@@ -1020,6 +1020,7 @@ def generate_comprehensive_heatmaps_v2(
                 }
 
                 image_tensor_list, image_list, label_list, filename_list, mask_slice_list = [], [], [], [], []
+                mass_acc, rank_acc = None, None
                 for idx, (image, label, filename, mask_slice) in enumerate(zip(images, labels, filenames, mask_slices)):
                     print(f"Processing image {idx+1}/{len(images)} (Label: {label}, File: {filename})")
                     image_tensor = preprocess_image(image, processor, input_size) # [1,3,H,W]
@@ -1059,8 +1060,9 @@ def generate_comprehensive_heatmaps_v2(
                                 heatmap = heatmap + 1e-9 # add small value to avoid all zeros
                                 overlay, heatmap_resized = overlay_heatmap_on_image(image_b, heatmap, mask_slice_b)
                                 binary_mask = _build_binary_mask(mask_slice_b, overlay) if mask_slice_b is not None else None
-                                mass_acc = rel_metric(image_b, heatmap_resized, binary_mask)
-                                rank_acc = rank_metric(image_b, heatmap_resized, binary_mask)
+                                if binary_mask is not None:
+                                    mass_acc = rel_metric(image_b, heatmap_resized, binary_mask)
+                                    rank_acc = rank_metric(image_b, heatmap_resized, binary_mask)
                                 if DRAW_LAYER and mask_slice_b is not None:
                                     overlay = add_layer_line(overlay, mask_slice_b)
 
