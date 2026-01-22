@@ -138,7 +138,7 @@ def masked_img_func(img, mask_slice):
 def load_sample_data(task, num_sample=-1, save_mask=False):
     """Load sample images for a given task"""
     df = pd.read_csv(os.path.join(dataset_dir, "%s_sampled"%task, dataset_fname))
-    if LOAD_MASK:
+    if LOAD_MASK and 'Surface Name' not in df.columns:
         masked_df = pd.read_csv(Thickness_CSV)
         masked_df = masked_df.rename(columns={'OCT':'folder'}).dropna(subset=['Surface Name'])
         df = df.merge(masked_df,on='folder',how='inner').reset_index(drop=True)
@@ -162,13 +162,15 @@ def load_sample_data(task, num_sample=-1, save_mask=False):
         if os.path.exists(img_path):
             img = Image.open(img_path).convert('RGB')
             if LOAD_MASK:
-                mask_path = os.path.join(Thickness_DIR, row['folder'], row['Surface Name'])
-                mask = np.load(mask_path) # (Layer, slice, W)
-
-                # 假設我們要套用其中某一 slice 的 mask，例如 slice_index = 13
-                slice_index = int(os.path.basename(img_path).split("_")[-1].split(".")[0])  # 從檔名抓 13
-                mask_slice = mask[:, slice_index, :]  # shape: (Layer, W)
-                mask_slices.append(mask_slice)
+                try:
+                    mask_path = os.path.join(Thickness_DIR, row['folder'], row['Surface Name'])
+                    mask = np.load(mask_path) # (Layer, slice, W)
+                    # 假設我們要套用其中某一 slice 的 mask，例如 slice_index = 13
+                    slice_index = int(os.path.basename(img_path).split("_")[-1].split(".")[0])  # 從檔名抓 13
+                    mask_slice = mask[:, slice_index, :]  # shape: (Layer, W)
+                    mask_slices.append(mask_slice)
+                except Exception as e:
+                    mask_slices.append(None)
             else:
                 mask_slices.append(None)
             

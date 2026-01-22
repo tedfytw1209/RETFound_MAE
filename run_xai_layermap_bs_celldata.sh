@@ -87,7 +87,7 @@ python "$SCRIPT" \
         --batch_size $BATCH_SIZE \
         --input_size $INPUT_SIZE \
         --nb_classes "$Num_CLASS" \
-        --load_mask \
-        --draw_layer \
+        --no_load_mask \
+        --no_draw_layer \
         --output_dir "$OUTPUT_DIR" \
         $ADDCMD $ADDCMD2 $ADDCMD3
