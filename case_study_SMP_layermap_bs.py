@@ -99,9 +99,9 @@ LOAD_MASK = True
 IMG_MASK = False
 HEATMAP_MASK = False
 DRAW_LAYER = True
-Thickness_DIR = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
-Thickness_CSV = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/thickness_map.csv"
-Task_list = ['DME']
+#Thickness_DIR = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
+#Thickness_CSV = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/thickness_map.csv"
+#Task_list = ['DME']
 dataset_fname = 'sampled_labels01.csv'
 dataset_dir = '/blue/ruogu.fang/tienyuchang/OCT_EDA'
 img_p_fmt = "label_%d/%s" #label index and oct_img name
@@ -920,7 +920,7 @@ def generate_comprehensive_heatmaps_v2(
     model_name: str,
     input_size: int,
     num_samples=3,
-    task_list=Task_list,
+    task_list=[],
     XAI_list=None,
     heatmap_dir="./heatmap_results",
     module_list=None,
