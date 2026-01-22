@@ -746,6 +746,10 @@ def get_args_parser():
     parser.add_argument('--use_rollout', action='store_true', help='Use rollout (main-style).')
     parser.add_argument('--drop_path', type=float, default=0.2, metavar='PCT', help='(unused) main-style.')
     parser.add_argument('--SMPMode', type=str, default='dec', help='SMP mode (fuse, enc, dec).')
+    
+    # fine-tuning parameters
+    parser.add_argument('--global_pool', action='store_true')
+    parser.set_defaults(global_pool=True)
 
     # ---- main-style checkpoint/device ----
     parser.add_argument('--device', default='cuda', choices=['cuda', 'cpu'], help='Device to use.')
