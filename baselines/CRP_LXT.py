@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from crp.concepts import ChannelConcept
 
 from zennit.composites import LayerMapComposite
@@ -42,6 +43,24 @@ class HuggingfaceToTensorModelWrapper(torch.nn.Module):
 
 def _get(obj, name, default=None):
     return getattr(obj, name, default)
+
+def _resolve_hook(model):
+    # Determine the hook point for attribution and choose appropriate composite
+    if _get(model, 'encoder', None) is not None and _get(model, 'seg_model', None) is not None:
+        # SMP-based model - use simpler composite without BatchNorm canonizer
+        # because SMP models have bias=False in some layers which causes issues
+        composite = EpsilonPlusFlat()
+        hook = model
+    elif _get(model, 'resnet', None) is not None:
+        composite = EpsilonPlusFlat([SequentialMergeBatchNorm()])
+        hook = _get(model, 'resnet', None)
+    elif _get(model, 'vit', None) is not None:
+        composite = EpsilonPlusFlat([SequentialMergeBatchNorm()])
+        hook = _get(model, 'vit', None)
+    else:
+        composite = EpsilonPlusFlat([SequentialMergeBatchNorm()])
+        hook = model
+    return hook, composite
 ## CRP
 class CRP(torch.nn.Module):
     def __init__(self, model, model_name, img_size, patch_size, device=None):
@@ -54,23 +73,28 @@ class CRP(torch.nn.Module):
         self.cc = ChannelConcept()
         
         # Determine the hook point for attribution and choose appropriate composite
-        if _get(self.model, 'encoder', None) is not None and _get(self.model, 'seg_model', None) is not None:
-            # SMP-based model - use simpler composite without BatchNorm canonizer
-            # because SMP models have bias=False in some layers which causes issues
-            self.composite = EpsilonPlusFlat()
-            hook = self.model
-        elif _get(self.model, 'resnet', None) is not None:
-            self.composite = EpsilonPlusFlat([SequentialMergeBatchNorm()])
-            hook = _get(self.model, 'resnet', None)
-        elif _get(self.model, 'vit', None) is not None:
-            self.composite = EpsilonPlusFlat([SequentialMergeBatchNorm()])
-            hook = _get(self.model, 'vit', None)
-        else:
-            self.composite = EpsilonPlusFlat([SequentialMergeBatchNorm()])
-            hook = self.model
+        hook, composite = _resolve_hook(self.model)
+        self.composite = composite
+        self.hook = hook
         
         self.attribution = CondAttribution(HuggingfaceToTensorModelWrapper(self.model), no_param_grad=True)
 
+    def _resize_heatmap_to_input(self, heatmap: torch.Tensor) -> torch.Tensor:
+        """
+        heatmap: (B, H, W) or (B, 1, H, W) or (B, C, H, W)
+        return: (B, H0, W0) where (H0, W0)=self.img_size
+        """
+        if heatmap.dim() == 3:
+            heatmap = heatmap.unsqueeze(1)  # (B,1,H,W)
+
+        heatmap = F.interpolate(
+            heatmap,
+            size=self.img_size,
+            mode="bilinear",
+            align_corners=False,
+        )
+        return heatmap.squeeze(1)  # (B,H,W)
+    
     def generate_heatmap(self, x, target_class=None):
         # compute heatmap wrt. output 46 (green lizard class)
         conditions = [{"y": target_class}]
@@ -83,6 +107,7 @@ class CRP(torch.nn.Module):
         attr = self.attribution(x, conditions, self.composite, mask_map=mask_map)
         heatmap = attr.heatmap
         B = heatmap.shape[0]
+        heatmap = self._resize_heatmap_to_input(heatmap)  # (B, H0, W0)
         # Normalize heatmap between [0, 1] for plotting
         cam_min = heatmap.view(B, -1).min(dim=1)[0].view(B, 1, 1)
         cam_max = heatmap.view(B, -1).max(dim=1)[0].view(B, 1, 1)
@@ -117,20 +142,27 @@ class LXT(torch.nn.Module):
         self.lin_gamma = lin_gamma #[0, 0.01, 0.05, 0.1, 1]
         self.device = device
         
-        # Determine the hook point for monkey patching
-        if _get(self.model, 'encoder', None) is not None and _get(self.model, 'seg_model', None) is not None:
-            # SMP-based model
-            hook = self.model
-        elif _get(self.model, 'resnet', None) is not None:
-            hook = _get(self.model, 'resnet', None)
-        elif _get(self.model, 'vit', None) is not None:
-            hook = _get(self.model, 'vit', None)
-        else:
-            hook = self.model
+        hook, _ = _resolve_hook(self.model)
         # Apply monkey patch to the model to enable LRP with Gamma rule
         monkey_patch(type(hook), verbose=True)
         #monkey_patch_zennit(verbose=True)
 
+    def _resize_heatmap_to_input(self, heatmap: torch.Tensor) -> torch.Tensor:
+        """
+        heatmap: (B, H, W) or (B, 1, H, W) or (B, C, H, W)
+        return: (B, H0, W0) where (H0, W0)=self.img_size
+        """
+        if heatmap.dim() == 3:
+            heatmap = heatmap.unsqueeze(1)  # (B,1,H,W)
+
+        heatmap = F.interpolate(
+            heatmap,
+            size=self.img_size,
+            mode="bilinear",
+            align_corners=False,
+        )
+        return heatmap.squeeze(1)  # (B,H,W)
+    
     def generate_heatmap(self, x, target_class=None):
         x.grad = None  # Reset gradients
         # Define rules for the Conv2d and Linear layers using 'zennit'
@@ -154,6 +186,7 @@ class LXT(torch.nn.Module):
         # Normalize relevance between [-1, 1] for plotting
         #heatmap = heatmap / abs(heatmap).max()
         B = heatmap.shape[0]
+        heatmap = self._resize_heatmap_to_input(heatmap)  # (B, H0, W0)
         cam_min = heatmap.view(B, -1).min(dim=1)[0].view(B, 1, 1)
         cam_max = heatmap.view(B, -1).max(dim=1)[0].view(B, 1, 1)
         cam = (heatmap - cam_min) / (cam_max - cam_min + 1e-8)
