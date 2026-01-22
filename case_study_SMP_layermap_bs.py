@@ -698,6 +698,8 @@ def _model_run_name(args) -> str:
             f"fea{int(getattr(args,'enc_idx',-1))}{int(getattr(args,'dec_idx',-1))}-"
             f"{getattr(args,'smp_classifier','linear')}"
         )
+    else:
+        pass
     return f"{args.task}-{base}"
 
 def build_and_load_model_main_style(args):
@@ -988,7 +990,7 @@ def generate_comprehensive_heatmaps_v2(
         for module_name in module_list:
             # Skip modules that don't exist for the current model/mode
             conv_layers = get_all_conv_layers(model, module_name)
-            if not conv_layers:
+            if model_name=='SMP' and not conv_layers:
                 if verbose:
                     print(f"  Skipping module '{module_name}' (no conv layers found)")
                 continue
