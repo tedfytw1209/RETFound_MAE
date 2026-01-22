@@ -906,9 +906,9 @@ def get_all_conv_layers(model, module_name=None):
     conv_layers = []
     if module_name is None:
         return []
-    elif (model.mode == 'fuse'  or model.mode == 'enc') and module_name=='encoder':
+    elif hasattr(model, "mode") and (model.mode == 'fuse'  or model.mode == 'enc') and module_name=='encoder':
         module = encoder
-    elif (model.mode == 'fuse' or model.mode == 'dec') and module_name=='decoder':
+    elif hasattr(model, "mode") and (model.mode == 'fuse' or model.mode == 'dec') and module_name=='decoder':
         module = decoder
     elif module_name=='head':
         module = head
