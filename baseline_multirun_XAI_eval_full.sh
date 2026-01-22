@@ -24,12 +24,12 @@ MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
 #CLASSES=(2 2 2)  # Number of classes for each dataset
 DATASETS=(DME_binary_all_split)  # List of datasets
 CLASSES=(2)  # Number of classes for each dataset
+data_type="IRB2024_v5_all"
 
-
-#sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh RETFound_mae RETFound_mae_natureOCT 224 --add_mask --train_no_aug
-#sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh resnet-50 microsoft/resnet-50 224 --add_mask --train_no_aug
-#sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh vit-base-patch16-224 google/vit-base-patch16-224-in21k 224 --add_mask --train_no_aug
-#sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh timm_efficientnet-b4 timm_efficientnet-b4 380 --add_mask --train_no_aug
+#sbatch baseline_multirun_XAI_eval_full.sh finetune_retfound_UFbenchmark_v5_eval_full.sh RETFound_mae RETFound_mae_natureOCT 224 --add_mask --train_no_aug
+#sbatch baseline_multirun_XAI_eval_full.sh finetune_retfound_UFbenchmark_v5_eval_full.sh resnet-50 microsoft/resnet-50 224 --add_mask --train_no_aug
+#sbatch baseline_multirun_XAI_eval_full.sh finetune_retfound_UFbenchmark_v5_eval_full.sh vit-base-patch16-224 google/vit-base-patch16-224-in21k 224 --add_mask --train_no_aug
+#sbatch baseline_multirun_XAI_eval_full.sh finetune_retfound_UFbenchmark_v5_eval_full.sh timm_efficientnet-b4 timm_efficientnet-b4 380 --add_mask --train_no_aug
 XAI_METHODS=("hirescam" "gradcam++" "gradcamv2" "crp")  # List of XAI methods
 #XAI_METHODS=("attn" "gradcamv2" "scorecam" "rise" "crp")  # List of XAI methods
 for i in "${!DATASETS[@]}"
@@ -41,7 +41,7 @@ do
     for XAI in "${XAI_METHODS[@]}"
     do
         # Submit the job to Slurm
-        echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE $ADD_WORD1 $ADD_WORD2"
-        bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE $ADD_WORD1 $ADD_WORD2
+        echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-$data_type-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE $ADD_WORD1 $ADD_WORD2"
+        bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-$data_type-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE $ADD_WORD1 $ADD_WORD2
     done
 done
