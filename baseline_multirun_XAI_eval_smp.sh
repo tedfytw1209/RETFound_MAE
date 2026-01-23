@@ -37,8 +37,8 @@ MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
 #microsoft/resnet-50, timm_efficientnet-b4, google/vit-base-patch16-224-in21k, RETFound_mae_natureOCT
 #DATASETS=(AMD_all_split DR_binary_all_split DME_binary_all_split)  # List of datasets
 #CLASSES=(2 2 2)  # Number of classes for each dataset
-DATASETS=(DME_binary_all_split)  # List of datasets
-CLASSES=(2)  # Number of classes for each dataset
+#DATASETS=(DME_binary_all_split)  # List of datasets
+#CLASSES=(2)  # Number of classes for each dataset
 STEP_PIXELS=1024
 Thickness_DIR="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 
