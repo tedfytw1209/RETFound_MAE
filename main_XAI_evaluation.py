@@ -559,7 +559,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         sample_ids = batch[3] if (isinstance(batch, (list, tuple)) and len(batch) > 3) else None
         gt_mask = to_numpy(batch[4])
         #debug
-        print(np.unique(to_numpy(gt_mask), return_counts=True))
+        #print(np.unique(to_numpy(gt_mask), return_counts=True))
         # Remove channel dimension: (B, 1, H, W) -> (B, H, W)
         if gt_mask is not None and gt_mask.ndim == 4 and gt_mask.shape[1] == 1:
             gt_mask = gt_mask.squeeze(1)
@@ -679,7 +679,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         metric_logger.update(**each_dict)
     
     
-    #print(f'XAI Metrics at epoch {epoch} ({mode}):')
+    print(f'XAI Metrics at epoch {epoch} ({mode}):')
     for k, v in metric_logger.meters.items():
         score = v.global_avg
         print(f'{k}: {score:.4f}')
