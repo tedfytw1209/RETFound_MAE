@@ -40,7 +40,7 @@ ADDCMD=${17:-""}
 ADDCMD2=${18:-""}
 ADDCMD3=${19:-""}
 
-OUTPUT_DIR="./heatmap_params_tmp"
+OUTPUT_DIR="./heatmap_params_UF_full"
 
 # ============================================================================
 # Common parameters

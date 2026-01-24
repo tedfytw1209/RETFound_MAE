@@ -16,87 +16,17 @@ module load conda
 conda activate octxai
 
 # ============================================================================
-# Model Definitions
-# ============================================================================
+STUDY=${1:-"DME"}
+STUDY_NAME=${2:-"DME_binary_all_split"}
 
-# Base model list
-Model_list=(
-    "SMP_enc"
-    "SMP_dec"
-    "SMP_enc_fix"
-    "SMP_dec_fix"
-)
+# Baselines
+bash run_xai_layermap_bs.sh $STUDY RETFound_mae RETFound_mae_natureOCT /orange/ruogu.fang/tienyuchang/RETfound_results/${STUDY_NAME}-IRB2024_v5_all-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0--/checkpoint-best.pth 224 dec weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
+bash run_xai_layermap_bs.sh  $STUDY vit-base-patch16-224 google/vit-base-patch16-224-in21k /orange/ruogu.fang/tienyuchang/RETfound_results/${STUDY_NAME}-IRB2024_v5_all-all-google/vit-base-patch16-224-in21k-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0--/checkpoint-best.pth 224 dec weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
+bash run_xai_layermap_bs.sh  $STUDY resnet-50 microsoft/resnet-50 /orange/ruogu.fang/tienyuchang/RETfound_results/${STUDY_NAME}-IRB2024_v5_all-all-microsoft/resnet-50-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0--/checkpoint-best.pth 224 dec weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
+bash run_xai_layermap_bs.sh  $STUDY timm_efficientnet-b4 timm_efficientnet-b4 /orange/ruogu.fang/tienyuchang/RETfound_results/${STUDY_NAME}-IRB2024_v5_all-all-timm_efficientnet-b4-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0--/checkpoint-best.pth 224 dec weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
 
-# DME finetuned models
-DME_finetuned=(
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-enc--/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0--/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr5e-4optadamw-defaulteval-trsub0-enc---fix_extractor--/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-dec---fix_extractor--/"
-)
+bash run_xai_layermap_bs.sh $STUDY SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/${STUDY_NAME}-IRB2024_v5_all-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-pre-0-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth 512 enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
+bash run_xai_layermap_bs.sh $STUDY SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/${STUDY_NAME}-IRB2024_v5_all-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-dec-smpweighted_sum-pre-0-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth 512 enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 decoder -1 conv
 
-# DME finetuned masked models
-DME_finetuned_masked=(
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-enc---add_mask---train_no_aug/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0---add_mask---train_no_aug/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-2optadamw-defaulteval-trsub0-enc---add_mask---train_no_aug---fix_extractor/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-dec---add_mask---train_no_aug---fix_extractor/"
-)
-
-# Unmasked fuse models - paths
-Fuse_models=(
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-0.5-decoder_to_encoder---seg_mask--/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_merge-0.5-decoder_to_encoder---seg_mask--/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_multiply-0.5-decoder_to_encoder---seg_mask--/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-0.5-decoder_to_encoder---smp_learnable_alpha---seg_mask-/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_merge-0.5-decoder_to_encoder---/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpadd-0.5-decoder_to_encoder---/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-0.5-decoder_to_encoder---/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-0.5-decoder_to_encoder---smp_learnable_alpha--/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpadd-fea-2-1-0.5-decoder_to_encoder---seg_mask--/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_merge-fea-2-1-0.5-decoder_to_encoder---seg_mask--/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpchannel_multiply-fea-2-1-0.5-decoder_to_encoder---seg_mask--/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-fea-2-1-0.5-decoder_to_encoder---seg_mask--/"
-    "DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-fea-2-1-0.5-decoder_to_encoder---smp_learnable_alpha---seg_mask-/"
-)
-
-# Fuse model names following: SMP_fuse_{smp_fuse_mode}_fus{fusion_dim}enc{enc_idx}dec{dec_idx}_{seg|dec}
-Fuse_model_names=(
-    "SMP_fuse_multiply_fus0enc-1dec-1_seg"
-    "SMP_fuse_channel_merge_fus0enc-1dec-1_seg"
-    "SMP_fuse_channel_multiply_fus0enc-1dec-1_seg"
-    "SMP_fuse_weighted_sum_fus0enc-1dec-1_seg"
-    "SMP_fuse_channel_merge_fus0enc-1dec-1_dec"
-    "SMP_fuse_add_fus0enc-1dec-1_dec"
-    "SMP_fuse_multiply_fus0enc-1dec-1_dec"
-    "SMP_fuse_weighted_sum_fus0enc-1dec-1_dec"
-    "SMP_fuse_add_fus8enc-2dec-1_seg"
-    "SMP_fuse_channel_merge_fus8enc-2dec-1_seg"
-    "SMP_fuse_channel_multiply_fus0enc-2dec-1_seg"
-    "SMP_fuse_multiply_fus8enc-2dec-1_seg"
-    "SMP_fuse_weighted_sum_fus8enc-2dec-1_seg"
-)
-
-# ============================================================================
-# Common parameters
-# ============================================================================
-DATASET_DIR="/blue/ruogu.fang/tienyuchang/OCT_EDA"
-DATASET_FNAME="sampled_labels01.csv"
-THICKNESS_DIR="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
-THICKNESS_CSV="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/thickness_map.csv"
-MODEL_ROOT="/orange/ruogu.fang/tienyuchang/RETfound_results"
-OUTPUT_DIR="./heatmap_results_production"
-batch_size=2
-#target_module="encoder decoder head"
-target_module="head"
-
-# ============================================================================
-# Run XAI for fuse models
-# ============================================================================
-echo "Running fuse models..."
-for i in "${!Fuse_models[@]}"; do
-    model="${Fuse_model_names[$i]}"
-    model_fname="${DME_finetuned[$i]}checkpoint-best.pth"
-    echo "sbatch run_xai_layermap_single.sh case_study_SMP_layermap_ori.py $model_fname $model ././heatmap_debug_batch 2"
-    sbatch run_xai_layermap_single.sh case_study_SMP_layermap_ori.py "$model_fname" "$model" "././heatmap_debug_batch" 2
-done
+bash run_xai_layermap_bs.sh $STUDY SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/${STUDY_NAME}-IRB2024_v5_all-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask---smp_learnable_alpha-/checkpoint-best.pth 512 fuse weighted_sum 0.5 decoder_to_encoder 9 pre -2 -1 encoder -1 conv --seg_mask --smp_learnable_alpha
+bash run_xai_layermap_bs.sh $STUDY SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/${STUDY_NAME}-IRB2024_v5_all-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth-OCT-bs16ep100lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask--/checkpoint-best.pth 512 fuse multiply 0.5 decoder_to_encoder 9 pre -2 -1 encoder -1 conv --seg_mask
