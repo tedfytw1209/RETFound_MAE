@@ -20,25 +20,25 @@ conda activate octxai
 # ============================================================================
 
 SCRIPT="case_study_SMP_layermap_bs.py"
-STUDY="OCTDL_DME"
-MODEL=${1:-"RETFound_mae"}
-FINETUNED_MODEL=${2:-"RETFound_mae_natureOCT"}
-RESUME=${3:-""}
-INPUT_SIZE=${4:-224}
-SMPMode=${5:-"dec"} # dec, enc, fuse
-SMPFuseMode=${6:-"weighted_sum"} # ("weighted_sum", "add", "channel_merge", "channel_multiply", "multiply")
-SMPAlpha=${7:-0.5} # 0.0-1.0
-SMPSizeMatch=${8:-"decoder_to_encoder"} # decoder_to_encoder, encoder_to_decoder
-FUSION_DIM=${9:-0} # 0 for default
-ALIGN=${10:-"pre"} # 0 for default
-ENC_IDX=${11:-"-1"} # -1 for last encoder layer
-DEC_IDX=${12:-"-1"} # -1 for last decoder layer
-TARGET_MODULE=${13:-"encoder"} # encoder, decoder, head
-SELECT_INDEX=${14:-"-1"} # -1 for last layer
-SMPClassifier=${15:-"linear"} # linear, conv
-ADDCMD=${16:-""}
-ADDCMD2=${17:-""}
-ADDCMD3=${18:-""}
+STUDY=${1:-"OCTDL_DME"}
+MODEL=${2:-"RETFound_mae"}
+FINETUNED_MODEL=${3:-"RETFound_mae_natureOCT"}
+RESUME=${4:-""}
+INPUT_SIZE=${5:-224}
+SMPMode=${6:-"dec"} # dec, enc, fuse
+SMPFuseMode=${7:-"weighted_sum"} # ("weighted_sum", "add", "channel_merge", "channel_multiply", "multiply")
+SMPAlpha=${8:-0.5} # 0.0-1.0
+SMPSizeMatch=${9:-"decoder_to_encoder"} # decoder_to_encoder, encoder_to_decoder
+FUSION_DIM=${10:-0} # 0 for default
+ALIGN=${11:-"pre"} # 0 for default
+ENC_IDX=${12:-"-1"} # -1 for last encoder layer
+DEC_IDX=${13:-"-1"} # -1 for last decoder layer
+TARGET_MODULE=${14:-"encoder"} # encoder, decoder, head
+SELECT_INDEX=${15:-"-1"} # -1 for last layer
+SMPClassifier=${16:-"linear"} # linear, conv
+ADDCMD=${17:-""}
+ADDCMD2=${18:-""}
+ADDCMD3=${19:-""}
 
 OUTPUT_DIR="./heatmap_params_octdl_dme"
 
@@ -57,13 +57,13 @@ STEP_PIXELS=1024
 XAI_METHODS="gradcamv2 hirescam gradcam++ crp"
 #XAI_METHODS="hirescam"
 
-#sbatch run_xai_layermap_bs_octdl.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-\{0\}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth 512 enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
+#sbatch run_xai_layermap_bs_octdl.sh OCTDL_DME SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-\{0\}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth 512 enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
 
-#sbatch run_xai_layermap_bs_octdl.sh RETFound_mae RETFound_mae_natureOCT /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-defaulteval--/checkpoint-best.pth 224 dec weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
-#sbatch run_xai_layermap_bs_octdl.sh vit-base-patch16-224 google/vit-base-patch16-224-in21k /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-google/vit-base-patch16-224-in21k-OCT-bs16ep50lr5e-4optadamw-defaulteval--/checkpoint-best.pth 224 dec weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
+#sbatch run_xai_layermap_bs_octdl.sh OCTDL_DME RETFound_mae RETFound_mae_natureOCT /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-defaulteval--/checkpoint-best.pth 224 dec weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
+#sbatch run_xai_layermap_bs_octdl.sh OCTDL_DME vit-base-patch16-224 google/vit-base-patch16-224-in21k /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-google/vit-base-patch16-224-in21k-OCT-bs16ep50lr5e-4optadamw-defaulteval--/checkpoint-best.pth 224 dec weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
 
-#sbatch run_xai_layermap_bs_octdl.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth-OCT-bs16ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask--/checkpoint-best.pth 512 fuse multiply 0.5 decoder_to_encoder 9 pre -2 -1 head -1 conv --seg_mask
-#sbatch run_xai_layermap_bs_octdl.sh SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth-OCT-bs16ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask---smp_learnable_alpha-/checkpoint-best.pth 512 fuse weighted_sum 0.5 decoder_to_encoder 9 pre -2 -1 head -1 conv --seg_mask --smp_learnable_alpha
+#sbatch run_xai_layermap_bs_octdl.sh OCTDL_DME SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth-OCT-bs16ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask--/checkpoint-best.pth 512 fuse multiply 0.5 decoder_to_encoder 9 pre -2 -1 head -1 conv --seg_mask
+#sbatch run_xai_layermap_bs_octdl.sh OCTDL_DME SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth-OCT-bs16ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask---smp_learnable_alpha-/checkpoint-best.pth 512 fuse weighted_sum 0.5 decoder_to_encoder 9 pre -2 -1 head -1 conv --seg_mask --smp_learnable_alpha
 
 # ============================================================================
 # Run XAI for base models (DME_finetuned)
