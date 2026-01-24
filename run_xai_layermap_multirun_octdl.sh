@@ -16,10 +16,10 @@ module load conda
 conda activate octxai
 
 # ============================================================================
-STUDY=${1:-"DME"}
-STUDY_NAME=${2:-"DME_binary_all_split"}
+STUDY=${1:-"OCTDL_DME"}
+STUDY_NAME=${2:-"DME_all"}
 
-# sbatch run_xai_layermap_bs.sh DME DME_binary_all_split
+# sbatch run_xai_layermap_bs_octdl.sh OCTDL_DME DME_all
 # ============================================================================
 # Baselines
 bash run_xai_layermap_bs_octdl.sh $STUDY RETFound_mae RETFound_mae_natureOCT /orange/ruogu.fang/tienyuchang/RETfound_results/${STUDY_NAME}-OCTDL-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-defaulteval--/checkpoint-best.pth 224 dec weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv

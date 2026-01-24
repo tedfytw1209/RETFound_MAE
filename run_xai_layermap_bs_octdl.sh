@@ -54,7 +54,7 @@ NUM_SAMPLES=50
 Num_CLASS=2
 STEP_PIXELS=1024
 #XAI_METHODS="gradcamv2 scorecam crp"
-XAI_METHODS="gradcamv2 hirescam gradcam++ crp"
+XAI_METHODS="gradcamv2 hirescam gradcam++"
 #XAI_METHODS="hirescam"
 
 #sbatch run_xai_layermap_bs_octdl.sh OCTDL_DME SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-\{0\}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth 512 enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
