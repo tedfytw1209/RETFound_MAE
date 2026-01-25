@@ -126,7 +126,7 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
     vit = _get(model, "vit")
     if vit is not None:
         enc = _get(vit, "encoder")
-        layers = _get(enc, "layer")
+        layers = _get(enc, "layernorm")
         if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
             layer = layers[select_index]
             if debug:
