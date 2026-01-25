@@ -301,7 +301,7 @@ def load_trained_model(task, model_name, Model_fname, input_size=224, nb_classes
 
 # XAI Methods Implementation
 class XAIGenerator:
-    def __init__(self, model, model_name, input_size=224, batch_size=10, target_module=None, select_index=-1):
+    def __init__(self, model, model_name, input_size=224, batch_size=10, target_module=None, select_index=-1, verbose=False):
         self.model = model
         self.model_name = model_name
         self.input_size = input_size
@@ -311,6 +311,7 @@ class XAIGenerator:
         self.target_module = target_module
         self.select_index = select_index
         self.batch_size = batch_size
+        self.verbose = verbose  # Debug logging flag
         # Initialize XAI methods
         self.init_xai_methods()
     
@@ -351,82 +352,102 @@ class XAIGenerator:
     def init_xai_methods(self):
         """Initialize all XAI methods with model-specific configurations"""
         config = self.get_model_specific_config()
-        
+
+        if self.verbose:
+            print(f"\n{'='*60}")
+            print(f"[XAIGenerator] Initializing XAI methods")
+            print(f"  Model: {self.model_name}")
+            print(f"  Target module: {self.target_module}")
+            print(f"  Select index: {self.select_index}")
+            print(f"  Config: {config}")
+            print(f"{'='*60}")
+
         # Attention Maps (only for ViT-based models)
         if 'vit' in self.model_name.lower() or 'retfound' in self.model_name.lower():
             self.attention = Attention_Map(
-                self.model, 
-                self.model_name, 
-                self.input_size, 
+                self.model,
+                self.model_name,
+                self.input_size,
                 N=config['attention_layers'],
                 use_rollout=True,
                 print_layers=False  # Disable layer printing to avoid issues
             )
-            #print(f"✓ Attention initialized for {self.model_name} (layers: {config['attention_layers']})")
+            if self.verbose:
+                print(f"✓ Attention initialized for {self.model_name} (layers: {config['attention_layers']})")
         else:
             self.attention = None
-            #print(f"⚠ Attention skipped for {self.model_name} (not a transformer model)")
-        
+            if self.verbose:
+                print(f"⚠ Attention skipped for {self.model_name} (not a transformer model)")
+
         # GradCAM with model-specific config
         self.gradcam = PytorchCAM(
-            self.model, 
-            self.model_name, 
-            self.input_size, 
+            self.model,
+            self.model_name,
+            self.input_size,
             patch_size=config['patch_size'],
             method=GradCAM,
             target_module=self.target_module,
-            select_index=self.select_index
+            select_index=self.select_index,
+            debug=self.verbose
         )
-        #print(f"✓ GradCAM initialized for {self.model_name} (patch_size: {config['patch_size']})")
-        
+        if self.verbose:
+            print(f"✓ GradCAM initialized for {self.model_name} (patch_size: {config['patch_size']})")
+
         # ScoreCAM with model-specific config
         self.scorecam = PytorchCAM(
-            self.model, 
-            self.model_name, 
-            self.input_size, 
+            self.model,
+            self.model_name,
+            self.input_size,
             patch_size=config['patch_size'],
             method=ScoreCAM,
             target_module=self.target_module,
-            select_index=self.select_index
+            select_index=self.select_index,
+            debug=self.verbose
         )
-        #print(f"✓ ScoreCAM initialized for {self.model_name} (patch_size: {config['patch_size']})")
-        
+        if self.verbose:
+            print(f"✓ ScoreCAM initialized for {self.model_name} (patch_size: {config['patch_size']})")
+
         # HiResCAM with model-specific config
         self.hirescam = PytorchCAM(
-            self.model, 
-            self.model_name, 
-            self.input_size, 
+            self.model,
+            self.model_name,
+            self.input_size,
             patch_size=config['patch_size'],
             method=HiResCAM,
             target_module=self.target_module,
-            select_index=self.select_index
+            select_index=self.select_index,
+            debug=self.verbose
         )
-        #print(f"✓ HiResCAM initialized for {self.model_name} (patch_size: {config['patch_size']})")
-        
+        if self.verbose:
+            print(f"✓ HiResCAM initialized for {self.model_name} (patch_size: {config['patch_size']})")
+
         # GradCAMPlusPlus with model-specific config
         self.gardcamplusplus = PytorchCAM(
-            self.model, 
-            self.model_name, 
-            self.input_size, 
+            self.model,
+            self.model_name,
+            self.input_size,
             patch_size=config['patch_size'],
             method=GradCAMPlusPlus,
             target_module=self.target_module,
-            select_index=self.select_index
+            select_index=self.select_index,
+            debug=self.verbose
         )
-        #print(f"✓ GradCAMPlusPlus initialized for {self.model_name} (patch_size: {config['patch_size']})")
-        
+        if self.verbose:
+            print(f"✓ GradCAMPlusPlus initialized for {self.model_name} (patch_size: {config['patch_size']})")
+
         # RISE with model-specific batch size
         # Reduce batch for memory-heavy models
         self.rise = None
         rise_batch = config['gpu_batch']
         self.rise = RISEBatch(
-            self.model, 
-            input_size=(self.input_size, self.input_size), 
+            self.model,
+            input_size=(self.input_size, self.input_size),
             gpu_batch=rise_batch,
             N=10,
             n_class = 2
         )
-        #print(f"✓ RISE initialized for {self.model_name} (gpu_batch: {rise_batch})")
+        if self.verbose:
+            print(f"✓ RISE initialized for {self.model_name} (gpu_batch: {rise_batch})")
         
         self.lrp = None  # Will implement if model supports it
     
@@ -1015,6 +1036,7 @@ def generate_comprehensive_heatmaps_v2(
                     batch_size=batch_size,
                     target_module=module_name,
                     select_index=select_index,
+                    verbose=verbose
                 )
 
                 results[task][model_name] = {
