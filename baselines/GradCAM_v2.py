@@ -303,6 +303,9 @@ class PytorchCAM(torch.nn.Module):
         self.gradients = None
         self.device = device
         self.debug = debug
+        self.debug_forward_count = 0
+        self.debug_backward_count = 0
+        self.debug_handles = []
 
         # Register hooks on the last layer of the encoder
         self.target_layer = _resolve_target_layer(model, model_name, module_name=target_module, select_index=select_index, debug=debug)
@@ -311,10 +314,51 @@ class PytorchCAM(torch.nn.Module):
             print(f"\n[DEBUG] PytorchCAM initialized:")
             print(f"  Model: {model_name}")
             print(f"  Target layer: {type(self.target_layer).__name__}")
+            print(f"  Target layer module path: {self._get_module_path(model, self.target_layer)}")
             print(f"  Image size: {img_size}")
             print(f"  Patch size: {patch_size}")
             print(f"  Method: {method.__name__}")
-        
+
+            # Check if target layer has parameters and if they require gradients
+            param_count = sum(p.numel() for p in self.target_layer.parameters())
+            grad_enabled_params = sum(p.numel() for p in self.target_layer.parameters() if p.requires_grad)
+            print(f"  Target layer parameters: {param_count} total, {grad_enabled_params} require grad")
+            if param_count > 0 and grad_enabled_params == 0:
+                print(f"  WARNING: Target layer has parameters but none require gradients!")
+
+            # Register debug hooks to monitor activations and gradients
+            def debug_forward_hook(module, input, output):
+                self.debug_forward_count += 1
+                if isinstance(output, torch.Tensor):
+                    print(f"  [DEBUG Hook] Forward pass #{self.debug_forward_count}:")
+                    print(f"    Output shape: {output.shape}")
+                    print(f"    Output min/max: {output.min():.4f} / {output.max():.4f}")
+                    print(f"    Output mean/std: {output.mean():.4f} / {output.std():.4f}")
+                    print(f"    Output requires_grad: {output.requires_grad}")
+                    self.features = output
+                else:
+                    print(f"  [DEBUG Hook] Forward pass #{self.debug_forward_count}: output is not a tensor, type={type(output)}")
+
+            def debug_backward_hook(module, grad_input, grad_output):
+                self.debug_backward_count += 1
+                print(f"  [DEBUG Hook] Backward pass #{self.debug_backward_count}:")
+                if grad_output[0] is not None:
+                    print(f"    Grad output shape: {grad_output[0].shape}")
+                    print(f"    Grad output min/max: {grad_output[0].min():.4f} / {grad_output[0].max():.4f}")
+                    print(f"    Grad output mean/std: {grad_output[0].mean():.4f} / {grad_output[0].std():.4f}")
+                    self.gradients = grad_output[0]
+                else:
+                    print(f"    Grad output is None!")
+                if grad_input[0] is not None:
+                    print(f"    Grad input shape: {grad_input[0].shape}")
+                else:
+                    print(f"    Grad input is None!")
+
+            # Register our debug hooks
+            h1 = self.target_layer.register_forward_hook(debug_forward_hook)
+            h2 = self.target_layer.register_full_backward_hook(debug_backward_hook)
+            self.debug_handles.extend([h1, h2])
+
         # Set reshape transform if needed
         if reshape_transform is None:
             if 'vit' in model_name.lower() or 'dino' in model_name.lower() or 'retfound' in model_name.lower():
@@ -326,7 +370,22 @@ class PytorchCAM(torch.nn.Module):
                 reshape_transform = None
         self.method = method(model=HuggingfaceToTensorModelWrapper(model), target_layers=[self.target_layer], reshape_transform=reshape_transform)
         self.normalize_cam = normalize_cam
-        
+
+    def _get_module_path(self, model, target_module):
+        """Helper to find the path to a target module in the model tree"""
+        if self.debug:
+            for name, module in model.named_modules():
+                if module is target_module:
+                    return name
+        return "unknown"
+
+    def cleanup_debug_hooks(self):
+        """Remove debug hooks if they were registered"""
+        if self.debug:
+            for handle in self.debug_handles:
+                handle.remove()
+            self.debug_handles.clear()
+
     def compute_cam(self, pixel_values, targets_for_gradcam: List[Callable]):
         """Compute the CAM for the given pixel values and targets for Grad-CAM.
 
@@ -348,9 +407,32 @@ class PytorchCAM(torch.nn.Module):
             print(f"  Input shape: {pixel_values.shape}")
             print(f"  Batch size: {B}")
             print(f"  Targets: {[t.category for t in targets_for_gradcam] if targets_for_gradcam else None}")
+            print(f"  Input requires_grad: {pixel_values.requires_grad}")
+            print(f"  Model training mode: {self.model.training}")
+            print(f"  Resetting debug hook counters...")
+            self.debug_forward_count = 0
+            self.debug_backward_count = 0
+
+        if self.debug:
+            print(f"\n[DEBUG] Calling pytorch-grad-cam method...")
 
         with torch.set_grad_enabled(True):
             batch_results = torch.as_tensor(self.method(input_tensor=pixel_values, targets=targets_for_gradcam))  # shape: (B', H', W')
+
+        if self.debug:
+            print(f"\n[DEBUG] After pytorch-grad-cam method call:")
+            print(f"  Forward hook fired {self.debug_forward_count} times")
+            print(f"  Backward hook fired {self.debug_backward_count} times")
+            if self.features is not None:
+                print(f"  Captured features shape: {self.features.shape}")
+                print(f"  Captured features min/max: {self.features.min():.4f} / {self.features.max():.4f}")
+            else:
+                print(f"  WARNING: No features captured!")
+            if self.gradients is not None:
+                print(f"  Captured gradients shape: {self.gradients.shape}")
+                print(f"  Captured gradients min/max: {self.gradients.min():.4f} / {self.gradients.max():.4f}")
+            else:
+                print(f"  WARNING: No gradients captured!")
 
         if self.debug:
             print(f"  CAM output shape (before normalization): {batch_results.shape}")
