@@ -1074,7 +1074,7 @@ def generate_comprehensive_heatmaps_v2(
                                 if verbose:
                                     print(f"Processing heatmap {b_idx+1}/{len(heatmaps)} (Label: {label_list[b_idx]}, File: {filename_list[b_idx]})")
                                     print(f"Heatmap shape: {heatmaps[b_idx].shape}")
-                                    print(f"Image shape: {image_list[b_idx].shape}")
+                                    print(f"Image shape: {image_tensor_list[b_idx].shape}")
                                     print(f"Label: {label_list[b_idx]}")
                                     print(f"Filename: {filename_list[b_idx]}")
                                     print(f"Mask slice: {mask_slice_list[b_idx]}")
