@@ -128,10 +128,10 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
         enc = _get(vit, "encoder")
         layers = _get(enc, "layer")
         if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
-            # Keep indexing consistent with other branches:
-            # - select_index=-1 means "last layer"
-            # - select_index=0 means "first layer"
             layer = layers[select_index]
+            if debug:
+                print(f"[DEBUG] HuggingFace ViT path: Resolved to vit.encoder.layer[{select_index}]")
+                print(f"  Target layer type: {type(layer).__name__}")
             if hasattr(layer, "layernorm_after"):
                 return layer.layernorm_after
             if hasattr(layer, "output"):
@@ -143,7 +143,9 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
         blocks = model.blocks
         if isinstance(blocks, (nn.ModuleList, list)) and len(blocks) > 0:
             blk = blocks[select_index]
-            # ✅ ViT CAM 最常用 norm2 / norm1
+            if debug:
+                print(f"[DEBUG] timm ViT path: Resolved to blocks[{select_index}]")
+                print(f"  Target layer type: {type(blk).__name__}")
             if hasattr(blk, "norm2"):
                 return blk.norm2
             if hasattr(blk, "norm1"):
@@ -159,7 +161,14 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
             layers = _get(enc, "layer")
             if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
                 layer = layers[select_index]
-                return layer.output if hasattr(layer, "output") else layer
+                if debug:
+                    print(f"[DEBUG] HF base_model: Resolved to base_model.vit.encoder.layer[{select_index}]")
+                    print(f"  Target layer type: {type(layer).__name__}")
+                if hasattr(layer, "layernorm_after"):
+                    return layer.layernorm_after
+                if hasattr(layer, "output"):
+                    return layer.output
+                return layer
 
     # --- timm Swin
     if _get(model, "layers") is not None:
