@@ -126,12 +126,18 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
     vit = _get(model, "vit")
     if vit is not None:
         enc = _get(vit, "encoder")
-        layers = _get(enc, "layernorm")
+        layers = _get(enc, "layer")
         if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
             layer = layers[select_index]
             if debug:
                 print(f"[DEBUG] HuggingFace ViT path: Resolved to vit.encoder.layer[{select_index}]")
                 print(f"  Target layer type: {type(layer).__name__}")
+            if hasattr(layer, "layernorm"):
+                return layer.layernorm
+            if hasattr(layer, "layernorm_before"):
+                return layer.layernorm_before
+            if hasattr(layer, "layernorm_after"):
+                return layer.layernorm_after
             return layer
     
     # --- timm ViT 風格
