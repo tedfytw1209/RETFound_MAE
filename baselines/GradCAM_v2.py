@@ -27,7 +27,7 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
         print(f"{'='*60}")
 
     # --- RETFound
-    if 'RETFound' in model_name:
+    if 'RETFound' in model_name and _get(model, "blocks") is not None:
         target = model.blocks[select_index]
         if debug:
             print(f"[DEBUG] RETFound path: Resolved to model.blocks[{select_index}]")
@@ -39,7 +39,7 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
     seg_model = _get(model, "seg_model")
     mode = _get(model, "mode")
     
-    if seg_model is not None:
+    if 'SMP' in model_name and seg_model is not None and mode is not None:
         # This is an SMP-based model
         encoder = _get(seg_model, "encoder")
         decoder = _get(seg_model, "decoder")
@@ -124,7 +124,7 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
     
     # --- HuggingFace ViT 風格
     vit = _get(model, "vit")
-    if vit is not None:
+    if 'vit' in model_name.lower() and vit is not None:
         enc = _get(vit, "encoder")
         layers = _get(enc, "layer")
         if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
@@ -139,12 +139,12 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
             return layer
     
     # --- timm EfficientNet 風格
-    if _get(model, "conv_head") is not None:
+    if 'efficientnet' in model_name.lower() and _get(model, "conv_head") is not None:
         layer = model.conv_head
         return layer
     
     # --- timm ViT 風格
-    if _get(model, "blocks") is not None:
+    if 'vit' in model_name.lower() and _get(model, "blocks") is not None:
         blocks = model.blocks
         if isinstance(blocks, (nn.ModuleList, list)) and len(blocks) > 0:
             blk = blocks[select_index]
@@ -172,7 +172,7 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
                 return layer
 
     # --- timm Swin
-    if _get(model, "layers") is not None:
+    if  'swin' in model_name.lower() and _get(model, "layers") is not None:
         layers = model.layers
         if len(layers) > 0 and _get(layers[-1], "blocks") is not None:
             blks = layers[-1].blocks
@@ -181,7 +181,7 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
 
     # --- HF Swin
     swin = _get(model, "swin")
-    if swin is not None:
+    if 'swin' in model_name.lower() and swin is not None:
         enc = _get(swin, "encoder")
         layers = _get(enc, "layers")
         if isinstance(layers, (nn.ModuleList, list)) and len(layers) > 0:
@@ -190,7 +190,7 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
                 return blks[select_index]
 
     # --- torchvision ResNet
-    if _get(model, "layer4") is not None and len(model.layer4) > 0:
+    if 'resnet' in model_name.lower() and _get(model, "layer4") is not None and len(model.layer4) > 0:
         target = model.layer4[select_index]
         if debug:
             print(f"[DEBUG] torchvision ResNet path: model.layer4[{select_index}]")
@@ -199,7 +199,7 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
 
     # --- HF ResNet (wrapped under .resnet)
     resnet = _get(model, "resnet")
-    if resnet is not None:
+    if 'resnet' in model_name.lower() and resnet is not None:
         conv_list = []
         for name, module in resnet.named_modules():
             if isinstance(module, nn.Conv2d):
@@ -215,7 +215,7 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
 
     # --- HF EfficientNet often wrapped under .efficientnet
     eff = _get(model, "efficientnet")
-    if eff is not None:
+    if 'efficientnet' in model_name.lower() and eff is not None:
         last_name, last_conv = None, None
         for name, m in eff.named_modules():
             if isinstance(m, nn.Conv2d):
