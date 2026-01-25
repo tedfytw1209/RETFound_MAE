@@ -224,8 +224,6 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
         if isinstance(seq, (nn.Sequential, nn.ModuleList, list)) and len(seq) > 0:
             return seq[select_index]
 
-    print(model_name, 'select_index=', select_index)
-    print(model)
     raise ValueError("Unsupported model for GradCAM: cannot resolve target layer automatically.")
 
 def reshape_transform_vit_huggingface(x, num_patches=14):
@@ -326,7 +324,7 @@ class PytorchCAM(torch.nn.Module):
         # Register hooks on the last layer of the encoder
         self.target_layer = _resolve_target_layer(model, model_name, module_name=target_module, select_index=select_index, debug=debug)
         print(f"Resolved target layer for GradCAM: {type(self.target_layer).__name__}")
-        print(self.target_layer)
+        #print(self.target_layer)
 
         if debug:
             print(f"\n[DEBUG] PytorchCAM initialized:")
