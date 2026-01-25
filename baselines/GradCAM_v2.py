@@ -355,6 +355,20 @@ class PytorchCAM(torch.nn.Module):
         if self.debug:
             print(f"  CAM output shape (before normalization): {batch_results.shape}")
             print(f"  CAM min/max: {batch_results.min():.4f} / {batch_results.max():.4f}")
+            print(f"  CAM mean/std: {batch_results.mean():.4f} / {batch_results.std():.4f}")
+
+            # Show histogram binning (10 bins) for distribution analysis
+            hist = torch.histc(batch_results, bins=10, min=batch_results.min().item(), max=batch_results.max().item())
+            bin_edges = torch.linspace(batch_results.min().item(), batch_results.max().item(), 11)
+            print(f"  CAM binning result (10 bins):")
+            total_pixels = batch_results.numel()
+            for i in range(10):
+                bin_start = bin_edges[i].item()
+                bin_end = bin_edges[i+1].item()
+                count = hist[i].item()
+                pct = (count / total_pixels) * 100
+                bar = '█' * int(pct / 2)  # Visual bar (50% = 25 chars)
+                print(f"    [{bin_start:7.3f}, {bin_end:7.3f}): {int(count):6d} ({pct:5.1f}%) {bar}")
 
         # Normalize per image using actual output size to 0~1
         if self.normalize_cam:

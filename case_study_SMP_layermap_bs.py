@@ -1077,7 +1077,7 @@ def generate_comprehensive_heatmaps_v2(
                                     print(f"Image shape: {image_tensor_list[b_idx].shape}")
                                     print(f"Label: {label_list[b_idx]}")
                                     print(f"Filename: {filename_list[b_idx]}")
-                                    print(f"Mask slice: {mask_slice_list[b_idx]}")
+                                    print(f"Mask slice {mask_slice_list[b_idx].shape}: {mask_slice_list[b_idx]}")
                                 heatmap = heatmaps[b_idx]
                                 image_b = image_list[b_idx]
                                 label_b = label_list[b_idx]
