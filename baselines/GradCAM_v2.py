@@ -132,10 +132,6 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
             if debug:
                 print(f"[DEBUG] HuggingFace ViT path: Resolved to vit.encoder.layer[{select_index}]")
                 print(f"  Target layer type: {type(layer).__name__}")
-            if hasattr(layer, "layernorm_after"):
-                return layer.layernorm_after
-            if hasattr(layer, "output"):
-                return layer.output
             return layer
     
     # --- timm ViT 風格
@@ -164,10 +160,6 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
                 if debug:
                     print(f"[DEBUG] HF base_model: Resolved to base_model.vit.encoder.layer[{select_index}]")
                     print(f"  Target layer type: {type(layer).__name__}")
-                if hasattr(layer, "layernorm_after"):
-                    return layer.layernorm_after
-                if hasattr(layer, "output"):
-                    return layer.output
                 return layer
 
     # --- timm Swin
