@@ -215,6 +215,7 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
         for name, m in eff.named_modules():
             if isinstance(m, nn.Conv2d):
                 last_name, last_conv = name, m
+        print(last_name)
         return last_conv
 
     # --- EfficientNet / MobileNet at top-level
