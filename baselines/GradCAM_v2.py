@@ -328,6 +328,8 @@ class PytorchCAM(torch.nn.Module):
 
         # Register hooks on the last layer of the encoder
         self.target_layer = _resolve_target_layer(model, model_name, module_name=target_module, select_index=select_index, debug=debug)
+        print(f"Resolved target layer for GradCAM: {type(self.target_layer).__name__}")
+        print(self.target_layer)
 
         if debug:
             print(f"\n[DEBUG] PytorchCAM initialized:")
