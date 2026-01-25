@@ -122,12 +122,6 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
         else:
             raise ValueError(f"Cannot resolve mode {mode} {module_name} target layer {target_module} {select_index} for SMP model.")
     
-    # --- timm ViT 風格
-    if _get(model, "blocks") is not None:
-        blocks = model.blocks
-        if isinstance(blocks, (nn.ModuleList, list)) and len(blocks) > 0:
-            return blocks[select_index]
-
     # --- HuggingFace ViT 風格
     vit = _get(model, "vit")
     if vit is not None:
@@ -138,8 +132,24 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
             # - select_index=-1 means "last layer"
             # - select_index=0 means "first layer"
             layer = layers[select_index]
-            return layer.output if hasattr(layer, "output") else layer
-
+            if hasattr(layer, "layernorm_after"):
+                return layer.layernorm_after
+            if hasattr(layer, "output"):
+                return layer.output
+            return layer
+    
+    # --- timm ViT 風格
+    if _get(model, "blocks") is not None:
+        blocks = model.blocks
+        if isinstance(blocks, (nn.ModuleList, list)) and len(blocks) > 0:
+            blk = blocks[select_index]
+            # ✅ ViT CAM 最常用 norm2 / norm1
+            if hasattr(blk, "norm2"):
+                return blk.norm2
+            if hasattr(blk, "norm1"):
+                return blk.norm1
+            return blk
+    
     # --- HF 某些包裝在 base_model
     base = _get(model, "base_model")
     if base is not None:
@@ -215,7 +225,7 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
 def reshape_transform_vit_huggingface(x, num_patches=14):
     activations = x[:, 1:, :]
     # x.shape: (B, num_patches*num_patches, C)=>(B, num_patches, num_patches, C)
-    activations = activations.view(x.shape[0],
+    activations = activations.reshape(x.shape[0],
                                    num_patches, num_patches, activations.shape[2])
     activations = activations.transpose(2, 3).transpose(1, 2) #(B, num_patches, num_patches, C)=>(B, C, num_patches, num_patches)
     return activations
