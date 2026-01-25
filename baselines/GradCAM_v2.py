@@ -138,6 +138,11 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
                 return layer.layernorm
             return layer
     
+    # --- timm EfficientNet 風格
+    if _get(model, "conv_head") is not None:
+        layer = model.conv_head
+        return layer
+    
     # --- timm ViT 風格
     if _get(model, "blocks") is not None:
         blocks = model.blocks
