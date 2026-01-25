@@ -15,11 +15,24 @@ from util.misc import to_tensor
 
 def _get(obj, name, default=None):
     return getattr(obj, name, default)
-def _resolve_target_layer(model, model_name=None, module_name=None, select_index=-1):
-    
+def _resolve_target_layer(model, model_name=None, module_name=None, select_index=-1, debug=False):
+    """Resolve target layer for CAM methods with optional debug logging"""
+
+    if debug:
+        print(f"\n{'='*60}")
+        print(f"[DEBUG] _resolve_target_layer called:")
+        print(f"  model_name: {model_name}")
+        print(f"  module_name: {module_name}")
+        print(f"  select_index: {select_index}")
+        print(f"{'='*60}")
+
     # --- RETFound
     if 'RETFound' in model_name:
-        return model.blocks[select_index]
+        target = model.blocks[select_index]
+        if debug:
+            print(f"[DEBUG] RETFound path: Resolved to model.blocks[{select_index}]")
+            print(f"  Target layer type: {type(target).__name__}")
+        return target
     
     # --- SMP Classifier (Segmentation Models PyTorch)
     # Check for SMP model structure: has encoder and seg_model
@@ -52,12 +65,22 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
             target_module = decoder
         # !!! Need to check SMP fuse mode !!!
         elif mode == "fuse": #get general classifier layer, tmporary solution
+            if debug:
+                print(f"[DEBUG] SMP fuse mode detected:")
+                print(f"  size_match: {getattr(model, 'size_match', 'N/A')}")
+
             if encoder is not None and model.size_match=="decoder_to_encoder":
                 target_module = encoder
+                if debug:
+                    print(f"  Routing to encoder (decoder_to_encoder)")
             elif decoder is not None and model.size_match=="encoder_to_decoder":
                 target_module = decoder
+                if debug:
+                    print(f"  Routing to decoder (encoder_to_decoder)")
             elif head is not None:
                 target_module = head
+                if debug:
+                    print(f"  Routing to head (fallback)")
             else:
                 raise ValueError(f"Unsupported SMP size_match: {model.size_match}")
         else:
@@ -67,9 +90,33 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
             conv_list = []
             for name, module in target_module.named_modules():
                 if isinstance(module, nn.Conv2d):
-                    conv_list.append(module)
+                    conv_list.append((name, module))
+
+            if debug:
+                print(f"[DEBUG] SMP path - collecting Conv2d layers:")
+                print(f"  Mode: {mode}")
+                print(f"  Module name: {module_name}")
+                print(f"  Target module type: {type(target_module).__name__}")
+                print(f"  Found {len(conv_list)} Conv2d layers")
+                if len(conv_list) > 0:
+                    print(f"  First 3 Conv2d layers:")
+                    for i, (name, layer) in enumerate(conv_list[:3]):
+                        print(f"    [{i}] {name}: {layer.in_channels} -> {layer.out_channels}, kernel={layer.kernel_size}, stride={layer.stride}")
+                    if len(conv_list) > 3:
+                        print(f"  Last 3 Conv2d layers:")
+                        for i, (name, layer) in enumerate(conv_list[-3:], start=len(conv_list)-3):
+                            print(f"    [{i}] {name}: {layer.in_channels} -> {layer.out_channels}, kernel={layer.kernel_size}, stride={layer.stride}")
+                    print(f"  Selecting index: {select_index} -> layer: {conv_list[select_index][0]}")
+
             if len(conv_list) > 0:
-                return conv_list[select_index]
+                selected_layer = conv_list[select_index][1]  # Extract module from tuple
+                if debug:
+                    print(f"[DEBUG] Resolved to Conv2d layer: {conv_list[select_index][0]}")
+                    print(f"  In channels: {selected_layer.in_channels}")
+                    print(f"  Out channels: {selected_layer.out_channels}")
+                    print(f"  Kernel size: {selected_layer.kernel_size}")
+                    print(f"  Stride: {selected_layer.stride}")
+                return selected_layer
             else:
                 raise ValueError(f"Cannot resolve target layer for SMP model. {target_module} {select_index}")
         else:
@@ -124,7 +171,11 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
 
     # --- torchvision ResNet
     if _get(model, "layer4") is not None and len(model.layer4) > 0:
-        return model.layer4[select_index]
+        target = model.layer4[select_index]
+        if debug:
+            print(f"[DEBUG] torchvision ResNet path: model.layer4[{select_index}]")
+            print(f"  Target layer type: {type(target).__name__}")
+        return target
 
     # --- HF ResNet (wrapped under .resnet)
     resnet = _get(model, "resnet")
@@ -132,9 +183,15 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
         conv_list = []
         for name, module in resnet.named_modules():
             if isinstance(module, nn.Conv2d):
-                conv_list.append(module)
+                conv_list.append((name, module))
         if len(conv_list) > 0:
-            return conv_list[select_index]
+            if debug:
+                print(f"[DEBUG] HF ResNet path:")
+                print(f"  Found {len(conv_list)} Conv2d layers in .resnet")
+                print(f"  Selected: {conv_list[select_index][0]}")
+                selected = conv_list[select_index][1]
+                print(f"  {selected.in_channels} -> {selected.out_channels}")
+            return conv_list[select_index][1]
 
     # --- HF EfficientNet often wrapped under .efficientnet
     eff = _get(model, "efficientnet")
@@ -233,7 +290,7 @@ def run_grad_cam_on_image(model: torch.nn.Module,
         return np.hstack(results)
 
 class PytorchCAM(torch.nn.Module):
-    def __init__(self, model, model_name, img_size, target_module=None, select_index=-1, patch_size=14, method=GradCAM, reshape_transform=None, normalize_cam=True, device=None):
+    def __init__(self, model, model_name, img_size, target_module=None, select_index=-1, patch_size=14, method=GradCAM, reshape_transform=None, normalize_cam=True, device=None, debug=False):
         super(PytorchCAM, self).__init__()
         self.model = model
         self.model_name = model_name
@@ -245,9 +302,18 @@ class PytorchCAM(torch.nn.Module):
         self.features = None
         self.gradients = None
         self.device = device
-        
+        self.debug = debug
+
         # Register hooks on the last layer of the encoder
-        self.target_layer = _resolve_target_layer(model, model_name, module_name=target_module, select_index=select_index)
+        self.target_layer = _resolve_target_layer(model, model_name, module_name=target_module, select_index=select_index, debug=debug)
+
+        if debug:
+            print(f"\n[DEBUG] PytorchCAM initialized:")
+            print(f"  Model: {model_name}")
+            print(f"  Target layer: {type(self.target_layer).__name__}")
+            print(f"  Image size: {img_size}")
+            print(f"  Patch size: {patch_size}")
+            print(f"  Method: {method.__name__}")
         
         # Set reshape transform if needed
         if reshape_transform is None:
@@ -277,9 +343,19 @@ class PytorchCAM(torch.nn.Module):
             pixel_values = pixel_values.unsqueeze(0)
         B = pixel_values.size(0)
 
+        if self.debug:
+            print(f"\n[DEBUG] compute_cam called:")
+            print(f"  Input shape: {pixel_values.shape}")
+            print(f"  Batch size: {B}")
+            print(f"  Targets: {[t.category for t in targets_for_gradcam] if targets_for_gradcam else None}")
+
         with torch.set_grad_enabled(True):
             batch_results = torch.as_tensor(self.method(input_tensor=pixel_values, targets=targets_for_gradcam))  # shape: (B', H', W')
-        
+
+        if self.debug:
+            print(f"  CAM output shape (before normalization): {batch_results.shape}")
+            print(f"  CAM min/max: {batch_results.min():.4f} / {batch_results.max():.4f}")
+
         # Normalize per image using actual output size to 0~1
         if self.normalize_cam:
             cam_min = batch_results.view(B, -1).min(dim=1)[0].view(B, 1, 1)
@@ -312,6 +388,10 @@ class PytorchCAM(torch.nn.Module):
         cam_bs = self.compute_cam(inputs, targets).detach().cpu()
         # back to original image size
         cam_bs = F.interpolate(cam_bs.unsqueeze(1), size=(self.img_size, self.img_size), mode='bilinear', align_corners=False) #add fake channel dimension
+
+        if self.debug:
+            print(f"  Final heatmap shape (after resize to {self.img_size}x{self.img_size}): {cam_bs.shape}")
+
         return cam_bs.squeeze(1).numpy() #remove fake channel dimension, shape: (B, img_size, img_size)
 
     def overlay_cam(self, image, cam):
