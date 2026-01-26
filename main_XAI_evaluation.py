@@ -554,6 +554,9 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         metric_name: {cls_idx: [] for cls_idx in range(num_class)}
         for metric_name in metric_func_dict.keys()
     }
+    
+    # Track layer-level statistics across all samples for cross-sample metrics
+    all_top3_layers = []  # List to collect top-3 layers from each sample
     for batch in metric_logger.log_every(data_loader, 10, f'{mode}:'):
         images, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True)
         sample_ids = batch[3] if (isinstance(batch, (list, tuple)) and len(batch) > 3) else None
@@ -624,6 +627,22 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
                 gin = gini_coefficient(scores)
                 disp = dispersion_cv(scores)
                 top3 = topk_ratio(scores, k=3)
+                
+                # New metrics
+                avg_score = float(np.mean(scores)) if scores.size > 0 else 0.0
+                if scores.size > 0:
+                    ranks = np.argsort(np.argsort(-scores)) + 1
+                    avg_rank = float(np.mean(ranks))
+                else:
+                    avg_rank = 0.0
+                
+                # Get top 3 layers
+                if scores.size > 0:
+                    k_top = min(3, scores.size)
+                    top_k_idx = np.argsort(scores)[-k_top:][::-1]
+                    top3_layers = labels[top_k_idx].tolist()
+                else:
+                    top3_layers = []
 
                 sid = None
                 try:
@@ -639,8 +658,9 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
                 mid = " ... " if len(pairs) > 15 else ""
                 print(
                     f"[layer-metrics] {mode} epoch={epoch} id={sid_str} y={int(target_np[bi])} "
-                    f"include_bg={include_bg} layers={len(pairs)} total={total:.4e} "
-                    f"entropy={ent:.4f} gini={gin:.4f} disp={disp:.4f} top3={top3:.4f}\n"
+                    f"include_bg={include_bg} layers={len(pairs)} total={total:.4e}\n"
+                    f"  entropy={ent:.4f} gini={gin:.4f} disp={disp:.4f} top3_ratio={top3:.4f}\n"
+                    f"  avg_score={avg_score:.4e} avg_rank={avg_rank:.2f} top3_layers={top3_layers}\n"
                     f"  (label, sum, p): {head}{mid}{tail}"
                 )
                 layer_print_left -= 1
@@ -677,6 +697,18 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         #print(classwise_metrics_dict)
             
         metric_logger.update(**each_dict)
+        
+        # Collect top-3 layers for cross-sample aggregation
+        if gt_mask is not None:
+            top3_metric = LayerImportanceDistributionMetric(
+                ignore_background=ignore_bg, output_type='top3_layers'
+            )
+            for i in range(bs):
+                top3_layers_i = top3_metric.single_run(
+                    attention_map_bs[i], gt_mask[i]
+                )
+                if top3_layers_i.size > 0:
+                    all_top3_layers.extend(top3_layers_i.tolist())
     
     
     print(f'XAI Metrics at epoch {epoch} ({mode}):')
@@ -705,8 +737,88 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         if log_writer is not None:
             log_writer.add_scalar(f'{mode}/overall_{k}', score, epoch)
     
+    # Compute and log cross-sample layer statistics
+    if len(all_top3_layers) > 0:
+        from collections import Counter
+        # Count frequency of each layer appearing in top 3
+        layer_counter = Counter(all_top3_layers)
+        total_top3_entries = len(all_top3_layers)
+        
+        # Get top 3 most frequent layers
+        top3_frequent = layer_counter.most_common(3)
+        
+        # Get all layer frequencies sorted by frequency (descending)
+        all_layer_freq = layer_counter.most_common()
+        
+        print(f'\nLayer-level cross-sample statistics:')
+        print(f'  Total top-3 entries: {total_top3_entries}')
+        print(f'\n  Top 3 most frequent layers in top-3:')
+        for rank, (layer_id, count) in enumerate(top3_frequent, 1):
+            freq = count / total_top3_entries
+            print(f'    #{rank}: Layer {layer_id} - {count}/{total_top3_entries} ({freq:.2%})')
+        
+        print(f'\n  All layer frequencies in top-3:')
+        for layer_id, count in all_layer_freq:
+            freq = count / total_top3_entries
+            print(f'    Layer {layer_id}: {count} ({freq:.2%})')
+        
+        # Log to tensorboard
+        if log_writer is not None:
+            for rank, (layer_id, count) in enumerate(top3_frequent, 1):
+                freq = count / total_top3_entries
+                log_writer.add_scalar(f'{mode}/layer_top3_freq_rank{rank}', layer_id, epoch)
+                log_writer.add_scalar(f'{mode}/layer_top3_freq_rank{rank}_frequency', freq, epoch)
+            
+            # Log individual layer frequencies
+            for layer_id, count in all_layer_freq:
+                freq = count / total_top3_entries
+                log_writer.add_scalar(f'{mode}/layer_freq/layer_{layer_id}', freq, epoch)
+        
+        # Log to wandb with better structure
+        if misc.is_main_process():
+            # Create a table for all layer frequencies
+            layer_freq_table = wandb.Table(
+                columns=["Layer_ID", "Count", "Frequency", "Percentage"],
+                data=[[layer_id, count, count/total_top3_entries, f"{100*count/total_top3_entries:.2f}%"] 
+                      for layer_id, count in all_layer_freq]
+            )
+            
+            # Create a bar chart data for visualization
+            layer_freq_dict = {f"layer_{layer_id}": count/total_top3_entries for layer_id, count in all_layer_freq}
+            
+            # Log structured data
+            wandb.log({
+                f"{mode}_layer_statistics": {
+                    "layer_frequency_table": layer_freq_table,
+                    "top1_layer": top3_frequent[0][0] if len(top3_frequent) > 0 else None,
+                    "top1_frequency": top3_frequent[0][1]/total_top3_entries if len(top3_frequent) > 0 else 0,
+                    "top2_layer": top3_frequent[1][0] if len(top3_frequent) > 1 else None,
+                    "top2_frequency": top3_frequent[1][1]/total_top3_entries if len(top3_frequent) > 1 else 0,
+                    "top3_layer": top3_frequent[2][0] if len(top3_frequent) > 2 else None,
+                    "top3_frequency": top3_frequent[2][1]/total_top3_entries if len(top3_frequent) > 2 else 0,
+                    "total_entries": total_top3_entries,
+                    "unique_layers": len(all_layer_freq),
+                    **layer_freq_dict  # Individual layer frequencies for custom charts
+                }
+            }, step=epoch)
+        
+        # Add to output dict
+        out_dict_extra = {}
+        for rank, (layer_id, count) in enumerate(top3_frequent, 1):
+            freq = count / total_top3_entries
+            out_dict_extra[f'layer_top3_freq_rank{rank}'] = layer_id
+            out_dict_extra[f'layer_top3_freq_rank{rank}_frequency'] = freq
+        
+        # Also add all layer frequencies
+        for layer_id, count in all_layer_freq:
+            freq = count / total_top3_entries
+            out_dict_extra[f'layer_{layer_id}_frequency'] = freq
+    else:
+        out_dict_extra = {}
+    
     out_dict = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
     out_dict.update(classwise_out_dict)
+    out_dict.update(out_dict_extra)
     return out_dict, score
 
 def main(args, criterion):
@@ -887,6 +999,10 @@ def main(args, criterion):
             'layer_gini': LayerImportanceDistributionMetric(ignore_background=ignore_bg, output_type='gini'),
             'layer_dispersion': LayerImportanceDistributionMetric(ignore_background=ignore_bg, output_type='dispersion'),
             'layer_top3_ratio': LayerImportanceDistributionMetric(ignore_background=ignore_bg, output_type='top3_ratio'),
+            # New layer metrics
+            'layer_avg_score': LayerImportanceDistributionMetric(ignore_background=ignore_bg, output_type='avg_score'),
+            'layer_avg_rank': LayerImportanceDistributionMetric(ignore_background=ignore_bg, output_type='avg_rank'),
+            # Note: layer_top3_mode is computed separately via cross-sample aggregation in evaluate_XAI
             #'complexity': ComplexityMetric(model, device),
             #'random_logit': RandomLogitMetric(model, device, n_classes=args.nb_classes),
         })

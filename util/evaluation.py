@@ -9,7 +9,7 @@ from scipy.ndimage.filters import gaussian_filter
 import numpy as np
 from matplotlib import pyplot as plt
 from PIL import Image
-from typing import Optional
+from typing import Optional, Union
 import torch.nn.functional as F
 
 def _layer_importances_from_mask_and_heatmap(
@@ -100,6 +100,14 @@ def dispersion_cv(scores: np.ndarray, eps: float = 1e-12) -> float:
 def topk_ratio(scores: np.ndarray, k: int = 3, eps: float = 1e-12) -> float:
     """
     Ratio of top-k score mass over total mass.
+    
+    Interpretation:
+        - HIGH value (e.g., 0.9): Saliency is concentrated in top-k layers → focused attention
+        - LOW value (e.g., 0.3): Saliency is spread across many layers → diffuse attention
+    
+    Note: The implementation is correct. If your best model has LOW top3_ratio, it means
+    the model's attention is distributed across many retinal layers rather than focusing
+    on just 3 layers, which may be the desired behavior for comprehensive analysis.
     """
     x = np.asarray(scores, dtype=np.float64)
     if x.size == 0:
@@ -844,17 +852,17 @@ class LayerImportanceDistributionMetric:
         """
         Args:
             ignore_background: if True, excludes label 0 from layer set.
-            output_type: one of {"entropy","gini","dispersion","top3_ratio"}.
+            output_type: one of {"entropy","gini","dispersion","top3_ratio","avg_score","avg_rank","top3_layers"}.
             pooling_type: how to pool multi-channel heatmaps (if provided as CxHxW). Reuses RelevanceMetric.
         """
         self.ignore_background = ignore_background
         self.output_type = output_type
         self._pooler = RelevanceMetric(pooling_type=pooling_type, output_type="mass")
-        valid = {"entropy", "gini", "dispersion", "top3_ratio"}
+        valid = {"entropy", "gini", "dispersion", "top3_ratio", "avg_score", "avg_rank", "top3_layers"}
         if self.output_type not in valid:
             raise ValueError(f"output_type must be one of {sorted(valid)}, got {self.output_type}")
 
-    def _metric_from_scores(self, scores: np.ndarray) -> float:
+    def _metric_from_scores(self, scores: np.ndarray, labels: Optional[np.ndarray] = None) -> Union[float, np.ndarray]:
         if self.output_type == "entropy":
             return shannon_entropy(scores)
         if self.output_type == "gini":
@@ -863,9 +871,33 @@ class LayerImportanceDistributionMetric:
             return dispersion_cv(scores)
         if self.output_type == "top3_ratio":
             return topk_ratio(scores, k=3)
+        if self.output_type == "avg_score":
+            # Average saliency score per layer
+            # Higher value = more saliency per layer on average
+            return float(np.mean(scores)) if scores.size > 0 else 0.0
+        if self.output_type == "avg_rank":
+            # Average rank (rank 1 = highest score, rank N = lowest)
+            # Lower value = on average, layers have higher importance
+            # Higher value = on average, layers have lower importance
+            if scores.size == 0:
+                return 0.0
+            # Compute ranks: higher score gets lower rank number (1 = best)
+            ranks = np.argsort(np.argsort(-scores)) + 1
+            # Simple average of all ranks
+            avg_rank = float(np.mean(ranks))
+            return avg_rank
+        if self.output_type == "top3_layers":
+            # Return top 3 layer IDs (labels) sorted by importance (highest to lowest)
+            # Used for cross-sample aggregation to find most common important layers
+            if labels is None or scores.size == 0:
+                return np.array([], dtype=np.int64)
+            k = min(3, scores.size)
+            # Get indices of top k scores (highest to lowest)
+            top_k_idx = np.argsort(scores)[-k:][::-1]
+            return labels[top_k_idx]
         raise RuntimeError("unreachable")
 
-    def single_run(self, heatmap: np.ndarray, seg_mask: np.ndarray) -> float:
+    def single_run(self, heatmap: np.ndarray, seg_mask: np.ndarray) -> Union[float, np.ndarray]:
         """
         heatmap: (H,W) or (C,H,W); seg_mask: (H,W) labels.
         """
@@ -879,12 +911,22 @@ class LayerImportanceDistributionMetric:
         else:
             raise ValueError(f"Unsupported heatmap ndim={heatmap.ndim}, expected 2 or 3.")
 
+        # Extract labels for metrics that need them (e.g., top3_layers)
+        labels = np.unique(seg_mask)
+        if self.ignore_background:
+            labels = labels[labels != 0]
+
         scores = _layer_importances_from_mask_and_heatmap(
             seg_mask,
             heatmap_2d,
             ignore_background=self.ignore_background,
         )
-        return float(self._metric_from_scores(scores))
+        
+        result = self._metric_from_scores(scores, labels=labels)
+        # Return as-is for top3_layers (array), convert to float for scalar metrics
+        if self.output_type == "top3_layers":
+            return result
+        return float(result)
 
     def __call__(self, images: torch.Tensor, exp_batch: np.ndarray, gt_mask: np.ndarray, **kwargs):
         """
