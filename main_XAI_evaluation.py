@@ -536,7 +536,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
     overall_metrics_dict = {k:[] for k in metric_func_dict.keys()}
 
     # Optional debug printing (main process only)
-    print_layer_dbg = bool(getattr(args, "print_layer_metrics", False)) and misc.is_main_process()
+    print_layer_dbg = bool(getattr(args, "print_layer_metrics", False))
     layer_print_left = int(getattr(args, "print_layer_metrics_num", 0))
     if layer_print_left < 0:
         layer_print_left = 0
@@ -782,33 +782,31 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
                 freq = count / total_top3_entries
                 log_writer.add_scalar(f'{mode}/layer_freq/layer_{layer_id}', freq, epoch)
         
-        # Log to wandb with better structure
-        if misc.is_main_process():
-            # Create a table for all layer frequencies
-            layer_freq_table = wandb.Table(
-                columns=["Layer_ID", "Count", "Frequency", "Percentage"],
-                data=[[layer_id, count, count/total_top3_entries, f"{100*count/total_top3_entries:.2f}%"] 
-                      for layer_id, count in all_layer_freq]
-            )
-            
-            # Create a bar chart data for visualization
-            layer_freq_dict = {f"layer_{layer_id}": count/total_top3_entries for layer_id, count in all_layer_freq}
-            
-            # Log structured data
-            wandb.log({
-                f"{mode}_layer_statistics": {
-                    "layer_frequency_table": layer_freq_table,
-                    "top1_layer": top3_frequent[0][0] if len(top3_frequent) > 0 else None,
-                    "top1_frequency": top3_frequent[0][1]/total_top3_entries if len(top3_frequent) > 0 else 0,
-                    "top2_layer": top3_frequent[1][0] if len(top3_frequent) > 1 else None,
-                    "top2_frequency": top3_frequent[1][1]/total_top3_entries if len(top3_frequent) > 1 else 0,
-                    "top3_layer": top3_frequent[2][0] if len(top3_frequent) > 2 else None,
-                    "top3_frequency": top3_frequent[2][1]/total_top3_entries if len(top3_frequent) > 2 else 0,
-                    "total_entries": total_top3_entries,
-                    "unique_layers": len(all_layer_freq),
-                    **layer_freq_dict  # Individual layer frequencies for custom charts
-                }
-            }, step=epoch)
+        # Create a table for all layer frequencies
+        layer_freq_table = wandb.Table(
+            columns=["Layer_ID", "Count", "Frequency", "Percentage"],
+            data=[[layer_id, count, count/total_top3_entries, f"{100*count/total_top3_entries:.2f}%"] 
+                    for layer_id, count in all_layer_freq]
+        )
+        
+        # Create a bar chart data for visualization
+        layer_freq_dict = {f"layer_{layer_id}": count/total_top3_entries for layer_id, count in all_layer_freq}
+        
+        # Log structured data
+        wandb.log({
+            f"{mode}_layer_statistics": {
+                "layer_frequency_table": layer_freq_table,
+                "top1_layer": top3_frequent[0][0] if len(top3_frequent) > 0 else None,
+                "top1_frequency": top3_frequent[0][1]/total_top3_entries if len(top3_frequent) > 0 else 0,
+                "top2_layer": top3_frequent[1][0] if len(top3_frequent) > 1 else None,
+                "top2_frequency": top3_frequent[1][1]/total_top3_entries if len(top3_frequent) > 1 else 0,
+                "top3_layer": top3_frequent[2][0] if len(top3_frequent) > 2 else None,
+                "top3_frequency": top3_frequent[2][1]/total_top3_entries if len(top3_frequent) > 2 else 0,
+                "total_entries": total_top3_entries,
+                "unique_layers": len(all_layer_freq),
+                **layer_freq_dict  # Individual layer frequencies for custom charts
+            }
+        }, step=epoch)
         
         # Add to output dict
         out_dict_extra = {}
@@ -886,15 +884,14 @@ def main(args, criterion):
             drop_last=False
         )
     #visualize some samples
-    if misc.is_main_process():
-        print("Generating dataset visualizations...")
-        # Create output directory for visualizations
-        vis_dir = os.path.join(args.output_dir, args.task, 'visualizations')
-        os.makedirs(vis_dir, exist_ok=True)
-        # Visualize test samples
-        test_vis_path = os.path.join(vis_dir, f'test_samples_{args.modality}.png')
-        visualize_dataset_samples(dataset_test, args, num_samples=8, save_path=test_vis_path)
-        print(f"Dataset visualizations saved to: {vis_dir}")
+    print("Generating dataset visualizations...")
+    # Create output directory for visualizations
+    vis_dir = os.path.join(args.output_dir, args.task, 'visualizations')
+    os.makedirs(vis_dir, exist_ok=True)
+    # Visualize test samples
+    test_vis_path = os.path.join(vis_dir, f'test_samples_{args.modality}.png')
+    visualize_dataset_samples(dataset_test, args, num_samples=8, save_path=test_vis_path)
+    print(f"Dataset visualizations saved to: {vis_dir}")
 
     # Load finetuned model if specified
     if args.resume and args.resume != '0':
@@ -1025,7 +1022,7 @@ def main(args, criterion):
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('XAI Evaluation time {}'.format(total_time_str))
 
-    if log_writer is not None and misc.is_main_process():
+    if log_writer is not None:
         log_writer.close()
         wandb.finish()
 
