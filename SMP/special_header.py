@@ -403,7 +403,7 @@ class GeneralFusionHead(nn.Module):
         size_match = size_match.lower()
         if merge_method not in self._MERGE_METHODS:
             raise ValueError(f"merge_method must be one of {self._MERGE_METHODS}, got {merge_method}")
-        if size_match not in self._SIZE_MATCH:
+        if size_match not in self._SIZE_MATCH and not size_match.isdigit():
             raise ValueError(f"size_match must be in {self._SIZE_MATCH}, got {size_match}")
         resize_backend = resize_backend.lower()
         assert pooling in ("gap", "gmp")
@@ -530,7 +530,7 @@ class GeneralFusionHead(nn.Module):
             target = (h_enc, w_enc)
             dec_feats = self._resize(dec_feats, target, "downsample")
         elif self.size_match.isdigit():
-            target = int(self.size_match)
+            target = (int(self.size_match), int(self.size_match))
             enc_feats = self._resize(enc_feats, target, "resize")
             dec_feats = self._resize(dec_feats, target, "resize")
         return enc_feats, dec_feats
