@@ -17,17 +17,19 @@ def _layer_importances_from_mask_and_heatmap(
     heatmap_2d: np.ndarray,
     *,
     ignore_background: bool = True,
+    use_mean: bool = False,
 ) -> np.ndarray:
     """
-    Compute per-layer (per-label) importance scores by summing saliency values inside each region.
+    Compute per-layer (per-label) importance scores by summing or averaging saliency values inside each region.
 
     Args:
         seg_mask: int-like array of shape (H, W). Labels represent layers/regions; background is label 0.
         heatmap_2d: non-negative array of shape (H, W).
         ignore_background: if True, excludes label 0 from the returned score vector.
+        use_mean: if True, computes mean saliency per layer; if False, computes sum (default).
 
     Returns:
-        scores: 1D float array of per-label summed saliency, sorted by label id ascending (optionally skipping 0).
+        scores: 1D float array of per-label saliency (summed or averaged), sorted by label id ascending (optionally skipping 0).
     """
     seg_mask = np.asarray(seg_mask)
     heatmap_2d = np.asarray(heatmap_2d, dtype=np.float64)
@@ -46,7 +48,11 @@ def _layer_importances_from_mask_and_heatmap(
 
     scores = np.zeros((labels.size,), dtype=np.float64)
     for i, lab in enumerate(labels):
-        scores[i] = heatmap_2d[seg_mask == lab].sum()
+        layer_values = heatmap_2d[seg_mask == lab]
+        if use_mean:
+            scores[i] = layer_values.mean() if layer_values.size > 0 else 0.0
+        else:
+            scores[i] = layer_values.sum()
     return scores
 
 def shannon_entropy(scores: np.ndarray, eps: float = 1e-12) -> float:
@@ -838,8 +844,9 @@ class LayerImportanceDistributionMetric:
     """
     Computes a scalar metric on the distribution of per-layer importances.
 
-    Per-layer importance is defined as the summed (non-negative) saliency mass inside each label region
-    of the segmentation mask.
+    Per-layer importance can be defined as either:
+    - Sum of saliency values in each layer region (for distribution metrics)
+    - Average saliency per pixel in each layer region (for avg_score, avg_rank, top3_layers)
     """
 
     def __init__(
@@ -861,6 +868,9 @@ class LayerImportanceDistributionMetric:
         valid = {"entropy", "gini", "dispersion", "top3_ratio", "avg_score", "avg_rank", "top3_layers"}
         if self.output_type not in valid:
             raise ValueError(f"output_type must be one of {sorted(valid)}, got {self.output_type}")
+        
+        # Use mean for new metrics (normalized by layer size), sum for distribution metrics
+        self.use_mean = self.output_type in {"avg_score", "avg_rank", "top3_layers"}
 
     def _metric_from_scores(self, scores: np.ndarray, labels: Optional[np.ndarray] = None) -> Union[float, np.ndarray]:
         if self.output_type == "entropy":
@@ -872,27 +882,30 @@ class LayerImportanceDistributionMetric:
         if self.output_type == "top3_ratio":
             return topk_ratio(scores, k=3)
         if self.output_type == "avg_score":
-            # Average saliency score per layer
+            # Average of the mean saliency scores across all layers
+            # Each layer's score is its mean pixel value (normalized by layer size)
             # Higher value = more saliency per layer on average
             return float(np.mean(scores)) if scores.size > 0 else 0.0
         if self.output_type == "avg_rank":
-            # Average rank (rank 1 = highest score, rank N = lowest)
+            # Average rank based on mean saliency per layer (rank 1 = highest mean score, rank N = lowest)
+            # Each layer is ranked by its average pixel value (normalized by layer size)
             # Lower value = on average, layers have higher importance
             # Higher value = on average, layers have lower importance
             if scores.size == 0:
                 return 0.0
-            # Compute ranks: higher score gets lower rank number (1 = best)
+            # Compute ranks: higher mean score gets lower rank number (1 = best)
             ranks = np.argsort(np.argsort(-scores)) + 1
             # Simple average of all ranks
             avg_rank = float(np.mean(ranks))
             return avg_rank
         if self.output_type == "top3_layers":
-            # Return top 3 layer IDs (labels) sorted by importance (highest to lowest)
+            # Return top 3 layer IDs (labels) sorted by mean saliency (highest to lowest)
+            # Each layer is ranked by its average pixel value (normalized by layer size)
             # Used for cross-sample aggregation to find most common important layers
             if labels is None or scores.size == 0:
                 return np.array([], dtype=np.int64)
             k = min(3, scores.size)
-            # Get indices of top k scores (highest to lowest)
+            # Get indices of top k mean scores (highest to lowest)
             top_k_idx = np.argsort(scores)[-k:][::-1]
             return labels[top_k_idx]
         raise RuntimeError("unreachable")
@@ -920,6 +933,7 @@ class LayerImportanceDistributionMetric:
             seg_mask,
             heatmap_2d,
             ignore_background=self.ignore_background,
+            use_mean=self.use_mean,
         )
         
         result = self._metric_from_scores(scores, labels=labels)

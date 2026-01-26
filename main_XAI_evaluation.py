@@ -616,30 +616,37 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
                 if ignore_bg:
                     labels = labels[labels != 0]
 
-                scores = np.zeros((labels.size,), dtype=np.float64)
+                # Compute sum-based scores for distribution metrics (entropy, gini, dispersion, top3_ratio)
+                scores_sum = np.zeros((labels.size,), dtype=np.float64)
                 for li, lab in enumerate(labels):
-                    scores[li] = np.asarray(heat, dtype=np.float64)[seg_i64 == lab].sum()
+                    scores_sum[li] = np.asarray(heat, dtype=np.float64)[seg_i64 == lab].sum()
 
-                total = float(np.maximum(scores, 0.0).sum()) if scores.size else 0.0
-                probs = (scores / (total + 1e-12)) if (scores.size and total > 0.0) else np.zeros_like(scores, dtype=np.float64)
+                total = float(np.maximum(scores_sum, 0.0).sum()) if scores_sum.size else 0.0
+                probs = (scores_sum / (total + 1e-12)) if (scores_sum.size and total > 0.0) else np.zeros_like(scores_sum, dtype=np.float64)
 
-                ent = shannon_entropy(scores)
-                gin = gini_coefficient(scores)
-                disp = dispersion_cv(scores)
-                top3 = topk_ratio(scores, k=3)
+                ent = shannon_entropy(scores_sum)
+                gin = gini_coefficient(scores_sum)
+                disp = dispersion_cv(scores_sum)
+                top3 = topk_ratio(scores_sum, k=3)
                 
-                # New metrics
-                avg_score = float(np.mean(scores)) if scores.size > 0 else 0.0
-                if scores.size > 0:
-                    ranks = np.argsort(np.argsort(-scores)) + 1
+                # Compute mean-based scores for new metrics (avg_score, avg_rank, top3_layers)
+                scores_mean = np.zeros((labels.size,), dtype=np.float64)
+                for li, lab in enumerate(labels):
+                    layer_values = np.asarray(heat, dtype=np.float64)[seg_i64 == lab]
+                    scores_mean[li] = layer_values.mean() if layer_values.size > 0 else 0.0
+                
+                # New metrics using mean scores
+                avg_score = float(np.mean(scores_mean)) if scores_mean.size > 0 else 0.0
+                if scores_mean.size > 0:
+                    ranks = np.argsort(np.argsort(-scores_mean)) + 1
                     avg_rank = float(np.mean(ranks))
                 else:
                     avg_rank = 0.0
                 
-                # Get top 3 layers
-                if scores.size > 0:
-                    k_top = min(3, scores.size)
-                    top_k_idx = np.argsort(scores)[-k_top:][::-1]
+                # Get top 3 layers based on mean scores
+                if scores_mean.size > 0:
+                    k_top = min(3, scores_mean.size)
+                    top_k_idx = np.argsort(scores_mean)[-k_top:][::-1]
                     top3_layers = labels[top_k_idx].tolist()
                 else:
                     top3_layers = []
@@ -652,16 +659,17 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
                     sid = None
                 sid_str = str(sid) if sid is not None else f"batch_item_{bi}"
 
-                pairs = [(int(lab), float(sc), float(p)) for lab, sc, p in zip(labels.tolist(), scores.tolist(), probs.tolist())]
-                head = pairs[:12]
-                tail = pairs[-3:] if len(pairs) > 15 else []
-                mid = " ... " if len(pairs) > 15 else ""
+                pairs_sum = [(int(lab), float(sc), float(p)) for lab, sc, p in zip(labels.tolist(), scores_sum.tolist(), probs.tolist())]
+                pairs_mean = [(int(lab), float(sc)) for lab, sc in zip(labels.tolist(), scores_mean.tolist())]
+                head_sum = pairs_sum[:12]
+                tail_sum = pairs_sum[-3:] if len(pairs_sum) > 15 else []
+                mid = " ... " if len(pairs_sum) > 15 else ""
                 print(
                     f"[layer-metrics] {mode} epoch={epoch} id={sid_str} y={int(target_np[bi])} "
-                    f"include_bg={include_bg} layers={len(pairs)} total={total:.4e}\n"
-                    f"  entropy={ent:.4f} gini={gin:.4f} disp={disp:.4f} top3_ratio={top3:.4f}\n"
-                    f"  avg_score={avg_score:.4e} avg_rank={avg_rank:.2f} top3_layers={top3_layers}\n"
-                    f"  (label, sum, p): {head}{mid}{tail}"
+                    f"include_bg={include_bg} layers={len(pairs_sum)} total_sum={total:.4e}\n"
+                    f"  Distribution metrics (sum-based): entropy={ent:.4f} gini={gin:.4f} disp={disp:.4f} top3_ratio={top3:.4f}\n"
+                    f"  New metrics (mean-based): avg_score={avg_score:.4e} avg_rank={avg_rank:.2f} top3_layers={top3_layers}\n"
+                    f"  (label, sum, prob): {head_sum}{mid}{tail_sum}"
                 )
                 layer_print_left -= 1
         #print(f'Attention map shape: {attention_map_bs.shape}')
