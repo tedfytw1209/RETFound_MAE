@@ -1031,7 +1031,6 @@ def main(args, criterion):
         project="OCTAD_Relatives",
         name=args.task,
         config=args,
-        dir=os.path.join(args.log_dir,args.task),
     )
 
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))

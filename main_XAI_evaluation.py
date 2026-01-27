@@ -855,7 +855,6 @@ def main(args, criterion):
         project="RETFound_MAE_XAI_Evaluation",
         name=args.task,
         config=args,
-        dir=os.path.join(args.log_dir,args.task),
     )
     os.makedirs(args.log_dir, exist_ok=True)
     log_writer = SummaryWriter(log_dir=os.path.join(args.log_dir,args.task))

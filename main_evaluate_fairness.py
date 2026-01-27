@@ -482,7 +482,6 @@ def main(args, criterion):
         project="RETFound_MAE_fairness",
         name=args.task,
         config=args,
-        dir=os.path.join(args.log_dir,args.task),
     )
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))

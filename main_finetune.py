@@ -524,7 +524,6 @@ def main(args, criterion):
         name=name,
         group=group_name,
         config=args,
-        dir=os.path.join(args.log_dir,args.task, model_add_dir),
     )
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
