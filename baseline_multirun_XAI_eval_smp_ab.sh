@@ -54,12 +54,14 @@ Thickness_DIR="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 if [[ "$TARGET_MODULE" == "encoder" ]]; then
   if [[ "$SMPMode" == "enc" ]]; then
     SELECT_INDEXS=(10 23 42)
+  elif [[ "$SMPMode" == "fuse" ]]; then
+    SELECT_INDEXS=(23 42)
   else
     SELECT_INDEXS=(10 23 42 52)
   fi
 elif [[ "$TARGET_MODULE" == "decoder" ]]; then
   if [[ "$SMPMode" == "dec" ]]; then
-    SELECT_INDEXS=(1 3 5 7)
+    SELECT_INDEXS=(7 9)
   else
     SELECT_INDEXS=(1 3 5 7 9)
   fi
