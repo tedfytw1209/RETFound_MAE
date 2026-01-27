@@ -63,7 +63,7 @@ elif [[ "$TARGET_MODULE" == "decoder" ]]; then
   if [[ "$SMPMode" == "dec" ]]; then
     SELECT_INDEXS=(7 9)
   elif [[ "$SMPMode" == "fuse" ]]; then
-    SELECT_INDEXS=(3 5)
+    SELECT_INDEXS=(7 9)
   else
     SELECT_INDEXS=(1 3 5 7 9)
   fi
