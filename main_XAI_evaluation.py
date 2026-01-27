@@ -783,32 +783,31 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
                 log_writer.add_scalar(f'{mode}/layer_freq/layer_{layer_id}', freq, epoch)
         
         # Log to wandb with better structure
-        if misc.is_main_process():
-            # Create a table for all layer frequencies
-            layer_freq_table = wandb.Table(
-                columns=["Layer_ID", "Count", "Frequency", "Percentage"],
-                data=[[layer_id, count, count/total_top3_entries, f"{100*count/total_top3_entries:.2f}%"] 
-                      for layer_id, count in all_layer_freq]
-            )
-            
-            # Create a bar chart data for visualization
-            layer_freq_dict = {f"layer_{layer_id}": count/total_top3_entries for layer_id, count in all_layer_freq}
-            
-            # Log structured data
-            wandb.log({
-                f"{mode}_layer_statistics": {
-                    "layer_frequency_table": layer_freq_table,
-                    "top1_layer": top3_frequent[0][0] if len(top3_frequent) > 0 else None,
-                    "top1_frequency": top3_frequent[0][1]/total_top3_entries if len(top3_frequent) > 0 else 0,
-                    "top2_layer": top3_frequent[1][0] if len(top3_frequent) > 1 else None,
-                    "top2_frequency": top3_frequent[1][1]/total_top3_entries if len(top3_frequent) > 1 else 0,
-                    "top3_layer": top3_frequent[2][0] if len(top3_frequent) > 2 else None,
-                    "top3_frequency": top3_frequent[2][1]/total_top3_entries if len(top3_frequent) > 2 else 0,
-                    "total_entries": total_top3_entries,
-                    "unique_layers": len(all_layer_freq),
-                    **layer_freq_dict  # Individual layer frequencies for custom charts
-                }
-            }, step=epoch)
+        # Create a table for all layer frequencies
+        layer_freq_table = wandb.Table(
+            columns=["Layer_ID", "Count", "Frequency", "Percentage"],
+            data=[[layer_id, count, count/total_top3_entries, f"{100*count/total_top3_entries:.2f}%"] 
+                    for layer_id, count in all_layer_freq]
+        )
+        
+        # Create a bar chart data for visualization
+        layer_freq_dict = {f"layer_{layer_id}": count/total_top3_entries for layer_id, count in all_layer_freq}
+        
+        # Log structured data
+        wandb.log({
+            f"{mode}_layer_statistics": {
+                "layer_frequency_table": layer_freq_table,
+                "top1_layer": top3_frequent[0][0] if len(top3_frequent) > 0 else None,
+                "top1_frequency": top3_frequent[0][1]/total_top3_entries if len(top3_frequent) > 0 else 0,
+                "top2_layer": top3_frequent[1][0] if len(top3_frequent) > 1 else None,
+                "top2_frequency": top3_frequent[1][1]/total_top3_entries if len(top3_frequent) > 1 else 0,
+                "top3_layer": top3_frequent[2][0] if len(top3_frequent) > 2 else None,
+                "top3_frequency": top3_frequent[2][1]/total_top3_entries if len(top3_frequent) > 2 else 0,
+                "total_entries": total_top3_entries,
+                "unique_layers": len(all_layer_freq),
+                **layer_freq_dict  # Individual layer frequencies for custom charts
+            }
+        }, step=epoch)
         
         # Add to output dict
         out_dict_extra = {}
