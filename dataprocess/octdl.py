@@ -7,19 +7,27 @@ DIR_path = '/orange/ruogu.fang/tienyuchang/OCTDL'
 
 amd = os.listdir(DIR_path + '/AMD')
 dme = os.listdir(DIR_path + '/DME')
+erm = os.listdir(DIR_path + '/ERM')
 no = os.listdir(DIR_path + '/NO')
 amd.sort()
 dme.sort()
+erm.sort()
 no.sort()
 
 train_amd, test_amd = train_test_split(amd, test_size=0.2, random_state=42)
 train_dme, test_dme = train_test_split(dme, test_size=0.2, random_state=42)
+train_erm, test_erm = train_test_split(erm, test_size=0.2, random_state=42)
 train_no, test_no = train_test_split(no, test_size=0.2, random_state=42)
 
 train_amd_path = [DIR_path + '/AMD/'+i for i in train_amd] + [DIR_path + '/NO/'+i for i in train_no]
 train_amd_label = [1]*len(train_amd) + [0]*len(train_no)
 test_amd_path = [DIR_path + '/AMD/'+i for i in test_amd] + [DIR_path + '/NO/'+i for i in test_no]
 test_amd_label = [1]*len(test_amd) + [0]*len(test_no)
+
+train_erm_path = [DIR_path + '/ERM/'+i for i in train_erm] + [DIR_path + '/NO/'+i for i in train_no]
+train_erm_label = [1]*len(train_erm) + [0]*len(train_no)
+test_erm_path = [DIR_path + '/ERM/'+i for i in test_erm] + [DIR_path + '/NO/'+i for i in test_no]
+test_erm_label = [1]*len(test_erm) + [0]*len(test_no)
 
 train_dme_path = [DIR_path + '/DME/'+i for i in train_dme] + [DIR_path + '/NO/'+i for i in train_no]
 train_dme_label = [1]*len(train_dme) + [0]*len(train_no)
@@ -38,3 +46,5 @@ create_csv(train_amd_path, train_amd_label, DIR_path + '/AMD_train.csv')
 create_csv(test_amd_path, test_amd_label, DIR_path + '/AMD_test.csv')
 create_csv(train_dme_path, train_dme_label, DIR_path + '/DME_train.csv')
 create_csv(test_dme_path, test_dme_label, DIR_path + '/DME_test.csv')
+create_csv(train_erm_path, train_erm_label, DIR_path + '/ERM_train.csv')
+create_csv(test_erm_path, test_erm_label, DIR_path + '/ERM_test.csv')
