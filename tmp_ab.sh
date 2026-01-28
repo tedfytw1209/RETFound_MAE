@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=12gb
+#SBATCH --partition=hpg-turin
+#SBATCH --gpus=1
+#SBATCH --time=48:00:00
+#SBATCH --output=%x.%j.out
+#SBATCH --account=ruogu.fang
+#SBATCH --qos=ruogu.fang
+
+python /blue/ruogu.fang/tienyuchang/RETFound_MAE/main_XAI_evaluation.py --batch_size 8 --model SMP --nb_classes 2 --data_path /orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/IRB2024_v5_all/split/tune8-eval2/DME_binary_all_split.csv --task DME_binary_all_split-v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth-XAIhirescam-EVAL/ --img_dir /orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/ --finetune /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth --num_workers 8 --input_size 512 --num_k 0 --resume /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5_all-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-fuse-smpchannel_multiply-pre-64-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask---mask_softmax-/checkpoint-best.pth --xai gradcamv2 --step_pixels 1024 --SMPMode fuse --output_mask --thickness_dir /orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/ --target_module head --select_index -1 --smp_fuse_mode channel_multiply --smp_alpha 0.5 --smp_size_match decoder_to_encoder --fusion_dim 64 --align pre --enc_idx -2 --dec_idx -1 --smp_classifier conv --seg_mask --mask_softmax
+
+python /blue/ruogu.fang/tienyuchang/RETFound_MAE/main_XAI_evaluation.py --batch_size 8 --model SMP --nb_classes 2 --data_path /orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/IRB2024_v5_all/split/tune8-eval2/DME_binary_all_split.csv --task DME_binary_all_split-v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth-XAIhirescam-EVAL/ --img_dir /orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/ --finetune /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth --num_workers 8 --input_size 512 --num_k 0 --resume /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5_all-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-fuse-smpchannel_merge-pre-18-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask--/checkpoint-best.pth --xai gradcamv2 --step_pixels 1024 --SMPMode fuse --output_mask --thickness_dir /orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/ --target_module head --select_index -1 --smp_fuse_mode channel_merge --smp_alpha 0.5 --smp_size_match decoder_to_encoder --fusion_dim 18 --align pre --enc_idx -2 --dec_idx -1 --smp_classifier conv --seg_mask
