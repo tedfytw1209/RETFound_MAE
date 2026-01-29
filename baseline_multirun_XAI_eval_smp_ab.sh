@@ -59,9 +59,9 @@ if [[ "$TARGET_MODULE" == "encoder" ]]; then
   fi
 elif [[ "$TARGET_MODULE" == "decoder" ]]; then
   if [[ "$SMPMode" == "dec" ]]; then
-    SELECT_INDEXS=(1 3 5)
+    SELECT_INDEXS=(7 9)
   else
-    SELECT_INDEXS=(1 3 5)
+    SELECT_INDEXS=(7 9)
   fi
 elif [[ "$TARGET_MODULE" == "head" ]]; then
   SELECT_INDEXS=(0 1 2)
