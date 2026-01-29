@@ -55,15 +55,15 @@ if [[ "$TARGET_MODULE" == "encoder" ]]; then
   if [[ "$SMPMode" == "enc" ]]; then
     SELECT_INDEXS=(10 23 42)
   elif [[ "$SMPMode" == "fuse" ]]; then
-    SELECT_INDEXS=(23 42)
+    SELECT_INDEXS=(10 23 42 52)
   else
     SELECT_INDEXS=(10 23 42 52)
   fi
 elif [[ "$TARGET_MODULE" == "decoder" ]]; then
   if [[ "$SMPMode" == "dec" ]]; then
-    SELECT_INDEXS=(7 9)
+    SELECT_INDEXS=(1 3 5 7)
   elif [[ "$SMPMode" == "fuse" ]]; then
-    SELECT_INDEXS=(7 9)
+    SELECT_INDEXS=(1 3 5 7 9)
   else
     SELECT_INDEXS=(1 3 5 7 9)
   fi
@@ -84,6 +84,6 @@ do
     do
         # Submit the job to Slurm
         echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $RESUME $NUM_CLASS $INPUT_SIZE $XAI_METHOD $STEP_PIXELS $Thickness_DIR $SMPMode $SMPFuseMode $SMPAlpha $SMPSizeMatch $FUSION_DIM $ALIGN $ENC_IDX $DEC_IDX $TARGET_MODULE $SELECT_INDEX $SMPClassifier $ADDCMD $ADDCMD2 $ADDCMD3"
-        #bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $RESUME $NUM_CLASS $INPUT_SIZE $XAI_METHOD $STEP_PIXELS $Thickness_DIR $SMPMode $SMPFuseMode $SMPAlpha $SMPSizeMatch $FUSION_DIM $ALIGN $ENC_IDX $DEC_IDX $TARGET_MODULE $SELECT_INDEX $SMPClassifier $ADDCMD $ADDCMD2 $ADDCMD3
+        bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $RESUME $NUM_CLASS $INPUT_SIZE $XAI_METHOD $STEP_PIXELS $Thickness_DIR $SMPMode $SMPFuseMode $SMPAlpha $SMPSizeMatch $FUSION_DIM $ALIGN $ENC_IDX $DEC_IDX $TARGET_MODULE $SELECT_INDEX $SMPClassifier $ADDCMD $ADDCMD2 $ADDCMD3
     done
 done
