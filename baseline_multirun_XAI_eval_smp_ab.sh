@@ -55,7 +55,7 @@ if [[ "$TARGET_MODULE" == "encoder" ]]; then
   if [[ "$SMPMode" == "enc" ]]; then
     SELECT_INDEXS=(10 23 42)
   else
-    SELECT_INDEXS=(10 23)
+    SELECT_INDEXS=(42 52)
   fi
 elif [[ "$TARGET_MODULE" == "decoder" ]]; then
   if [[ "$SMPMode" == "dec" ]]; then
