@@ -295,7 +295,7 @@ def _build_records_from_uf(cfg: RuntimeConfig, args: argparse.Namespace) -> List
         if isinstance(image_entry, list):
             raise NotImplementedError("Half3D UF samples (k>0 for eval) are not supported in inference_general.")
         image_path = Path(image_entry)
-        if not '1.2.840.114158.513704646138982313811340207192335500732' in str(image_path):
+        if not '513704646138982313811340207192335500732' in str(image_path):
             continue
         if not image_path.is_absolute():
             image_path = (root_path / image_entry).resolve()
