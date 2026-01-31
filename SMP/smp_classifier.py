@@ -141,7 +141,7 @@ class SMPClassifier(nn.Module):
             classes=seg_classes,
             activation=seg_activation,
         )
-        if pretrained_seg_ckpt is not None:
+        if pretrained_seg_ckpt and pretrained_seg_ckpt.lower() != "na":
             sd = torch.load(pretrained_seg_ckpt, map_location="cpu", weights_only=False)
             sd = sd.get("model_state_dict", sd)
             result = self.seg_model.load_state_dict(sd, strict=False)
