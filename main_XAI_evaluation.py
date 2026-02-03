@@ -52,6 +52,7 @@ from baselines.Attention import Attention_Map
 from baselines.GradCAM import GradCAM
 from baselines.RISE import RISE, RISEBatch
 from baselines.GradCAM_v2 import PytorchCAM
+from baselines.TransformerAttribution import TransformerAttribution
 from huggingface_hub import hf_hub_download, login
 from engine_finetune import evaluate_half3D, train_one_epoch, evaluate, reinit_model_weights_
 import wandb
@@ -946,6 +947,14 @@ def main(args, criterion):
     elif args.xai == 'lxt':
         from baselines.CRP_LXT import LXT
         XAI_module = LXT(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, conv_gamma=0.25, lin_gamma=0.05, device=device)
+    elif args.xai == 'tf_attr':
+        XAI_module = TransformerAttribution(
+            model=model,
+            model_name=args.model,
+            input_size=args.input_size,
+            N=12,
+            device=device
+        )
     else:
         raise ValueError(f"Unknown XAI method: {args.xai}")
     XAI_module.to(device)
