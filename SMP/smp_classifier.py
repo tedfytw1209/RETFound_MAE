@@ -149,6 +149,8 @@ class SMPClassifier(nn.Module):
             print(result.missing_keys)
             print("\n=== UNEXPECTED KEYS ===")
             print(result.unexpected_keys)
+        else:
+            print("No pretrained segmentation checkpoint provided, using random initialization.")
 
         #self.encoder = self.seg_model.encoder
         enc_chs = list(self.seg_model.encoder.out_channels)
@@ -198,8 +200,6 @@ class SMPClassifier(nn.Module):
                 use_mask=self.use_mask,
                 smp_classifier=self.smp_classifier,
             )
-
-        
 
     def _get_enc_last(self, x): 
         return self.seg_model.encoder(x)[-1]
