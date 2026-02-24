@@ -191,6 +191,8 @@ def get_args_parser():
     # Image per Patient settings
     parser.add_argument('--use_img_per_patient', action='store_true', default=False,
                         help='Whether to use image per patient sampling')
+    parser.add_argument('--CV', action='store_true', default=False, help='Use cross-validation')
+    parser.add_argument('--fold', default=0, type=int, help='Fold number for cross-validation (0-4 if 5-fold CV)')
 
     # fine-tuning parameters
     parser.add_argument('--savemodel', action='store_true', default=True,
@@ -514,6 +516,12 @@ def main(args, criterion):
         group_name = args.task
         name = "seed_" + str(args.subsetseed)
         model_add_dir = "seed_" + str(args.subsetseed)
+    elif args.CV:
+        project_name = "RETFound_MAE_CV"
+        args.task = args.task[:120]
+        group_name = args.task
+        name = "fold_" + str(args.fold)
+        model_add_dir = "fold_" + str(args.fold)
     else:
         project_name = "RETFound_MAE"
         name = args.task
