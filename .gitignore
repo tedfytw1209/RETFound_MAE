@@ -145,3 +145,4 @@ output_dir/
 output_logs/
 wandb/
 /.claude
+/docs/plans
