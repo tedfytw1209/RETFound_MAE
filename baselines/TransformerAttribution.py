@@ -44,7 +44,11 @@ class TransformerAttribution(nn.Module):
 
     def _setup_model(self):
         """Set up feature extractor based on model type."""
-        if 'retfound' in self.model_name.lower():
+        # Detect HuggingFace models by presence of .config attribute
+        is_hf = hasattr(self.model, 'config')
+
+        if not is_hf:
+            # timm / standard PyTorch ViT (RETFound, vit_base_patch16_224, etc.)
             self.return_attns = [f'blocks.{i}.attn.softmax' for i in range(self.N)]
             self.feature_extractor = create_feature_extractor(
                 self.model,
@@ -52,11 +56,10 @@ class TransformerAttribution(nn.Module):
                 tracer_kwargs={'leaf_modules': [PatchEmbed]}
             )
             self.use_timm = True
-        elif 'vit' in self.model_name.lower() or 'dino' in self.model_name.lower():
+        else:
+            # HuggingFace ViT / DINO
             self.feature_extractor = None
             self.use_timm = False
-        else:
-            raise ValueError(f"Model {self.model_name} not supported for Transformer Attribution")
 
     def forward(self, inputs=None, targets=None, model=None, **kwargs):
         """

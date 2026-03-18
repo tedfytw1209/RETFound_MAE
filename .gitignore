@@ -144,3 +144,4 @@ masks.npy
 output_dir/
 output_logs/
 wandb/
+/.claude
