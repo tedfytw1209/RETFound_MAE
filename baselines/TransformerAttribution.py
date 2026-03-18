@@ -6,12 +6,10 @@ Reference: Chefer, H., Gur, S., & Wolf, L. (2021).
 Transformer Interpretability Beyond Attention Visualization. CVPR 2021.
 """
 
-from PIL import Image
 import numpy as np
 import torch
 import torch.nn as nn
-from timm.models.layers import PatchEmbed
-from torchvision.models.feature_extraction import create_feature_extractor
+import torch.nn.functional as F
 
 
 class TransformerAttribution(nn.Module):
@@ -39,27 +37,8 @@ class TransformerAttribution(nn.Module):
         self.N = N
         self.device = device
 
-        # Set up based on model type
-        self._setup_model()
-
-    def _setup_model(self):
-        """Set up feature extractor based on model type."""
-        # Detect HuggingFace models by presence of .config attribute
-        is_hf = hasattr(self.model, 'config')
-
-        if not is_hf:
-            # timm / standard PyTorch ViT (RETFound, vit_base_patch16_224, etc.)
-            self.return_attns = [f'blocks.{i}.attn.softmax' for i in range(self.N)]
-            self.feature_extractor = create_feature_extractor(
-                self.model,
-                return_nodes=self.return_attns,
-                tracer_kwargs={'leaf_modules': [PatchEmbed]}
-            )
-            self.use_timm = True
-        else:
-            # HuggingFace ViT / DINO
-            self.feature_extractor = None
-            self.use_timm = False
+        # Detect model type once at init
+        self.use_timm = not hasattr(self.model, 'config')
 
     def forward(self, inputs=None, targets=None, model=None, **kwargs):
         """
@@ -81,7 +60,6 @@ class TransformerAttribution(nn.Module):
         if targets is None:
             raise ValueError("targets parameter is required for Transformer Attribution")
 
-        # Ensure inputs are on correct device
         if self.device is not None:
             inputs = inputs.to(self.device)
             if isinstance(targets, torch.Tensor):
@@ -91,11 +69,9 @@ class TransformerAttribution(nn.Module):
         B = inputs.shape[0]
         saliency_maps = []
 
-        # Process each image individually (need per-sample gradients)
         for i in range(B):
             img = inputs[i:i+1].clone().detach().requires_grad_(True)
             target = targets[i] if isinstance(targets, torch.Tensor) else targets
-
             saliency = self._compute_single_attribution(img, target, model)
             saliency_maps.append(saliency)
 
@@ -103,7 +79,12 @@ class TransformerAttribution(nn.Module):
 
     def _compute_single_attribution(self, img, target, model):
         """
-        Compute attribution for a single image.
+        Compute attribution for a single image using a single forward pass.
+
+        Attention tensors are captured via forward hooks registered on each
+        attention softmax layer. This ensures the captured tensors share the
+        same computation graph as the output logits, so gradients flow back
+        through them correctly.
 
         Args:
             img: Single image tensor (1, C, H, W) with requires_grad=True
@@ -116,112 +97,109 @@ class TransformerAttribution(nn.Module):
         model.zero_grad()
 
         if self.use_timm:
-            # timm models (RETFound)
-            features = self.feature_extractor(img)
-            attentions = [features[key] for key in self.return_attns]
-            output = model(img)
-            logits = output.logits if hasattr(output, 'logits') else output
+            # Register hooks on attention softmax modules so attention tensors
+            # are captured inside the same forward pass that produces logits.
+            captured_attentions = []
+            hooks = []
+
+            def make_hook():
+                def hook_fn(module, input, output):
+                    # output is in the computation graph; retain grad so
+                    # backward() can populate output.grad
+                    output.retain_grad()
+                    captured_attentions.append(output)
+                return hook_fn
+
+            for i in range(self.N):
+                hooks.append(
+                    model.blocks[i].attn.softmax.register_forward_hook(make_hook())
+                )
+
+            try:
+                output = model(img)
+                logits = output.logits if hasattr(output, 'logits') else output
+                attentions_with_grad = captured_attentions
+            finally:
+                for hook in hooks:
+                    hook.remove()
+
         else:
-            # HuggingFace model
+            # HuggingFace model — single pass already returns attentions that
+            # are part of the logits computation graph.
             if hasattr(model, "config"):
                 model.config.output_attentions = True
                 model.config.return_dict = True
             output = model(pixel_values=img, output_attentions=True, return_dict=True)
             logits = output.logits if hasattr(output, 'logits') else output
-            attentions = output.attentions
-            if attentions is None and hasattr(model, 'vit'):
-                output = model.vit(pixel_values=img, output_attentions=True, return_dict=True)
-                attentions = output.attentions
+            attentions_with_grad = list(output.attentions or [])
+            if not attentions_with_grad and hasattr(model, 'vit'):
+                output2 = model.vit(pixel_values=img, output_attentions=True, return_dict=True)
+                attentions_with_grad = list(output2.attentions)
+            for attn in attentions_with_grad:
+                if attn.requires_grad:
+                    attn.retain_grad()
 
-        # Ensure all attention tensors require gradients
-        attentions_with_grad = []
-        for attn in attentions:
-            if not attn.requires_grad:
-                attn = attn.clone().detach().requires_grad_(True)
-            attn.retain_grad()
-            attentions_with_grad.append(attn)
+        # Backward pass through the shared computation graph
+        target_idx = target.item() if isinstance(target, torch.Tensor) else int(target)
+        logits[0, target_idx].backward(retain_graph=True)
 
-        # Get target class score
-        if isinstance(target, torch.Tensor):
-            target_idx = target.item()
-        else:
-            target_idx = int(target)
-
-        target_score = logits[0, target_idx]
-
-        # Backward pass to get gradients
-        target_score.backward(retain_graph=True)
-
-        # Compute relevance: attention * gradient (positive only)
+        # Relevance = attention * gradient, positive contributions only
         relevance_maps = []
         for attn in attentions_with_grad:
-            if attn.grad is not None:
-                grad = attn.grad.detach()
-            else:
+            grad = attn.grad
+            if grad is None:
+                # Should not happen with the hook-based approach; warn if it does
+                print(f"Warning: attn.grad is None for a layer — falling back to ones")
                 grad = torch.ones_like(attn)
+            else:
+                grad = grad.detach()
 
             # attn shape: (1, num_heads, num_tokens, num_tokens)
             relevance = (attn.detach() * grad).clamp(min=0)
-            # Average over heads
-            relevance = relevance.mean(dim=1)  # (1, num_tokens, num_tokens)
+            relevance = relevance.mean(dim=1)  # average over heads → (1, num_tokens, num_tokens)
             relevance_maps.append(relevance.cpu().numpy())
 
-        # Aggregate using rollout
         saliency = self._rollout_relevance(relevance_maps)
-
-        # Resize to input size
-        saliency = self._resize_saliency(saliency)
-
-        return saliency
+        return self._resize_saliency(saliency)
 
     def _rollout_relevance(self, relevance_maps):
         """
         Aggregate relevance across layers using rollout.
 
         Args:
-            relevance_maps: List of relevance matrices (1, num_tokens, num_tokens)
+            relevance_maps: List of (1, num_tokens, num_tokens) numpy arrays
 
         Returns:
-            np.ndarray: CLS token attention to patches (num_patches,)
+            np.ndarray: CLS-to-patch relevance, shape (num_patches,)
         """
         num_tokens = relevance_maps[0].shape[-1]
         rollout = np.eye(num_tokens)
 
         for relevance in relevance_maps:
-            rel = relevance.squeeze(0)  # (num_tokens, num_tokens)
-            rel = rel + np.eye(num_tokens)  # Add residual
-            rel = rel / (rel.sum(axis=-1, keepdims=True) + 1e-9)  # Normalize
-            rollout = np.matmul(rollout, rel)
+            rel = relevance.squeeze(0)            # (num_tokens, num_tokens)
+            rel = rel + np.eye(num_tokens)        # residual connection
+            rel = rel / (rel.sum(axis=-1, keepdims=True) + 1e-9)
+            rollout = np.matmul(rel, rollout)     # rel @ rollout: last layer is left-most
 
-        # CLS token attention to patch tokens (exclude CLS)
-        cls_attention = rollout[0, 1:]
-        return cls_attention
+        return rollout[0, 1:]  # CLS row, exclude CLS token itself
 
     def _resize_saliency(self, saliency):
         """
-        Reshape and resize saliency to image dimensions.
+        Reshape flat patch saliency to (input_size, input_size).
 
         Args:
-            saliency: Flat saliency array (num_patches,)
+            saliency: np.ndarray of shape (num_patches,)
 
         Returns:
-            np.ndarray: Saliency map (input_size, input_size)
+            np.ndarray: Normalised saliency map (input_size, input_size)
         """
-        num_patches = saliency.shape[0]
-        patch_grid = int(np.sqrt(num_patches))
-        saliency_2d = saliency.reshape(patch_grid, patch_grid).astype(np.float32)
+        patch_grid = int(np.sqrt(saliency.shape[0]))
+        saliency_t = torch.tensor(saliency, dtype=torch.float32).reshape(1, 1, patch_grid, patch_grid)
+        saliency_t = F.interpolate(saliency_t, size=(self.input_size, self.input_size), mode='bilinear', align_corners=False)
+        saliency_resized = saliency_t.squeeze().numpy()
 
-        saliency_resized = np.array(
-            Image.fromarray(saliency_2d).resize(
-                (self.input_size, self.input_size),
-                resample=Image.BILINEAR
-            )
-        )
-
-        # Normalize to [0, 1]
-        saliency_min = saliency_resized.min()
-        saliency_max = saliency_resized.max()
-        return (saliency_resized - saliency_min) / (saliency_max - saliency_min + 1e-8)
+        lo, hi = saliency_resized.min(), saliency_resized.max()
+        return (saliency_resized - lo) / (hi - lo + 1e-8)
 
 
 if __name__ == "__main__":
