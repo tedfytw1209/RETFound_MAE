@@ -111,9 +111,20 @@ class TransformerAttribution(nn.Module):
                 return hook_fn
 
             for i in range(self.N):
-                hooks.append(
-                    model.blocks[i].attn.softmax.register_forward_hook(make_hook())
-                )
+                attn_module = model.blocks[i].attn
+                # Older timm: self.softmax = nn.Softmax(dim=-1)
+                # Newer timm: softmax is called inline, use attn_drop as proxy
+                if hasattr(attn_module, 'softmax'):
+                    hook_target = attn_module.softmax
+                elif hasattr(attn_module, 'attn_drop'):
+                    hook_target = attn_module.attn_drop
+                else:
+                    raise AttributeError(
+                        f"Cannot find softmax or attn_drop on blocks[{i}].attn "
+                        f"({type(attn_module).__name__}). "
+                        "Please inspect the attention module and update hook_target."
+                    )
+                hooks.append(hook_target.register_forward_hook(make_hook()))
 
             try:
                 output = model(img)
