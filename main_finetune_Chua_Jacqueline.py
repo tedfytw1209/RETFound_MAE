@@ -7,7 +7,7 @@ import os
 import time
 from pathlib import Path
 
-from pandas import test
+import pandas as pd
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -200,6 +200,8 @@ def get_args_parser():
                         help='Fixing the backbone parameters')
     parser.add_argument('--num_k', default=0, type=float)
     parser.add_argument('--img_dir', default='/orange/bianjiang/tienyu/OCT_AD/all_images/', type=str)
+    parser.add_argument('--select_layer_idx', default=-1, type=int, help='number of layers to select for training')
+    parser.add_argument('--th_heatmap', action='store_true', default=False, help='Transform thickness map to heatmap')
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -219,6 +221,14 @@ def get_args_parser():
                         help='Subset ratio for sampling dataset. If > 0, sample subset_ratio * minor_class_numbers from train/val/test datasets with seed 42')
     parser.add_argument('--visualize_samples', action='store_true', default=False,
                         help='Visualize sample images from the dataset')
+    parser.add_argument('--subset_num', default=0, type=int,
+                        help='Subset number for sampling dataset. If > 0, sample subset_num from train datasets')
+    parser.add_argument('--new_subset_num', default=0, type=int,
+                        help='New subset method for absolute number sampling with class-balanced splits')
+    parser.add_argument('--droplast', action='store_true', default=False,
+                        help='Drop the last incomplete batch, if the dataset size is not divisible by the batch size')
+    parser.add_argument('--bootstrap_runs', action='store_true', default=False,
+                        help='Doing bootstrap sampling for training dataset')
     parser.add_argument('--no_amp', dest='use_amp', action='store_false', help='Disable AMP')
     parser.set_defaults(use_amp=False)
     
@@ -233,6 +243,8 @@ def get_args_parser():
                         help='Enable early stopping')
     parser.add_argument('--patience', type=int, default=10,
                         help='Early stopping patience (default: 10)')
+    parser.add_argument('--thickness_dir', type=str, default=None,
+                        help='Directory containing thickness maps')
     parser.add_argument('--add_mask', action='store_true', default=False,
                         help='Add mask to the image based on thickness map')
     
@@ -1076,13 +1088,13 @@ def main(args, criterion):
         # Standard train/val/test split
         if args.testval:
             print('Using test set for validation')
-            dataset_train = build_dataset(is_train=['train','val'], args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_train, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
-            dataset_val = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
-            dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+            dataset_train = build_dataset(is_train=['train','val'], args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_train, select_layers=Select_Layer, th_resize=True, th_heatmap=args.th_heatmap)
+            dataset_val = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=args.th_heatmap)
+            dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=args.th_heatmap)
         else:
-            dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_train, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
-            dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
-            dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=True)
+            dataset_train = build_dataset(is_train='train', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_train, select_layers=Select_Layer, th_resize=True, th_heatmap=args.th_heatmap)
+            dataset_val = build_dataset(is_train='val', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=args.th_heatmap)
+            dataset_test = build_dataset(is_train='test', args=args, k=args.num_k,img_dir=args.img_dir,modality=args.modality,transform=transform_eval, select_layers=Select_Layer, th_resize=True, th_heatmap=args.th_heatmap)
 
     # Apply subset sampling if subset_ratio > 0
     if args.subset_ratio > 0:
@@ -1123,7 +1135,109 @@ def main(args, criterion):
         dataset_train = create_subset(dataset_train, 'Train')
         dataset_val = create_subset(dataset_val, 'Validation')
         dataset_test = create_subset(dataset_test, 'Test')
-    
+        args.droplast = False  # Disable droplast when using subset_ratio
+
+    # Apply subset sampling by absolute number if subset_num > 0
+    if args.subset_num > 0:
+        print(f'Old subset method for absolute number {args.subset_num}')
+
+        def create_subset_by_num(dataset, split_name, subset_num):
+            """Create a subset of the dataset with specified absolute number"""
+            targets = np.array(dataset.targets)
+            unique_classes, _ = np.unique(targets, return_counts=True)
+            n_classes = len(unique_classes)
+
+            print(f'{split_name} - Original size: {len(dataset)}, Classes: {n_classes}, Target subset size: {subset_num}')
+
+            if subset_num < n_classes:
+                print(f'Warning: subset_num ({subset_num}) < number of classes ({n_classes}), using random sampling')
+                rng = np.random.RandomState(args.datasets_seed)
+                subset_indices = rng.choice(len(dataset), min(subset_num, len(dataset)), replace=False)
+            else:
+                from sklearn.model_selection import StratifiedShuffleSplit
+                if subset_num >= len(dataset):
+                    print(f'Warning: subset_num ({subset_num}) >= dataset size ({len(dataset)}), using full dataset')
+                    subset_indices = list(range(len(dataset)))
+                else:
+                    sss = StratifiedShuffleSplit(n_splits=1, train_size=subset_num, random_state=args.datasets_seed)
+                    subset_indices = next(sss.split(range(len(dataset)), targets))[0]
+
+            subset_dataset = Subset(dataset, subset_indices)
+            subset_dataset.targets = [dataset.targets[i] for i in subset_indices]
+            subset_dataset.classes = dataset.classes
+            subset_dataset.class_to_idx = dataset.class_to_idx
+
+            print(f'{split_name} - Final subset size: {len(subset_dataset)}')
+            return subset_dataset
+
+        dataset_train = create_subset_by_num(dataset_train, 'Train', int(args.subset_num))
+        args.droplast = False  # Disable droplast when using subset_num
+
+    # Apply subset sampling by absolute number if new_subset_num > 0
+    if args.new_subset_num > 0:
+        print(f'New subset method for absolute number {args.new_subset_num}')
+
+        def create_separate_class_based_subsets(train_dataset, val_dataset, total_subset_num):
+            """Create separate subsets from train and validation datasets based on class ratios"""
+
+            def create_class_balanced_subset(dataset, split_name, target_size):
+                targets = np.array(dataset.targets)
+                unique_classes, class_counts = np.unique(targets, return_counts=True)
+                n_classes = len(unique_classes)
+                class_ratios = class_counts / len(targets)
+
+                print(f'\n{split_name} dataset - Original size: {len(dataset)}, Classes: {n_classes}')
+                print(f'{split_name} class counts: {dict(zip(unique_classes, class_counts))}')
+                print(f'{split_name} class ratios: {dict(zip(unique_classes, class_ratios))}')
+                print(f'{split_name} target subset size: {target_size}')
+
+                rng = np.random.RandomState(args.datasets_seed)
+                selected_indices = []
+
+                for class_idx in unique_classes:
+                    class_mask = targets == class_idx
+                    class_samples = np.where(class_mask)[0]
+                    class_samples_copy = class_samples.copy()
+                    rng.shuffle(class_samples_copy)
+
+                    class_target_samples = int((target_size - n_classes) * class_ratios[class_idx]) + 1
+                    available_samples = len(class_samples_copy)
+                    if class_target_samples > available_samples:
+                        print(f'Warning: {split_name} Class {class_idx} needs {class_target_samples} samples but only {available_samples} available')
+                        class_target_samples = available_samples
+
+                    selected_class_samples = class_samples_copy[:class_target_samples]
+                    selected_indices.extend(selected_class_samples)
+                    print(f'{split_name} Class {class_idx}: ratio={class_ratios[class_idx]:.3f}, target={class_target_samples}, selected={len(selected_class_samples)}')
+
+                subset_dataset = Subset(dataset, selected_indices)
+                subset_dataset.targets = [dataset.targets[i] for i in selected_indices]
+                if hasattr(dataset, 'annotations'):
+                    subset_dataset.annotations = dataset.annotations.iloc[selected_indices].reset_index(drop=True)
+                subset_dataset.classes = dataset.classes
+                subset_dataset.class_to_idx = dataset.class_to_idx
+                print(f'{split_name} final subset size: {len(subset_dataset)}')
+                return subset_dataset
+
+            train_target_size = int(total_subset_num * 0.8)
+            val_target_size = int(total_subset_num * 0.2)
+            print(f'Total target subset size: {total_subset_num}')
+            print(f'Train target size: {train_target_size} (80%)')
+            print(f'Validation target size: {val_target_size} (20%)')
+
+            train_subset = create_class_balanced_subset(train_dataset, 'Train', train_target_size)
+            val_subset = create_class_balanced_subset(val_dataset, 'Validation', val_target_size)
+            args.droplast = False  # Disable droplast when using new_subset_num
+            return train_subset, val_subset
+
+        dataset_train, dataset_val = create_separate_class_based_subsets(dataset_train, dataset_val, int(args.new_subset_num))
+
+    # Print final label distribution
+    print('Final label distribution:')
+    print('Train:', pd.Series(dataset_train.targets).value_counts())
+    print('Validation:', pd.Series(dataset_val.targets).value_counts())
+    print('Test:', pd.Series(dataset_test.targets).value_counts())
+
     # Visualize sample images if requested
     if args.visualize_samples and misc.is_main_process():
         print("Generating dataset visualizations...")
@@ -1232,7 +1346,7 @@ def main(args, criterion):
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             pin_memory=args.pin_mem,
-            drop_last=True,
+            drop_last=args.droplast,
         )
 
         print(f'len of train_set: {len(data_loader_train) * args.batch_size}')
