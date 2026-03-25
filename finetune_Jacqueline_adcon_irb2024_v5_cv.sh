@@ -35,7 +35,8 @@ Relative="Jacqueline"
 NFOLDS=5
 FOLDS=(0 1 2 3 4)
 
-data_type="IRB2024v5_Jacqueline_ADCON_DL_data"
+#data_type="IRB2024v5_Jacqueline_ADCON_DL_data"
+data_type="IRB2024v5_ADCON_DL_data"
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
