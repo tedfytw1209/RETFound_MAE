@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem-per-cpu=4gb
+#SBATCH --cpus-per-task=16
+#SBATCH --mem-per-cpu=8gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
 #SBATCH --time=48:00:00
@@ -50,5 +50,5 @@ echo $Num_CLASS
 # sbatch finetune_Wisely_adcon_irb2024_v5_cv.sh ad_control_detect_data resnet18_paper 0.01 1e-3 0.01 2 3 --use_img_per_patient
 # sbatch finetune_Wisely_adcon_irb2024_v5_cv.sh ad_control_detect_data resnet18_paper 0.01 1e-3 0.01 2 4 --use_img_per_patient
 for fold in ${FOLDS[@]}; do
-    torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py --savemodel --global_pool --batch_size $BS --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --weight_decay $wd --nb_classes $Num_CLASS --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv --task $STUDY-${data_type}-${Relative}-$MODEL-${Modality}-${Eval_score}eval-subset${SUBSET_RATIO} --eval_score $Eval_score --modality $Modality --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers 0 --input_size 128 --num_k 0 --optimizer adamw --momentum 0.9 --lr_scheduler step --schedule_step $Scheduler_step --schedule_gamma $Scheduler_gamma --subset_ratio $SUBSET_RATIO --l1_reg $Regularization --l2_reg $Regularization --transform 2 --cv_folds $NFOLDS --cv_fold $fold $ADDCMD
+    torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py --savemodel --global_pool --batch_size $BS --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --weight_decay $wd --nb_classes $Num_CLASS --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv --task $STUDY-${data_type}-${Relative}-$MODEL-${Modality}-${Eval_score}eval-subset${SUBSET_RATIO} --eval_score $Eval_score --modality $Modality --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers 16 --input_size 128 --num_k 0 --optimizer adamw --momentum 0.9 --lr_scheduler step --schedule_step $Scheduler_step --schedule_gamma $Scheduler_gamma --subset_ratio $SUBSET_RATIO --l1_reg $Regularization --l2_reg $Regularization --transform 2 --cv_folds $NFOLDS --cv_fold $fold $ADDCMD
 done
