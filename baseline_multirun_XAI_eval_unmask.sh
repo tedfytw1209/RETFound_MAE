@@ -30,7 +30,8 @@ ADD_WORDS=""
 #sbatch baseline_multirun_XAI_eval_unmask.sh finetune_retfound_UFbenchmark_v5_eval.sh vit-base-patch16-224 google/vit-base-patch16-224-in21k 224
 #sbatch baseline_multirun_XAI_eval_unmask.sh finetune_retfound_UFbenchmark_v5_eval.sh timm_efficientnet-b4 timm_efficientnet-b4 224
 #sbatch baseline_multirun_XAI_eval_unmask.sh finetune_retfound_UFbenchmark_v5_eval.sh timm_efficientnet-b0 timm_efficientnet-b0 224
-XAI_METHODS=("hirescam" "gradcam++" "attn" "gradcamv2" "crp" "scorecam")  # List of XAI methods
+XAI_METHODS=("rise")  # List of XAI methods
+#XAI_METHODS=("hirescam" "gradcam++" "attn" "gradcamv2" "crp" "scorecam")  # List of XAI methods
 #XAI_METHODS=("attn" "gradcamv2" "scorecam" "crp")  # List of XAI methods
 for i in "${!DATASETS[@]}"
 do

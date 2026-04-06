@@ -30,7 +30,7 @@ CLASSES=(2)  # Number of classes for each dataset
 #sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh resnet-50 microsoft/resnet-50 224 --add_mask --train_no_aug
 #sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh vit-base-patch16-224 google/vit-base-patch16-224-in21k 224 --add_mask --train_no_aug
 #sbatch baseline_multirun_XAI_eval.sh finetune_retfound_UFbenchmark_v5_eval.sh timm_efficientnet-b4 timm_efficientnet-b4 380 --add_mask --train_no_aug
-XAI_METHODS=("hirescam" "gradcam++" "gradcamv2" "crp")  # List of XAI methods
+XAI_METHODS=("rise")  # List of XAI methods
 #XAI_METHODS=("attn" "gradcamv2" "scorecam" "rise" "crp")  # List of XAI methods
 for i in "${!DATASETS[@]}"
 do
