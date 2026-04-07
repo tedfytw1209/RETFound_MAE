@@ -45,5 +45,5 @@ for ALPHA_TYPE in "${ALPHA_TYPES[@]}"; do
         ${ALPHA_TYPE} \
         "--seg_mask" \
         "--smp_learnable_alpha" \
-        "" \
+        ""
 done
