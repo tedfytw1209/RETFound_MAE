@@ -97,6 +97,7 @@ class SMPClassifier(nn.Module):
 
         learnable_alpha: bool = True,
         alpha: float = 0.5,
+        alpha_type: str = "scalar",
 
         pretrained_seg_ckpt: Optional[str] = None,
         dropout: float = 0.0,
@@ -122,6 +123,7 @@ class SMPClassifier(nn.Module):
         self.mode, self.fuse_mode = mode, fuse_mode
         self.seg_arch, self.learnable_alpha = seg_arch, learnable_alpha
         self.alpha = alpha
+        self.alpha_type = alpha_type
         self.dropout = dropout
         self.encoder_name = encoder_name
         self.fusion_dim = fusion_dim
@@ -192,6 +194,7 @@ class SMPClassifier(nn.Module):
                 align=self.align,
                 learnable_alpha=self.learnable_alpha,
                 alpha_init=alpha,
+                alpha_type=self.alpha_type,
                 size_match=size_match,
                 resize_backend="interpolate",
                 channel_multiply_ignore_background=True,

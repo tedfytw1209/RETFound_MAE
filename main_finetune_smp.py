@@ -223,6 +223,16 @@ def get_args_parser():
     parser.add_argument('--smp_learnable_alpha', action='store_true', default=False,
                         help='SMP learnable alpha (default: False)')
     parser.add_argument('--smp_alpha', type=float, default=0.5,help='SMP alpha (0.0-1.0)')
+    parser.add_argument('--smp_alpha_type', type=str, default='scalar',
+                        choices=['scalar', 'channel', 'spatial', 'se', 'attn'],
+                        help='Gate design for weighted_sum fusion: '
+                             '"scalar" (single shared α), '
+                             '"channel" (per-channel α vector), '
+                             '"spatial" (simple per-pixel conv gate), '
+                             '"se" (SE + CBAM spatial attention gate), '
+                             '"attn" (cross-attention: encoder query × decoder keys). '
+                             'Only used when --smp_fuse_mode weighted_sum and '
+                             '--smp_learnable_alpha are set.')
     parser.add_argument('--smp_size_match', type=str, default='decoder_to_encoder',
                         help='SMP size match (decoder_to_encoder, encoder_to_decoder) (default: "decoder_to_encoder")')
     parser.add_argument('--seg_mask', action='store_true', default=False,
@@ -463,10 +473,11 @@ def get_model(args):
             seg_activation=SMPConfig.ACTIVATION,
             mode=args.SMPMode,
             fuse_mode=args.smp_fuse_mode,
-            fusion_dim= args.fusion_dim,
+            fusion_dim=args.fusion_dim,
             align=args.align,
             learnable_alpha=args.smp_learnable_alpha,
             alpha=args.smp_alpha,
+            alpha_type=args.smp_alpha_type,
             pretrained_seg_ckpt=args.finetune,
             dropout=SMPConfig.DROPOUT,
             size_match=args.smp_size_match,
@@ -947,6 +958,12 @@ def main(args, criterion):
         test_stats, auc_roc = evaluate(data_loader_test, model, device, args, epoch=0, mode='test',
                                        num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
         wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
+        _head = getattr(model_without_ddp, 'head', None)
+        if _head is not None and hasattr(_head, 'get_alpha_stats'):
+            _as = _head.get_alpha_stats()
+            if _as:
+                wandb_dict.update({f'alpha/{k}': v for k, v in _as.items()})
+                print("Fusion gate α stats:", _as)
         wandb.log(wandb_dict)
         wandb.finish()
         if log_writer is not None:
@@ -975,10 +992,25 @@ def main(args, criterion):
 
         val_stats, val_score = evaluate(data_loader_val, model, device, args, epoch, mode='val',
                                         num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+
+        # --- gate-design ablation: log learned α statistics ---
+        alpha_stats = None
+        _head = getattr(model_without_ddp, 'head', None)
+        if _head is not None and hasattr(_head, 'get_alpha_stats'):
+            alpha_stats = _head.get_alpha_stats()
+        if alpha_stats and misc.is_main_process():
+            alpha_log = {f'alpha/{k}': v for k, v in alpha_stats.items()}
+            wandb.log({"epoch": epoch, **alpha_log}, step=epoch)
+            if log_writer is not None:
+                for k, v in alpha_stats.items():
+                    log_writer.add_scalar(f'alpha/{k}', v, epoch)
+
         if log_writer is not None and misc.is_main_process():
             wandb_dict = {"epoch": epoch}
             wandb_dict.update({f'train_{k}': v for k, v in train_stats.items()})
             wandb_dict.update({f'val_{k}': v for k, v in val_stats.items()})
+            if alpha_stats:
+                wandb_dict.update({f'alpha/{k}': v for k, v in alpha_stats.items()})
             wandb.log(wandb_dict, step=epoch)
         if max_score < val_score:
             max_score = val_score
@@ -1023,6 +1055,12 @@ def main(args, criterion):
     test_stats,test_score = evaluate(data_loader_test, model_without_ddp, device,args,epoch=0, mode='test',num_class=args.nb_classes,k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
     wandb_dict = {}
     wandb_dict.update({f'test_{k}': v for k, v in test_stats.items()})
+    _head = getattr(model_without_ddp, 'head', None)
+    if _head is not None and hasattr(_head, 'get_alpha_stats'):
+        _as = _head.get_alpha_stats()
+        if _as:
+            wandb_dict.update({f'alpha/{k}': v for k, v in _as.items()})
+            print("Final fusion gate α stats:", _as)
     wandb.log(wandb_dict)
     if log_writer is not None and misc.is_main_process():
         log_writer.close()

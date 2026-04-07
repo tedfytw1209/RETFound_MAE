@@ -358,6 +358,115 @@ class Activation(nn.Module):
     def forward(self, x):
         return self.activation(x)
 
+class SpatialGate(nn.Module):
+    """Simple spatially-varying gate: cat(enc, dec) → Conv1×1 → ReLU → Conv1×1 → Sigmoid.
+
+    Produces a per-pixel (H, W) alpha map in (0, 1).  Lightweight and fully
+    convolutional; no global pooling, so every pixel gets its own gate value.
+
+    Args:
+        in_ch: input channels (= target_dim * 2)
+        mid_ch: intermediate channel width (default 16)
+    """
+    def __init__(self, in_ch: int, mid_ch: int = 16):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(in_ch, mid_ch, kernel_size=1, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(mid_ch, 1, kernel_size=1, bias=False),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """x: (B, 2C, H, W)  →  gate (B, 1, H, W)"""
+        return self.net(x)
+
+
+class SE_gate(nn.Module):
+    """SE-style + CBAM spatial attention fusion gate.
+
+    Combines two complementary attention paths:
+      1. SE path (global channel context): GAP → FC → ReLU → FC → scalar logit (B,1,1,1)
+         Squeezes global channel statistics into a per-image bias term.
+      2. Spatial path (local structure): channel-avg + channel-max → Conv1×1 → ReLU → Conv1×1
+         CBAM-style; produces a spatially varying logit map (B,1,H,W).
+
+    Gate = Sigmoid(se_logit + spatial_logit)  →  (B, 1, H, W) ∈ (0, 1)
+
+    Args:
+        in_ch: number of input channels (= target_dim * 2, i.e. cat(enc, dec))
+        reduction: channel reduction ratio for the SE path (default 4)
+        spatial_mid: intermediate channels in the spatial conv path (default 16)
+    """
+    def __init__(self, in_ch: int, reduction: int = 4, spatial_mid: int = 16):
+        super().__init__()
+        r = max(in_ch // reduction, 8)
+        # SE path: global average pool → FC → ReLU → FC → scalar gate logit
+        self.se_fc = nn.Sequential(
+            nn.Linear(in_ch, r, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(r, 1, bias=False),
+        )
+        # Spatial path: channel avg + max pool → spatially varying logit map
+        self.spatial_conv = nn.Sequential(
+            nn.Conv2d(2, spatial_mid, kernel_size=1, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(spatial_mid, 1, kernel_size=1, bias=False),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """x: (B, 2C, H, W)  →  gate (B, 1, H, W)"""
+        # SE: global context → scalar logit bias (B, 1, 1, 1)
+        se_logit = self.se_fc(x.mean(dim=(2, 3)))         # (B, 1)
+        se_logit = se_logit.unsqueeze(-1).unsqueeze(-1)   # (B, 1, 1, 1)
+
+        # Spatial: channel-pool stats → spatial logit (B, 1, H, W)
+        avg_map = x.mean(dim=1, keepdim=True)             # (B, 1, H, W)
+        max_map = x.amax(dim=1, keepdim=True)             # (B, 1, H, W)
+        spatial_logit = self.spatial_conv(
+            torch.cat([avg_map, max_map], dim=1)
+        )                                                  # (B, 1, H, W)
+
+        # SE global bias + spatial local detail, combined before sigmoid
+        return torch.sigmoid(se_logit + spatial_logit)    # (B, 1, H, W)
+
+
+class AttnGate(nn.Module):
+    """Cross-attention gate: encoder global query attends over decoder spatial keys.
+
+    Splits cat(enc, dec) back into two streams, then:
+      Q = GAP(enc) → Linear(C, d)   → (B, d)          global "what to look for"
+      K = Conv1×1(dec, d)           → (B, d, H, W)     local  "where is it"
+      gate = Sigmoid(Q · K / √d)   → (B, 1, H, W)
+
+    The encoder's global context selects which decoder spatial positions are
+    task-relevant.  The resulting gate is directly interpretable as a spatial
+    attention map, linking CAM faithfulness (encoder focus) to decoder alignment.
+
+    Args:
+        in_ch: total input channels = target_dim * 2 (enc + dec concatenated)
+        dim: projection dimension for Q and K (default 32)
+    """
+    def __init__(self, in_ch: int, dim: int = 32):
+        super().__init__()
+        half = in_ch // 2              # = target_dim
+        self.q_proj = nn.Linear(half, dim, bias=False)
+        self.k_proj = nn.Conv2d(half, dim, kernel_size=1, bias=False)
+        self.scale = dim ** -0.5
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """x: (B, 2C, H, W)  →  gate (B, 1, H, W)"""
+        half = x.shape[1] // 2
+        enc, dec = x[:, :half], x[:, half:]              # (B, C, H, W) each
+
+        q = self.q_proj(enc.mean(dim=(2, 3)))             # (B, d)
+        k = self.k_proj(dec)                              # (B, d, H, W)
+
+        # Dot product: q (B,d) · k (B,d,H,W) → (B,H,W)
+        attn = torch.einsum('bd,bdhw->bhw', q, k) * self.scale
+        return torch.sigmoid(attn.unsqueeze(1))           # (B, 1, H, W)
+
+
 class GeneralFusionHead(nn.Module):
     """
     General header that fuses encoder and decoder features before pooling.
@@ -389,6 +498,7 @@ class GeneralFusionHead(nn.Module):
         align: str = "pre",
         learnable_alpha: bool = True,
         alpha_init: float = 0.5,
+        alpha_type: str = "scalar",
         size_match: str = "encoder_to_decoder",
         resize_backend: str = "interpolate",
         channel_multiply_ignore_background: bool = True,
@@ -411,6 +521,8 @@ class GeneralFusionHead(nn.Module):
             raise ValueError(f"alpha_init should be in (0, 1), got {alpha_init}")
         if resize_backend not in ("interpolate", "conv"):
             raise ValueError("resize_backend must be 'interpolate' or 'conv'")
+        if alpha_type not in ("scalar", "channel", "spatial", "se", "attn"):
+            raise ValueError(f"alpha_type must be 'scalar', 'channel', 'spatial', 'se', or 'attn', got {alpha_type}")
 
         self.enc_channels = enc_channels
         self.dec_channels = dec_channels
@@ -419,6 +531,7 @@ class GeneralFusionHead(nn.Module):
         self.pooling = pooling
         self.size_match = size_match
         self.learnable_alpha = learnable_alpha and merge_method == "weighted_sum"
+        self.alpha_type = alpha_type if (learnable_alpha and merge_method == "weighted_sum") else "scalar"
         self.resize_backend = resize_backend
         self.channel_multiply_ignore_background = channel_multiply_ignore_background
         self.channel_multiply_layers: Optional[int] = None
@@ -427,6 +540,8 @@ class GeneralFusionHead(nn.Module):
         self.fixed_size = fixed_size
         self.use_mask = use_mask
         self.smp_classifier = smp_classifier
+        # Running cache for spatial alpha stats (updated each forward pass)
+        self._last_spatial_alpha_mean: Optional[float] = None
         if resize_backend == "conv":
             self._upsample_layers = nn.ModuleDict()
             self._downsample_layers = nn.ModuleDict()
@@ -477,7 +592,30 @@ class GeneralFusionHead(nn.Module):
         if merge_method == "weighted_sum":
             init_logit = math.log(alpha_init) - math.log(1 - alpha_init)
             if self.learnable_alpha:
-                self.alpha_logit = nn.Parameter(torch.tensor([init_logit], dtype=torch.float32))
+                if self.alpha_type == "scalar":
+                    # Single scalar gate shared across all channels and spatial positions.
+                    self.alpha_logit = nn.Parameter(
+                        torch.tensor([init_logit], dtype=torch.float32)
+                    )
+                elif self.alpha_type == "channel":
+                    # Independent gate per channel — learns which channels rely more on
+                    # encoder vs decoder.  Shape: (target_dim,) → broadcast (1,C,1,1).
+                    self.alpha_logit = nn.Parameter(
+                        torch.full((target_dim,), init_logit, dtype=torch.float32)
+                    )
+                elif self.alpha_type == "spatial":
+                    # Simple per-pixel gate: cat(enc,dec) → Conv → ReLU → Conv → Sigmoid.
+                    # Produces independent (H,W) alpha values with no global context.
+                    self.spatial_gate = SpatialGate(target_dim * 2)
+                elif self.alpha_type == "se":
+                    # SE + CBAM gate: global SE bias + channel-pool spatial attention.
+                    # Richer than 'spatial'; captures both global and local context.
+                    self.spatial_gate = SE_gate(target_dim * 2)
+                elif self.alpha_type == "attn":
+                    # Cross-attention gate: encoder global query × decoder spatial keys.
+                    # Gate map = the cross-attention weights → directly interpretable as
+                    # "which decoder positions the encoder classification focus attends to".
+                    self.spatial_gate = AttnGate(target_dim * 2)
             else:
                 self.register_buffer("alpha_fixed", torch.tensor(alpha_init, dtype=torch.float32))
 
@@ -610,20 +748,73 @@ class GeneralFusionHead(nn.Module):
     def _merge(self, enc_feats: torch.Tensor, dec_feats: torch.Tensor) -> torch.Tensor:
         if self.merge_method == "channel_merge":
             merged = torch.cat([enc_feats, dec_feats], dim=1)
-            #return self.channel_reduce(merged)
             return merged
 
         if self.merge_method == "weighted_sum":
             if self.learnable_alpha:
-                alpha = torch.sigmoid(self.alpha_logit)
+                if self.alpha_type == "scalar":
+                    # α ∈ ℝ, broadcast over (B, C, H, W)
+                    alpha = torch.sigmoid(self.alpha_logit)
+                elif self.alpha_type == "channel":
+                    # α ∈ ℝ^C, broadcast over (B, C, H, W) via (1, C, 1, 1)
+                    alpha = torch.sigmoid(self.alpha_logit).view(1, -1, 1, 1)
+                elif self.alpha_type in ("spatial", "se", "attn"):
+                    # α ∈ (0,1)^{H×W}: per-pixel gate predicted from cat(enc, dec).
+                    # 'spatial': simple conv; 'se': SE+CBAM; 'attn': cross-attention.
+                    concat = torch.cat([enc_feats, dec_feats], dim=1)  # (B, 2C, H, W)
+                    alpha = self.spatial_gate(concat)                   # (B, 1, H, W)
+                    # Cache mean for logging (detached; no graph retention)
+                    self._last_spatial_alpha_mean = float(alpha.detach().mean())
+                else:
+                    alpha = torch.sigmoid(self.alpha_logit)
             else:
                 alpha = self.alpha_fixed
             return alpha * enc_feats + (1 - alpha) * dec_feats
+
         if self.merge_method == "add":
             return enc_feats + dec_feats
         if self.merge_method == "multiply":
             return enc_feats * dec_feats
         raise RuntimeError(f"Unsupported merge_method {self.merge_method}")
+
+    # ------------------------------------------------------------------
+    # Diagnostic helpers
+    # ------------------------------------------------------------------
+
+    def get_alpha_stats(self) -> Optional[Dict[str, float]]:
+        """Return current fusion-gate statistics (no grad).
+
+        Returns a dict suitable for logging to wandb / CSV, or None when the
+        merge method is not weighted_sum (gate concept does not apply).
+
+        Keys depend on alpha_type:
+          scalar  → {'alpha': float}
+          channel → {'alpha_mean', 'alpha_std', 'alpha_min', 'alpha_max'}
+          spatial → {'alpha_mean'}   (mean over last forward-pass spatial map)
+          fixed   → {'alpha': float}
+        """
+        if self.merge_method != "weighted_sum":
+            return None
+
+        if not self.learnable_alpha:
+            return {"alpha": float(self.alpha_fixed)}
+
+        with torch.no_grad():
+            if self.alpha_type == "scalar":
+                return {"alpha": float(torch.sigmoid(self.alpha_logit))}
+            elif self.alpha_type == "channel":
+                v = torch.sigmoid(self.alpha_logit)
+                return {
+                    "alpha_mean": float(v.mean()),
+                    "alpha_std":  float(v.std()),
+                    "alpha_min":  float(v.min()),
+                    "alpha_max":  float(v.max()),
+                }
+            elif self.alpha_type in ("spatial", "se", "attn"):
+                if self._last_spatial_alpha_mean is None:
+                    return None
+                return {"alpha_mean": self._last_spatial_alpha_mean}
+        return None
 
     def _channel_multiply(self, enc_feats: torch.Tensor, dec_feats: torch.Tensor) -> torch.Tensor:
         if dec_feats is None:

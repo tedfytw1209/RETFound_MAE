@@ -24,7 +24,7 @@ ADDCMD=${10:-""} #
 ADDCMD2=${11:-""} #
 ADDCMD3=${12:-""} #
 
-#sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_UFbenchmark_irb2024v5.sh DME_binary_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
+#sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_UFbenchmark_irb2024v5_full.sh DME_binary_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
 #sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_UFbenchmark_irb2024v5_init.sh DME_binary_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
 # Different additional commands to try
 #sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_Celldata.sh DME_all RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
