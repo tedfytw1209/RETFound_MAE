@@ -229,6 +229,10 @@ def get_args_parser():
                         help='Target module for CAM methods')
     parser.add_argument('--select_index', type=int, default=-1,
                         help='Select index for CAM methods')
+    parser.add_argument('--save_heatmaps', action='store_true', default=True,
+                        help='Save generated heatmaps to output_dir; load cached heatmaps if they already exist')
+    parser.add_argument('--no_save_heatmaps', dest='save_heatmaps', action='store_false',
+                        help='Disable heatmap saving/loading cache')
 
     return parser
 
@@ -556,8 +560,17 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         for metric_name in metric_func_dict.keys()
     }
     
+    # Heatmap cache settings
+    save_heatmaps = bool(getattr(args, "save_heatmaps", True))
+    heatmap_cache_dir = None
+    if save_heatmaps and getattr(args, "output_dir", None):
+        heatmap_cache_dir = os.path.join(args.output_dir, args.task, 'heatmaps', mode)
+        os.makedirs(heatmap_cache_dir, exist_ok=True)
+        print(f"[Heatmap Cache] dir={heatmap_cache_dir}")
+
     # Track layer-level statistics across all samples for cross-sample metrics
     all_top3_layers = []  # List to collect top-3 layers from each sample
+    batch_idx = 0
     for batch in metric_logger.log_every(data_loader, 10, f'{mode}:'):
         images, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True)
         sample_ids = batch[3] if (isinstance(batch, (list, tuple)) and len(batch) > 3) else None
@@ -572,12 +585,28 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         each_dict = {}
         #with torch.cuda.amp.autocast():
         #print(f'Input images shape: {images.shape}', 'ground truth mask shape:', gt_mask.shape, 'target:', target)
-        
+
         # Keep original images for model-dependent metrics (insertion/deletion)
         images_original = images
-        
-        attention_map_bs = xai_method(images,targets=target) # numpy shape: (B, img_size, img_size)
-        attention_map_bs = attention_map_bs - attention_map_bs.min(axis=(1, 2), keepdims=True) + 1e-9 # numpy shape: (B, img_size, img_size), add small value to avoid all-zero map
+
+        # Load cached heatmap or generate and save
+        heatmap_cache_path = os.path.join(heatmap_cache_dir, f'heatmap_batch_{batch_idx:06d}.npy') if heatmap_cache_dir else None
+        loaded_from_cache = False
+        if heatmap_cache_path and os.path.exists(heatmap_cache_path):
+            cached = np.load(heatmap_cache_path)
+            expected_shape = (bs, images.shape[2], images.shape[3])
+            if cached.ndim == 3 and cached.shape[0] == bs and cached.shape[1:] == expected_shape[1:]:
+                attention_map_bs = cached
+                loaded_from_cache = True
+                print(f"[Heatmap Cache] Loaded batch {batch_idx} from {heatmap_cache_path}")
+            else:
+                print(f"[Heatmap Cache] Shape mismatch for batch {batch_idx}: cached={cached.shape}, expected={expected_shape}. Regenerating.")
+        if not loaded_from_cache:
+            attention_map_bs = xai_method(images,targets=target) # numpy shape: (B, img_size, img_size)
+            attention_map_bs = attention_map_bs - attention_map_bs.min(axis=(1, 2), keepdims=True) + 1e-9 # numpy shape: (B, img_size, img_size), add small value to avoid all-zero map
+            if heatmap_cache_path:
+                np.save(heatmap_cache_path, attention_map_bs)
+        batch_idx += 1
         
         # Keep original saliency for model-dependent metrics
         attention_map_original = attention_map_bs

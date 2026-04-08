@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=4gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
@@ -34,7 +34,7 @@ data_type="IRB2024_v5_all"
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
 Epochs=50
 OPTIMIZER="adamw" # "adamw" or "sgd"
-BATCH_SIZE=16
+BATCH_SIZE=32
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
