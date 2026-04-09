@@ -562,11 +562,16 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
     
     # Heatmap cache settings
     save_heatmaps = bool(getattr(args, "save_heatmaps", True))
+    xai_name = getattr(args, "xai", "unknown")
     heatmap_cache_dir = None
+    metric_cache_dir = None
     if save_heatmaps and getattr(args, "output_dir", None):
-        heatmap_cache_dir = os.path.join(args.output_dir, args.task, 'heatmaps', mode)
+        heatmap_cache_dir = os.path.join(args.output_dir, args.task, 'heatmaps', xai_name, mode)
         os.makedirs(heatmap_cache_dir, exist_ok=True)
         print(f"[Heatmap Cache] dir={heatmap_cache_dir}")
+        metric_cache_dir = os.path.join(args.output_dir, args.task, 'metric_cache', xai_name, mode)
+        os.makedirs(metric_cache_dir, exist_ok=True)
+        print(f"[Metric Cache] dir={metric_cache_dir}")
 
     # Track layer-level statistics across all samples for cross-sample metrics
     all_top3_layers = []  # List to collect top-3 layers from each sample
@@ -704,49 +709,92 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
                 layer_print_left -= 1
         #print(f'Attention map shape: {attention_map_bs.shape}')
         #print(target_np)
-        for k, v in metric_func_dict.items():
-            # Use original images/saliency for model-dependent metrics (insertion/deletion)
-            # These metrics need to pass images through the model at its native resolution
-            if k in ['insertion', 'deletion']:
-                metric_images = images_original
-                metric_saliency = attention_map_original
-                metric_gt_mask = gt_mask_original
-            else:
-                # Use normalized versions for other metrics
-                metric_images = images
-                metric_saliency = attention_map_bs
-                metric_gt_mask = gt_mask
-            
-            e_score_bs = v(metric_images, metric_saliency, gt_mask=metric_gt_mask, batch_size=bs, y_batch=target, explain_func=xai_method, explain_func_kwargs={})
-            e_score_bs_np = np.asarray(e_score_bs)
-            # Aggregate per-class metrics when the metric returns per-sample scores
-            #print(f'Batch {k} scores:', e_score_bs_np)
-            if e_score_bs_np.ndim >= 1 and e_score_bs_np.shape[0] == bs:
-                for cls_idx in range(num_class):
-                    cls_mask = target_np == cls_idx
-                    if not np.any(cls_mask):
-                        continue
-                    class_score = float(np.mean(e_score_bs_np[cls_mask]))
-                    classwise_metrics_dict[k][cls_idx].append(class_score)
-            e_score_bs_mean = float(np.mean(e_score_bs_np))
-            overall_metrics_dict[k].append(e_score_bs_mean)
-            each_dict[k] = float(e_score_bs_mean)
-            #print(f'{k}: {e_score_bs:.4f}')
-        #print(classwise_metrics_dict)
-            
-        metric_logger.update(**each_dict)
-        
-        # Collect top-3 layers for cross-sample aggregation
-        if gt_mask is not None:
-            top3_metric = LayerImportanceDistributionMetric(
-                ignore_background=ignore_bg, output_type='top3_layers'
-            )
-            for i in range(bs):
-                top3_layers_i = top3_metric.single_run(
-                    attention_map_bs[i], gt_mask[i]
+
+        # Check for cached metric results for this batch
+        metric_cache_path = os.path.join(metric_cache_dir, f'metric_batch_{batch_idx - 1:06d}.npz') if metric_cache_dir else None
+        loaded_metrics_from_cache = False
+        if metric_cache_path and os.path.exists(metric_cache_path):
+            try:
+                cached_m = np.load(metric_cache_path, allow_pickle=False)
+                cached_target = cached_m['target']
+                if cached_target.shape == target_np.shape and np.array_equal(cached_target, target_np):
+                    for k in metric_func_dict.keys():
+                        key = f'metric_{k}'
+                        if key not in cached_m:
+                            break
+                        e_score_bs_np = cached_m[key]
+                        if e_score_bs_np.ndim >= 1 and e_score_bs_np.shape[0] == bs:
+                            for cls_idx in range(num_class):
+                                cls_mask = target_np == cls_idx
+                                if not np.any(cls_mask):
+                                    continue
+                                class_score = float(np.mean(e_score_bs_np[cls_mask]))
+                                classwise_metrics_dict[k][cls_idx].append(class_score)
+                        e_score_bs_mean = float(np.mean(e_score_bs_np))
+                        overall_metrics_dict[k].append(e_score_bs_mean)
+                        each_dict[k] = float(e_score_bs_mean)
+                    top3_layers_cached = cached_m['top3_layers'].tolist() if 'top3_layers' in cached_m else []
+                    all_top3_layers.extend(top3_layers_cached)
+                    loaded_metrics_from_cache = True
+                    print(f"[Metric Cache] Loaded batch {batch_idx - 1} from {metric_cache_path}")
+                else:
+                    print(f"[Metric Cache] Target mismatch for batch {batch_idx - 1}, recomputing.")
+            except Exception as e:
+                print(f"[Metric Cache] Failed to load batch {batch_idx - 1}: {e}. Recomputing.")
+
+        if not loaded_metrics_from_cache:
+            metric_scores_to_save = {}
+            for k, v in metric_func_dict.items():
+                # Use original images/saliency for model-dependent metrics (insertion/deletion)
+                # These metrics need to pass images through the model at its native resolution
+                if k in ['insertion', 'deletion']:
+                    metric_images = images_original
+                    metric_saliency = attention_map_original
+                    metric_gt_mask = gt_mask_original
+                else:
+                    # Use normalized versions for other metrics
+                    metric_images = images
+                    metric_saliency = attention_map_bs
+                    metric_gt_mask = gt_mask
+
+                e_score_bs = v(metric_images, metric_saliency, gt_mask=metric_gt_mask, batch_size=bs, y_batch=target, explain_func=xai_method, explain_func_kwargs={})
+                e_score_bs_np = np.asarray(e_score_bs)
+                metric_scores_to_save[f'metric_{k}'] = e_score_bs_np
+                # Aggregate per-class metrics when the metric returns per-sample scores
+                #print(f'Batch {k} scores:', e_score_bs_np)
+                if e_score_bs_np.ndim >= 1 and e_score_bs_np.shape[0] == bs:
+                    for cls_idx in range(num_class):
+                        cls_mask = target_np == cls_idx
+                        if not np.any(cls_mask):
+                            continue
+                        class_score = float(np.mean(e_score_bs_np[cls_mask]))
+                        classwise_metrics_dict[k][cls_idx].append(class_score)
+                e_score_bs_mean = float(np.mean(e_score_bs_np))
+                overall_metrics_dict[k].append(e_score_bs_mean)
+                each_dict[k] = float(e_score_bs_mean)
+
+            # Collect top-3 layers for cross-sample aggregation
+            top3_layers_batch = []
+            if gt_mask is not None:
+                top3_metric = LayerImportanceDistributionMetric(
+                    ignore_background=ignore_bg, output_type='top3_layers'
                 )
-                if top3_layers_i.size > 0:
-                    all_top3_layers.extend(top3_layers_i.tolist())
+                for i in range(bs):
+                    top3_layers_i = top3_metric.single_run(
+                        attention_map_bs[i], gt_mask[i]
+                    )
+                    if top3_layers_i.size > 0:
+                        top3_layers_batch.extend(top3_layers_i.tolist())
+            all_top3_layers.extend(top3_layers_batch)
+
+            # Save metric results for this batch
+            if metric_cache_path:
+                save_dict = {'target': target_np, 'top3_layers': np.array(top3_layers_batch, dtype=np.int64)}
+                save_dict.update(metric_scores_to_save)
+                np.savez(metric_cache_path, **save_dict)
+        #print(classwise_metrics_dict)
+
+        metric_logger.update(**each_dict)
     
     
     print(f'XAI Metrics at epoch {epoch} ({mode}):')
