@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem-per-cpu=12gb
+#SBATCH --cpus-per-task=16
+#SBATCH --mem-per-cpu=8gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
-#SBATCH --time=48:00:00
+#SBATCH --time=72:00:00
 #SBATCH --output=%x.%j.out
 #SBATCH --account=ruogu.fang
 #SBATCH --qos=ruogu.fang
