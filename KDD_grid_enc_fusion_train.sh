@@ -3,18 +3,18 @@
 # All other hyperparameters mirror KDD_alpha_gate_train.sh for direct comparison.
 #
 # Usage:
-#   bash KDD_grid_enc_fusion_train.sh          # submit all 2×4 = 8 combinations
+#   bash KDD_grid_enc_fusion_train.sh          # submit all 2×2 = 4 combinations
 #
 # Grid axes:
 #   ENC_IDX    — encoder layer index used as cross-attention query: -1, -3
-#   FUSION_DIM — fusion spatial dimension: 4, 9, 16, 32
+#   FUSION_DIM — fusion spatial dimension: 16, 32
 
 BASE_CKPT=/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth
 
 ENC_IDXS=(-1 -3)
 #ENC_IDXS=(-1 -2 -3)
 #FUSION_DIMS=(4 9 16 32)
-FUSION_DIMS=(4 9)
+FUSION_DIMS=(16 32)
 
 for ENC_IDX in "${ENC_IDXS[@]}"; do
     for FUSION_DIM in "${FUSION_DIMS[@]}"; do
