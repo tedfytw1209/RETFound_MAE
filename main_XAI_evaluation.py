@@ -207,6 +207,14 @@ def get_args_parser():
     parser.add_argument('--smp_learnable_alpha', action='store_true', default=False,
                         help='SMP learnable alpha (default: False)')
     parser.add_argument('--smp_alpha', type=float, default=0.5,help='SMP alpha (0.0-1.0)')
+    parser.add_argument('--smp_alpha_type', type=str, default='scalar',
+                        choices=['scalar', 'channel', 'spatial', 'se', 'attn'],
+                        help='Gate design for weighted_sum fusion: '
+                             '"scalar" (single shared α), '
+                             '"channel" (per-channel α), '
+                             '"spatial" (per-spatial-position α), '
+                             '"se" (squeeze-and-excitation), '
+                             '"attn" (attention-based) (default: "scalar")')
     parser.add_argument('--smp_size_match', type=str, default='decoder_to_encoder',
                         help='SMP size match (decoder_to_encoder, encoder_to_decoder) (default: "decoder_to_encoder")')
     parser.add_argument('--seg_mask', action='store_true', default=False,
@@ -472,6 +480,7 @@ def get_model(args):
             align=args.align,
             learnable_alpha=args.smp_learnable_alpha,
             alpha=args.smp_alpha,
+            alpha_type=args.smp_alpha_type,
             pretrained_seg_ckpt=args.finetune,
             dropout=SMPConfig.DROPOUT,
             size_match=args.smp_size_match,
@@ -1149,7 +1158,7 @@ if __name__ == '__main__':
     finetune_model = args.finetune.split('/')[-1].replace('.pth','')
     if args.model=='SMP':
         if args.SMPMode=='fuse':
-            args.task = f"{study_name}-{data_type}-{finetune_model}-{args.xai}-{args.SMPMode}-smp{args.smp_fuse_mode}-{args.align}-{args.fusion_dim}-fea{args.enc_idx}{args.dec_idx}-{args.smp_alpha}-{args.smp_size_match}-{args.smp_classifier}-{args.target_module}{args.select_index}-seed{args.seed}"
+            args.task = f"{study_name}-{data_type}-{finetune_model}-{args.xai}-{args.SMPMode}-smp{args.smp_fuse_mode}-{args.align}-{args.fusion_dim}-fea{args.enc_idx}{args.dec_idx}-{args.smp_alpha}-{args.smp_alpha_type}-{args.smp_size_match}-{args.smp_classifier}-{args.target_module}{args.select_index}-seed{args.seed}"
         else:
             args.task = f"{study_name}-{data_type}-{finetune_model}-{args.xai}-{args.SMPMode}-fea{args.enc_idx}{args.dec_idx}-{args.target_module}{args.select_index}-seed{args.seed}"
     else:
