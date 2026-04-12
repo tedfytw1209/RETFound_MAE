@@ -598,19 +598,25 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         heatmap_cache_path = os.path.join(heatmap_cache_dir, f'heatmap_batch_{batch_idx:06d}.npy') if heatmap_cache_dir else None
         loaded_from_cache = False
         if heatmap_cache_path and os.path.exists(heatmap_cache_path):
-            cached = np.load(heatmap_cache_path)
-            expected_shape = (bs, images.shape[2], images.shape[3])
-            if cached.ndim == 3 and cached.shape[0] == bs and cached.shape[1:] == expected_shape[1:]:
-                attention_map_bs = cached
-                loaded_from_cache = True
-                print(f"[Heatmap Cache] Loaded batch {batch_idx} from {heatmap_cache_path}")
-            else:
-                print(f"[Heatmap Cache] Shape mismatch for batch {batch_idx}: cached={cached.shape}, expected={expected_shape}. Regenerating.")
+            try:
+                cached = np.load(heatmap_cache_path)
+                expected_shape = (bs, images.shape[2], images.shape[3])
+                if cached.ndim == 3 and cached.shape[0] == bs and cached.shape[1:] == expected_shape[1:]:
+                    attention_map_bs = cached
+                    loaded_from_cache = True
+                    print(f"[Heatmap Cache] Loaded batch {batch_idx} from {heatmap_cache_path}")
+                else:
+                    print(f"[Heatmap Cache] Shape mismatch for batch {batch_idx}: cached={cached.shape}, expected={expected_shape}. Regenerating.")
+            except Exception as e:
+                print(f"[Heatmap Cache] Failed to load batch {batch_idx}: {e}. Regenerating.")
         if not loaded_from_cache:
             attention_map_bs = xai_method(images,targets=target) # numpy shape: (B, img_size, img_size)
             attention_map_bs = attention_map_bs - attention_map_bs.min(axis=(1, 2), keepdims=True) + 1e-9 # numpy shape: (B, img_size, img_size), add small value to avoid all-zero map
             if heatmap_cache_path:
-                np.save(heatmap_cache_path, attention_map_bs)
+                # Atomic save: write to .tmp then rename to avoid corrupt files on interrupted runs
+                tmp_path = heatmap_cache_path.replace('.npy', '.tmp.npy')
+                np.save(tmp_path, attention_map_bs)
+                os.replace(tmp_path, heatmap_cache_path)
         batch_idx += 1
         
         # Keep original saliency for model-dependent metrics
@@ -718,9 +724,16 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
                 cached_m = np.load(metric_cache_path, allow_pickle=False)
                 cached_target = cached_m['target']
                 if cached_target.shape == target_np.shape and np.array_equal(cached_target, target_np):
+                    # Load all metrics into temp buffers first; only commit if every key is found
+                    temp_each_dict = {}
+                    temp_overall = {}
+                    temp_classwise = {mn: {ci: [] for ci in range(num_class)} for mn in metric_func_dict.keys()}
+                    all_keys_found = True
                     for k in metric_func_dict.keys():
                         key = f'metric_{k}'
                         if key not in cached_m:
+                            print(f"[Metric Cache] Key '{key}' missing in batch {batch_idx - 1} cache. Recomputing batch.")
+                            all_keys_found = False
                             break
                         e_score_bs_np = cached_m[key]
                         if e_score_bs_np.ndim >= 1 and e_score_bs_np.shape[0] == bs:
@@ -729,14 +742,21 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
                                 if not np.any(cls_mask):
                                     continue
                                 class_score = float(np.mean(e_score_bs_np[cls_mask]))
-                                classwise_metrics_dict[k][cls_idx].append(class_score)
+                                temp_classwise[k][cls_idx].append(class_score)
                         e_score_bs_mean = float(np.mean(e_score_bs_np))
-                        overall_metrics_dict[k].append(e_score_bs_mean)
-                        each_dict[k] = float(e_score_bs_mean)
-                    top3_layers_cached = cached_m['top3_layers'].tolist() if 'top3_layers' in cached_m else []
-                    all_top3_layers.extend(top3_layers_cached)
-                    loaded_metrics_from_cache = True
-                    print(f"[Metric Cache] Loaded batch {batch_idx - 1} from {metric_cache_path}")
+                        temp_overall[k] = e_score_bs_mean
+                        temp_each_dict[k] = float(e_score_bs_mean)
+                    if all_keys_found:
+                        # Commit all temp data atomically to avoid partial state on break
+                        each_dict.update(temp_each_dict)
+                        for k in metric_func_dict.keys():
+                            overall_metrics_dict[k].append(temp_overall[k])
+                            for cls_idx in range(num_class):
+                                classwise_metrics_dict[k][cls_idx].extend(temp_classwise[k][cls_idx])
+                        top3_layers_cached = cached_m['top3_layers'].tolist() if 'top3_layers' in cached_m else []
+                        all_top3_layers.extend(top3_layers_cached)
+                        loaded_metrics_from_cache = True
+                        print(f"[Metric Cache] Loaded batch {batch_idx - 1} from {metric_cache_path}")
                 else:
                     print(f"[Metric Cache] Target mismatch for batch {batch_idx - 1}, recomputing.")
             except Exception as e:
@@ -787,11 +807,13 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
                         top3_layers_batch.extend(top3_layers_i.tolist())
             all_top3_layers.extend(top3_layers_batch)
 
-            # Save metric results for this batch
+            # Save metric results for this batch (atomic: write to .tmp then rename)
             if metric_cache_path:
                 save_dict = {'target': target_np, 'top3_layers': np.array(top3_layers_batch, dtype=np.int64)}
                 save_dict.update(metric_scores_to_save)
-                np.savez(metric_cache_path, **save_dict)
+                tmp_metric_path = metric_cache_path.replace('.npz', '.tmp.npz')
+                np.savez(tmp_metric_path, **save_dict)
+                os.replace(tmp_metric_path, metric_cache_path)
         #print(classwise_metrics_dict)
 
         metric_logger.update(**each_dict)
