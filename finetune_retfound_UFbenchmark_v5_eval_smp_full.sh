@@ -39,6 +39,7 @@ SMPClassifier=${20:-"linear"} # linear, conv
 ADDCMD=${21:-""}
 ADDCMD2=${22:-""}
 ADDCMD3=${23:-""}
+ADDCMD4=${24:-""}
 NUM_K="0"
 data_type="IRB2024_v5_all"
 
@@ -51,4 +52,4 @@ echo $Num_CLASS
 
 #sbatch finetune_retfound_UFbenchmark_v5_eval_smp_full.sh DME_binary_all_split SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-\{0\}-fea-1-1-0.5-decoder_to_encoder---/checkpoint-best.pth 2 512 hirescam 1024 /orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/ enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 linear
 
-TIMM_FUSED_ATTN=0 python main_XAI_evaluation.py --batch_size 8     --model $MODEL     --nb_classes $Num_CLASS     --data_path /orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/${data_type}/split/tune8-eval2/${STUDY}.csv     --task $STUDY-v5-all-$FINETUNED_MODEL-XAI${XAI}-EVAL/ --img_dir /orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/ --finetune $FINETUNED_MODEL --num_workers 16 --input_size $INPUT_SIZE --num_k $NUM_K --resume $RESUME --xai $XAI --step_pixels $STEP_PIXELS --SMPMode $SMPMode --output_mask --thickness_dir $Thickness_DIR --target_module $TARGET_MODULE --select_index $SELECT_INDEX --smp_fuse_mode $SMPFuseMode --smp_alpha $SMPAlpha --smp_size_match $SMPSizeMatch --fusion_dim $FUSION_DIM --align $ALIGN --enc_idx $ENC_IDX --dec_idx $DEC_IDX --smp_classifier $SMPClassifier $ADDCMD $ADDCMD2 $ADDCMD3 
+TIMM_FUSED_ATTN=0 python main_XAI_evaluation.py --batch_size 8     --model $MODEL     --nb_classes $Num_CLASS     --data_path /orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/${data_type}/split/tune8-eval2/${STUDY}.csv     --task $STUDY-v5-all-$FINETUNED_MODEL-XAI${XAI}-EVAL/ --img_dir /orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/ --finetune $FINETUNED_MODEL --num_workers 16 --input_size $INPUT_SIZE --num_k $NUM_K --resume $RESUME --xai $XAI --step_pixels $STEP_PIXELS --SMPMode $SMPMode --output_mask --thickness_dir $Thickness_DIR --target_module $TARGET_MODULE --select_index $SELECT_INDEX --smp_fuse_mode $SMPFuseMode --smp_alpha $SMPAlpha --smp_size_match $SMPSizeMatch --fusion_dim $FUSION_DIM --align $ALIGN --enc_idx $ENC_IDX --dec_idx $DEC_IDX --smp_classifier $SMPClassifier $ADDCMD $ADDCMD2 $ADDCMD3 $ADDCMD4

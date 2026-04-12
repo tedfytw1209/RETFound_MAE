@@ -31,6 +31,7 @@ SMPClassifier=${18:-"linear"} # linear, conv
 ADDCMD=${19:-""}
 ADDCMD2=${20:-""}
 ADDCMD3=${21:-""}
+ADDCMD4=${22:-""}
 
 NUM_K=0
 MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
@@ -57,6 +58,6 @@ for XAI in "${XAI_METHODS[@]}"
 do
     # Submit the job to Slurm
     #/orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-dec-smpweighted_sum-{0}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth
-    echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $RESUME $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $Thickness_DIR $SMPMode $SMPFuseMode $SMPAlpha $SMPSizeMatch $FUSION_DIM $ALIGN $ENC_IDX $DEC_IDX $TARGET_MODULE $SELECT_INDEX $SMPClassifier $ADDCMD $ADDCMD2 $ADDCMD3"
-    bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $RESUME $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $Thickness_DIR $SMPMode $SMPFuseMode $SMPAlpha $SMPSizeMatch $FUSION_DIM $ALIGN $ENC_IDX $DEC_IDX $TARGET_MODULE $SELECT_INDEX $SMPClassifier $ADDCMD $ADDCMD2 $ADDCMD3
+    echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $RESUME $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $Thickness_DIR $SMPMode $SMPFuseMode $SMPAlpha $SMPSizeMatch $FUSION_DIM $ALIGN $ENC_IDX $DEC_IDX $TARGET_MODULE $SELECT_INDEX $SMPClassifier $ADDCMD $ADDCMD2 $ADDCMD3 $ADDCMD4"
+    bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $RESUME $NUM_CLASS $INPUT_SIZE $XAI $STEP_PIXELS $Thickness_DIR $SMPMode $SMPFuseMode $SMPAlpha $SMPSizeMatch $FUSION_DIM $ALIGN $ENC_IDX $DEC_IDX $TARGET_MODULE $SELECT_INDEX $SMPClassifier $ADDCMD $ADDCMD2 $ADDCMD3 $ADDCMD4
 done
