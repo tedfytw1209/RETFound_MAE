@@ -29,7 +29,8 @@ else
 fi
 
 for ALPHA_TYPE in "${ALPHA_TYPES[@]}"; do
-    RESUME="${RESULTS_DIR}/${DATASET}-${DATA_TYPE}-all-${BASE_CKPT}-${MODALITY}-bs${BATCH_SIZE}ep${EPOCHS}lr${LR}optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-${FUSION_DIM}-fea${ENC_IDX}${DEC_IDX}-0.5-decoder_to_encoder-conv-alpha${ALPHA_TYPE}---seg_mask---smp_learnable_alpha--/checkpoint-best.pth"
+    #/orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5_all-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-9-fea-2-1-0.5-decoder_to_encoder-conv-alphachannel---seg_mask---smp_learnable_alpha--/checkpoint-best.pth
+    RESUME="${RESULTS_DIR}/${DATASET}-${DATA_TYPE}-all-${BASE_CKPT}-${MODALITY}-bs${BATCH_SIZE}ep${EPOCHS}lr${LR}optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-${FUSION_DIM}-fea${ENC_IDX}${DEC_IDX}-0.5-decoder_to_encoder-conv-alpha${ALPHA_TYPE}---seg_mask---smp_learnable_alpha-/checkpoint-best.pth"
 
     echo "Submitting XAI eval for alpha_type=${ALPHA_TYPE} ..."
     sbatch baseline_multirun_XAI_eval_smp.sh \
