@@ -12,7 +12,8 @@
 
 SEG_PATH=/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth
 Thickness_DIR=/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/
-Datasets=(DME_binary_all_split AMD_all_split Glaucoma_binary_all_split ERM_all_split)
+#Datasets=(DME_binary_all_split AMD_all_split Glaucoma_binary_all_split ERM_all_split)
+Datasets=(DME_binary_all_split)
 
 for DATASET in "${Datasets[@]}"
 do
