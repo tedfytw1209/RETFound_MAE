@@ -25,7 +25,7 @@ INPUT_SIZE=512
 #ENC_IDXS=(-1 -2 -3)       # passed to DEC_IDX position (pos 17) in training script
 #FUSION_DIMS=(4 9 16 32)
 ENC_IDXS=(-1)
-FUSION_DIMS=(4 9)
+FUSION_DIMS=(4 9 16 32)
 
 for ENC_IDX in "${ENC_IDXS[@]}"; do
     for FUSION_DIM in "${FUSION_DIMS[@]}"; do
