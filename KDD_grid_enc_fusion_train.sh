@@ -19,7 +19,41 @@ FUSION_DIMS=(4 16 32)
 for ENC_IDX in "${ENC_IDXS[@]}"; do
     for FUSION_DIM in "${FUSION_DIMS[@]}"; do
         echo "Submitting ENC_IDX=${ENC_IDX}, FUSION_DIM=${FUSION_DIM} ..."
-        sbatch finetune_retfound_UFbenchmark_v5_eval_smp_full.sh \
+        sbatch finetune_retfound_UFbenchmark_v5_smp_full.sh \
+            DME_binary_all_split \
+            SMP \
+            ${BASE_CKPT} \
+            5e-4 \
+            2 \
+            1e-4 \
+            default \
+            OCT \
+            0 \
+            fuse \
+            weighted_sum \
+            0.5 \
+            decoder_to_encoder \
+            ${FUSION_DIM} \
+            pre \
+            ${ENC_IDX} \
+            -1 \
+            conv \
+            scalar \
+            "--seg_mask" \
+            "--smp_learnable_alpha" \
+            ""
+    done
+done
+
+ENC_IDXS=(-1)
+#ENC_IDXS=(-1 -2 -3)
+#FUSION_DIMS=(4 9 16)
+FUSION_DIMS=(9)
+
+for ENC_IDX in "${ENC_IDXS[@]}"; do
+    for FUSION_DIM in "${FUSION_DIMS[@]}"; do
+        echo "Submitting ENC_IDX=${ENC_IDX}, FUSION_DIM=${FUSION_DIM} ..."
+        sbatch finetune_retfound_UFbenchmark_v5_smp_full.sh \
             DME_binary_all_split \
             SMP \
             ${BASE_CKPT} \
