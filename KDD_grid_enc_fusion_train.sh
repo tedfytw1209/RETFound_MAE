@@ -14,7 +14,7 @@ BASE_CKPT=/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_m
 ENC_IDXS=(-1 -3)
 #ENC_IDXS=(-1 -2 -3)
 #FUSION_DIMS=(4 9 16)
-FUSION_DIMS=(4 9 16)
+FUSION_DIMS=(9)
 
 for ENC_IDX in "${ENC_IDXS[@]}"; do
     for FUSION_DIM in "${FUSION_DIMS[@]}"; do
