@@ -603,130 +603,16 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
         # Keep original images for model-dependent metrics (insertion/deletion)
         images_original = images
 
-        # Load cached heatmap or generate and save
+        # Heatmap cache path uses current batch_idx (original naming, unchanged)
         heatmap_cache_path = os.path.join(heatmap_cache_dir, f'heatmap_batch_{batch_idx:06d}.npy') if heatmap_cache_dir else None
-        loaded_from_cache = False
-        if heatmap_cache_path and os.path.exists(heatmap_cache_path):
-            try:
-                cached = np.load(heatmap_cache_path)
-                expected_shape = (bs, images.shape[2], images.shape[3])
-                if cached.ndim == 3 and cached.shape[0] == bs and cached.shape[1:] == expected_shape[1:]:
-                    attention_map_bs = cached
-                    loaded_from_cache = True
-                    print(f"[Heatmap Cache] Loaded batch {batch_idx} from {heatmap_cache_path}")
-                else:
-                    print(f"[Heatmap Cache] Shape mismatch for batch {batch_idx}: cached={cached.shape}, expected={expected_shape}. Regenerating.")
-            except Exception as e:
-                print(f"[Heatmap Cache] Failed to load batch {batch_idx}: {e}. Regenerating.")
-        if not loaded_from_cache:
-            attention_map_bs = xai_method(images,targets=target) # numpy shape: (B, img_size, img_size)
-            attention_map_bs = attention_map_bs - attention_map_bs.min(axis=(1, 2), keepdims=True) + 1e-9 # numpy shape: (B, img_size, img_size), add small value to avoid all-zero map
-            if heatmap_cache_path:
-                # Atomic save: write to .tmp then rename to avoid corrupt files on interrupted runs
-                tmp_path = heatmap_cache_path.replace('.npy', '.tmp.npy')
-                np.save(tmp_path, attention_map_bs)
-                os.replace(tmp_path, heatmap_cache_path)
-        batch_idx += 1
-        
-        # Keep original saliency for model-dependent metrics
-        attention_map_original = attention_map_bs
-        gt_mask_original = gt_mask
-        
-        # Normalize saliency maps to common resolution for fair comparison
-        if normalize_saliency and attention_map_bs.shape[1] != eval_resolution:
-            original_size = attention_map_bs.shape[1]
-            scale_factor = eval_resolution / original_size
-            attention_map_bs_normalized = np.zeros((bs, eval_resolution, eval_resolution), dtype=attention_map_bs.dtype)
-            for i in range(bs):
-                attention_map_bs_normalized[i] = zoom(attention_map_bs[i], scale_factor, order=1)  # bilinear interpolation
-            attention_map_bs = attention_map_bs_normalized
-            
-            # Also resize gt_mask to match the normalized saliency map size
-            if gt_mask is not None:
-                gt_mask_normalized = np.zeros((bs, eval_resolution, eval_resolution), dtype=gt_mask.dtype)
-                for i in range(bs):
-                    gt_mask_normalized[i] = zoom(gt_mask[i], scale_factor, order=0)  # nearest neighbor for mask
-                gt_mask = gt_mask_normalized
-            
-            # Resize images to match the normalized resolution (for non-model-dependent metrics)
-            images_normalized = torch.nn.functional.interpolate(
-                images, size=(eval_resolution, eval_resolution), mode='bilinear', align_corners=False
-            )
-            images = images_normalized
+        # Metric cache path uses same batch index (batch_idx incremented at end of iteration to preserve original file names)
+        metric_cache_path = os.path.join(metric_cache_dir, f'metric_batch_{batch_idx:06d}.npz') if metric_cache_dir else None
 
-        # Print per-sample layer-importance breakdown for debugging (throttled)
-        if print_layer_dbg and layer_print_left > 0 and gt_mask is not None and gt_mask.ndim == 3:
-            for bi in range(bs):
-                if layer_print_left <= 0:
-                    break
-                seg = gt_mask[bi]
-                heat = attention_map_bs[bi]
-                seg_i64 = np.asarray(seg).astype(np.int64, copy=False)
-                labels = np.unique(seg_i64)
-                if ignore_bg:
-                    labels = labels[labels != 0]
+        # --- Three-way branch ---
+        # 1. If metric cache exists and loads without errors → use it, skip heatmap entirely
+        # 2. elif heatmap cache exists → load heatmap, then compute metrics
+        # 3. else → generate heatmap, then compute metrics
 
-                # Compute sum-based scores for distribution metrics (entropy, gini, dispersion, top3_ratio)
-                scores_sum = np.zeros((labels.size,), dtype=np.float64)
-                for li, lab in enumerate(labels):
-                    scores_sum[li] = np.asarray(heat, dtype=np.float64)[seg_i64 == lab].sum()
-
-                total = float(np.maximum(scores_sum, 0.0).sum()) if scores_sum.size else 0.0
-                probs = (scores_sum / (total + 1e-12)) if (scores_sum.size and total > 0.0) else np.zeros_like(scores_sum, dtype=np.float64)
-
-                ent = shannon_entropy(scores_sum)
-                gin = gini_coefficient(scores_sum)
-                disp = dispersion_cv(scores_sum)
-                top3 = topk_ratio(scores_sum, k=3)
-                
-                # Compute mean-based scores for new metrics (avg_score, avg_rank, top3_layers)
-                scores_mean = np.zeros((labels.size,), dtype=np.float64)
-                for li, lab in enumerate(labels):
-                    layer_values = np.asarray(heat, dtype=np.float64)[seg_i64 == lab]
-                    scores_mean[li] = layer_values.mean() if layer_values.size > 0 else 0.0
-                
-                # New metrics using mean scores
-                avg_score = float(np.mean(scores_mean)) if scores_mean.size > 0 else 0.0
-                if scores_mean.size > 0:
-                    ranks = np.argsort(np.argsort(-scores_mean)) + 1
-                    avg_rank = float(np.mean(ranks))
-                else:
-                    avg_rank = 0.0
-                
-                # Get top 3 layers based on mean scores
-                if scores_mean.size > 0:
-                    k_top = min(3, scores_mean.size)
-                    top_k_idx = np.argsort(scores_mean)[-k_top:][::-1]
-                    top3_layers = labels[top_k_idx].tolist()
-                else:
-                    top3_layers = []
-
-                sid = None
-                try:
-                    if sample_ids is not None:
-                        sid = sample_ids[bi]
-                except Exception:
-                    sid = None
-                sid_str = str(sid) if sid is not None else f"batch_item_{bi}"
-
-                pairs_sum = [(int(lab), float(sc), float(p)) for lab, sc, p in zip(labels.tolist(), scores_sum.tolist(), probs.tolist())]
-                pairs_mean = [(int(lab), float(sc)) for lab, sc in zip(labels.tolist(), scores_mean.tolist())]
-                head_sum = pairs_sum[:12]
-                tail_sum = pairs_sum[-3:] if len(pairs_sum) > 15 else []
-                mid = " ... " if len(pairs_sum) > 15 else ""
-                print(
-                    f"[layer-metrics] {mode} epoch={epoch} id={sid_str} y={int(target_np[bi])} "
-                    f"include_bg={include_bg} layers={len(pairs_sum)} total_sum={total:.4e}\n"
-                    f"  Distribution metrics (sum-based): entropy={ent:.4f} gini={gin:.4f} disp={disp:.4f} top3_ratio={top3:.4f}\n"
-                    f"  New metrics (mean-based): avg_score={avg_score:.4e} avg_rank={avg_rank:.2f} top3_layers={top3_layers}\n"
-                    f"  (label, sum, prob): {head_sum}{mid}{tail_sum}"
-                )
-                layer_print_left -= 1
-        #print(f'Attention map shape: {attention_map_bs.shape}')
-        #print(target_np)
-
-        # Check for cached metric results for this batch
-        metric_cache_path = os.path.join(metric_cache_dir, f'metric_batch_{batch_idx - 1:06d}.npz') if metric_cache_dir else None
         loaded_metrics_from_cache = False
         if metric_cache_path and os.path.exists(metric_cache_path):
             try:
@@ -741,7 +627,7 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
                     for k in metric_func_dict.keys():
                         key = f'metric_{k}'
                         if key not in cached_m:
-                            print(f"[Metric Cache] Key '{key}' missing in batch {batch_idx - 1} cache. Recomputing batch.")
+                            print(f"[Metric Cache] Key '{key}' missing in batch {batch_idx} cache. Recomputing batch.")
                             all_keys_found = False
                             break
                         e_score_bs_np = cached_m[key]
@@ -765,13 +651,137 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
                         top3_layers_cached = cached_m['top3_layers'].tolist() if 'top3_layers' in cached_m else []
                         all_top3_layers.extend(top3_layers_cached)
                         loaded_metrics_from_cache = True
-                        print(f"[Metric Cache] Loaded batch {batch_idx - 1} from {metric_cache_path}")
+                        print(f"[Metric Cache] Loaded batch {batch_idx} from {metric_cache_path}")
                 else:
-                    print(f"[Metric Cache] Target mismatch for batch {batch_idx - 1}, recomputing.")
+                    print(f"[Metric Cache] Target mismatch for batch {batch_idx}, recomputing.")
             except Exception as e:
-                print(f"[Metric Cache] Failed to load batch {batch_idx - 1}: {e}. Recomputing.")
+                print(f"[Metric Cache] Failed to load batch {batch_idx}: {e}. Recomputing.")
 
         if not loaded_metrics_from_cache:
+            # Branch 2: load heatmap from cache, or Branch 3: generate heatmap
+            loaded_from_cache = False
+            if heatmap_cache_path and os.path.exists(heatmap_cache_path):
+                try:
+                    cached = np.load(heatmap_cache_path)
+                    expected_shape = (bs, images.shape[2], images.shape[3])
+                    if cached.ndim == 3 and cached.shape[0] == bs and cached.shape[1:] == expected_shape[1:]:
+                        attention_map_bs = cached
+                        loaded_from_cache = True
+                        print(f"[Heatmap Cache] Loaded batch {batch_idx} from {heatmap_cache_path}")
+                    else:
+                        print(f"[Heatmap Cache] Shape mismatch for batch {batch_idx}: cached={cached.shape}, expected={expected_shape}. Regenerating.")
+                except Exception as e:
+                    print(f"[Heatmap Cache] Failed to load batch {batch_idx}: {e}. Regenerating.")
+            if not loaded_from_cache:
+                attention_map_bs = xai_method(images, targets=target) # numpy shape: (B, img_size, img_size)
+                attention_map_bs = attention_map_bs - attention_map_bs.min(axis=(1, 2), keepdims=True) + 1e-9 # add small value to avoid all-zero map
+                if heatmap_cache_path:
+                    # Atomic save: write to .tmp then rename to avoid corrupt files on interrupted runs
+                    try:
+                        tmp_path = heatmap_cache_path.replace('.npy', '.tmp.npy')
+                        np.save(tmp_path, attention_map_bs)
+                        os.replace(tmp_path, heatmap_cache_path)
+                    except Exception as e:
+                        print(f"[Heatmap Cache] Failed to save batch {batch_idx}: {e}.")
+
+            # Keep original saliency for model-dependent metrics
+            attention_map_original = attention_map_bs
+            gt_mask_original = gt_mask
+
+            # Normalize saliency maps to common resolution for fair comparison
+            if normalize_saliency and attention_map_bs.shape[1] != eval_resolution:
+                original_size = attention_map_bs.shape[1]
+                scale_factor = eval_resolution / original_size
+                attention_map_bs_normalized = np.zeros((bs, eval_resolution, eval_resolution), dtype=attention_map_bs.dtype)
+                for i in range(bs):
+                    attention_map_bs_normalized[i] = zoom(attention_map_bs[i], scale_factor, order=1)  # bilinear interpolation
+                attention_map_bs = attention_map_bs_normalized
+
+                # Also resize gt_mask to match the normalized saliency map size
+                if gt_mask is not None:
+                    gt_mask_normalized = np.zeros((bs, eval_resolution, eval_resolution), dtype=gt_mask.dtype)
+                    for i in range(bs):
+                        gt_mask_normalized[i] = zoom(gt_mask[i], scale_factor, order=0)  # nearest neighbor for mask
+                    gt_mask = gt_mask_normalized
+
+                # Resize images to match the normalized resolution (for non-model-dependent metrics)
+                images_normalized = torch.nn.functional.interpolate(
+                    images, size=(eval_resolution, eval_resolution), mode='bilinear', align_corners=False
+                )
+                images = images_normalized
+
+            # Print per-sample layer-importance breakdown for debugging (throttled)
+            if print_layer_dbg and layer_print_left > 0 and gt_mask is not None and gt_mask.ndim == 3:
+                for bi in range(bs):
+                    if layer_print_left <= 0:
+                        break
+                    seg = gt_mask[bi]
+                    heat = attention_map_bs[bi]
+                    seg_i64 = np.asarray(seg).astype(np.int64, copy=False)
+                    labels = np.unique(seg_i64)
+                    if ignore_bg:
+                        labels = labels[labels != 0]
+
+                    # Compute sum-based scores for distribution metrics (entropy, gini, dispersion, top3_ratio)
+                    scores_sum = np.zeros((labels.size,), dtype=np.float64)
+                    for li, lab in enumerate(labels):
+                        scores_sum[li] = np.asarray(heat, dtype=np.float64)[seg_i64 == lab].sum()
+
+                    total = float(np.maximum(scores_sum, 0.0).sum()) if scores_sum.size else 0.0
+                    probs = (scores_sum / (total + 1e-12)) if (scores_sum.size and total > 0.0) else np.zeros_like(scores_sum, dtype=np.float64)
+
+                    ent = shannon_entropy(scores_sum)
+                    gin = gini_coefficient(scores_sum)
+                    disp = dispersion_cv(scores_sum)
+                    top3 = topk_ratio(scores_sum, k=3)
+
+                    # Compute mean-based scores for new metrics (avg_score, avg_rank, top3_layers)
+                    scores_mean = np.zeros((labels.size,), dtype=np.float64)
+                    for li, lab in enumerate(labels):
+                        layer_values = np.asarray(heat, dtype=np.float64)[seg_i64 == lab]
+                        scores_mean[li] = layer_values.mean() if layer_values.size > 0 else 0.0
+
+                    # New metrics using mean scores
+                    avg_score = float(np.mean(scores_mean)) if scores_mean.size > 0 else 0.0
+                    if scores_mean.size > 0:
+                        ranks = np.argsort(np.argsort(-scores_mean)) + 1
+                        avg_rank = float(np.mean(ranks))
+                    else:
+                        avg_rank = 0.0
+
+                    # Get top 3 layers based on mean scores
+                    if scores_mean.size > 0:
+                        k_top = min(3, scores_mean.size)
+                        top_k_idx = np.argsort(scores_mean)[-k_top:][::-1]
+                        top3_layers = labels[top_k_idx].tolist()
+                    else:
+                        top3_layers = []
+
+                    sid = None
+                    try:
+                        if sample_ids is not None:
+                            sid = sample_ids[bi]
+                    except Exception:
+                        sid = None
+                    sid_str = str(sid) if sid is not None else f"batch_item_{bi}"
+
+                    pairs_sum = [(int(lab), float(sc), float(p)) for lab, sc, p in zip(labels.tolist(), scores_sum.tolist(), probs.tolist())]
+                    pairs_mean = [(int(lab), float(sc)) for lab, sc in zip(labels.tolist(), scores_mean.tolist())]
+                    head_sum = pairs_sum[:12]
+                    tail_sum = pairs_sum[-3:] if len(pairs_sum) > 15 else []
+                    mid = " ... " if len(pairs_sum) > 15 else ""
+                    print(
+                        f"[layer-metrics] {mode} epoch={epoch} id={sid_str} y={int(target_np[bi])} "
+                        f"include_bg={include_bg} layers={len(pairs_sum)} total_sum={total:.4e}\n"
+                        f"  Distribution metrics (sum-based): entropy={ent:.4f} gini={gin:.4f} disp={disp:.4f} top3_ratio={top3:.4f}\n"
+                        f"  New metrics (mean-based): avg_score={avg_score:.4e} avg_rank={avg_rank:.2f} top3_layers={top3_layers}\n"
+                        f"  (label, sum, prob): {head_sum}{mid}{tail_sum}"
+                    )
+                    layer_print_left -= 1
+            #print(f'Attention map shape: {attention_map_bs.shape}')
+            #print(target_np)
+
+            # Compute metrics
             metric_scores_to_save = {}
             for k, v in metric_func_dict.items():
                 # Use original images/saliency for model-dependent metrics (insertion/deletion)
@@ -816,15 +826,19 @@ def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch,
                         top3_layers_batch.extend(top3_layers_i.tolist())
             all_top3_layers.extend(top3_layers_batch)
 
-            # Save metric results for this batch (atomic: write to .tmp then rename)
+            # Save metric cache (atomic: write to .tmp then rename)
             if metric_cache_path:
-                save_dict = {'target': target_np, 'top3_layers': np.array(top3_layers_batch, dtype=np.int64)}
-                save_dict.update(metric_scores_to_save)
-                tmp_metric_path = metric_cache_path.replace('.npz', '.tmp.npz')
-                np.savez(tmp_metric_path, **save_dict)
-                os.replace(tmp_metric_path, metric_cache_path)
+                try:
+                    save_dict = {'target': target_np, 'top3_layers': np.array(top3_layers_batch, dtype=np.int64)}
+                    save_dict.update(metric_scores_to_save)
+                    tmp_metric_path = metric_cache_path.replace('.npz', '.tmp.npz')
+                    np.savez(tmp_metric_path, **save_dict)
+                    os.replace(tmp_metric_path, metric_cache_path)
+                except Exception as e:
+                    print(f"[Metric Cache] Failed to save batch {batch_idx}: {e}.")
         #print(classwise_metrics_dict)
 
+        batch_idx += 1  # always increment once per iteration regardless of which branch was taken
         metric_logger.update(**each_dict)
     
     
