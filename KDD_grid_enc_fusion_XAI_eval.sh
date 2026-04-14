@@ -17,19 +17,19 @@ MODALITY=OCT
 LR=5e-4
 BATCH_SIZE=16
 EPOCHS=100
-FIXED_ENC_IDX=-2   # fixed ENC_IDX (pos 16 in training script)
-ALPHA_TYPE=attn
+FIXED_DEC_IDX=-1   # fixed DEC_IDX (pos 17 in training script, always -1)
+ALPHA_TYPE=scalar
 NUM_CLASS=2
 INPUT_SIZE=512
 
-#ENC_IDXS=(-1 -2 -3)       # passed to DEC_IDX position (pos 17) in training script
+#ENC_IDXS=(-1 -2 -3)       # passed to ENC_IDX position (pos 16) in training script
 #FUSION_DIMS=(4 9 16 32)
-ENC_IDXS=(-1)
-FUSION_DIMS=(4 9 16 32)
+ENC_IDXS=(-1 -3)
+FUSION_DIMS=(16 32)
 
 for ENC_IDX in "${ENC_IDXS[@]}"; do
     for FUSION_DIM in "${FUSION_DIMS[@]}"; do
-        RESUME="${RESULTS_DIR}/${DATASET}-${DATA_TYPE}-all-${BASE_CKPT}-${MODALITY}-bs${BATCH_SIZE}ep${EPOCHS}lr${LR}optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-${FUSION_DIM}-fea${FIXED_ENC_IDX}${ENC_IDX}-0.5-decoder_to_encoder-conv-alpha${ALPHA_TYPE}---seg_mask---smp_learnable_alpha-/checkpoint-best.pth"
+        RESUME="${RESULTS_DIR}/${DATASET}-${DATA_TYPE}-all-${BASE_CKPT}-${MODALITY}-bs${BATCH_SIZE}ep${EPOCHS}lr${LR}optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-${FUSION_DIM}-fea${ENC_IDX}${FIXED_DEC_IDX}-0.5-decoder_to_encoder-conv-alpha${ALPHA_TYPE}---seg_mask---smp_learnable_alpha-/checkpoint-best.pth"
 
         echo "Submitting XAI eval for FUSION_DIM=${FUSION_DIM}, ENC_IDX=${ENC_IDX} ..."
         sbatch baseline_multirun_XAI_eval_smp.sh \
@@ -46,8 +46,8 @@ for ENC_IDX in "${ENC_IDXS[@]}"; do
             decoder_to_encoder \
             ${FUSION_DIM} \
             pre \
-            ${FIXED_ENC_IDX} \
             ${ENC_IDX} \
+            ${FIXED_DEC_IDX} \
             head \
             -1 \
             conv \

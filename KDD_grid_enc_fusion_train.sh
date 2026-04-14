@@ -19,7 +19,7 @@ FUSION_DIMS=(16 32)
 for ENC_IDX in "${ENC_IDXS[@]}"; do
     for FUSION_DIM in "${FUSION_DIMS[@]}"; do
         #echo "Submitting ENC_IDX=${ENC_IDX}, FUSION_DIM=${FUSION_DIM} ..."
-        sbatch finetune_retfound_UFbenchmark_irb2024v5_smp_full.sh \
+        sbatch finetune_retfound_UFbenchmark_v5_eval_smp_full.sh \
             DME_binary_all_split \
             SMP \
             ${BASE_CKPT} \
@@ -35,10 +35,10 @@ for ENC_IDX in "${ENC_IDXS[@]}"; do
             decoder_to_encoder \
             ${FUSION_DIM} \
             pre \
-            -2 \
             ${ENC_IDX} \
+            -1 \
             conv \
-            attn \
+            scalar \
             "--seg_mask" \
             "--smp_learnable_alpha" \
             ""
