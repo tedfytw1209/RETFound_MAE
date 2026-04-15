@@ -21,6 +21,7 @@ DATASET="DME_binary_all_split"
 NUM_CLASS=2
 ADD_WORD1=""
 ADD_WORD2=""
+data_type="IRB2024_v5_all"
 
 # "model_arg  finetuned_model  input_size"
 # model_arg  → passed as --model (drives GradCAM model_name checks)
@@ -34,7 +35,7 @@ MODELS=(
 
 for MODEL_ENTRY in "${MODELS[@]}"; do
   read -r MODEL FINETUNED_MODEL INPUT_SIZE <<< "$MODEL_ENTRY"
-  CKPT="$MODEL_DIR/$DATASET-IRB2024_v5-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth"
+  CKPT="$MODEL_DIR/$DATASET-$data_type-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth"
 
   if [ ! -f "$CKPT" ]; then
     echo "[WARN] Checkpoint not found, skipping: $CKPT"
@@ -43,28 +44,8 @@ for MODEL_ENTRY in "${MODELS[@]}"; do
 
   for XAI_METHOD in "${XAI_METHODS[@]}"; do
     for LAYER_IDX in "${LAYER_INDICES[@]}"; do
-      echo "bash "$EVAL_SCRIPT" \
-        "$DATASET" \
-        "$MODEL" \
-        "$FINETUNED_MODEL" \
-        "$CKPT" \
-        "$NUM_CLASS" \
-        "$INPUT_SIZE" \
-        "$XAI_METHOD" \
-        "$INPUT_SIZE" \
-        "$ADD_WORD1" \
-        "$ADD_WORD2 --select_index $LAYER_IDX""
-      bash "$EVAL_SCRIPT" \
-        "$DATASET" \
-        "$MODEL" \
-        "$FINETUNED_MODEL" \
-        "$CKPT" \
-        "$NUM_CLASS" \
-        "$INPUT_SIZE" \
-        "$XAI_METHOD" \
-        "$INPUT_SIZE" \
-        "$ADD_WORD1" \
-        "$ADD_WORD2 --select_index $LAYER_IDX"
+      echo "bash "$EVAL_SCRIPT" "$DATASET" "$MODEL" "$FINETUNED_MODEL" "$CKPT" "$NUM_CLASS" "$INPUT_SIZE" "$XAI_METHOD" "$INPUT_SIZE" "$ADD_WORD1" "$ADD_WORD2 --select_index $LAYER_IDX""
+      #bash "$EVAL_SCRIPT" "$DATASET" "$MODEL" "$FINETUNED_MODEL" "$CKPT" "$NUM_CLASS" "$INPUT_SIZE" "$XAI_METHOD" "$INPUT_SIZE" "$ADD_WORD1" "$ADD_WORD2 --select_index $LAYER_IDX"
     done
   done
 done
