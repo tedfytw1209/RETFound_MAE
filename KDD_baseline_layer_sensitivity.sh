@@ -11,8 +11,7 @@
 #SBATCH --qos=ruogu.fang
 
 EVAL_SCRIPT="finetune_retfound_UFbenchmark_v5_eval_full2.sh"
-# LAYER_INDICES: space-separated negative indices, e.g. "-1 -2 -3"  (default: all three)
-IFS=' ' read -r -a LAYER_INDICES <<< "${1:--1 -2 -3}"
+LAYER_IDX=${1:-"-1"}
 
 XAI_METHODS=("hirescam" "gradcam++" "gradcamv2")
 
@@ -37,16 +36,9 @@ for MODEL_ENTRY in "${MODELS[@]}"; do
   read -r MODEL FINETUNED_MODEL INPUT_SIZE <<< "$MODEL_ENTRY"
   CKPT="$MODEL_DIR/$DATASET-$data_type-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth"
 
-  if [ ! -f "$CKPT" ]; then
-    echo "[WARN] Checkpoint not found, skipping: $CKPT"
-    continue
-  fi
-
   for XAI_METHOD in "${XAI_METHODS[@]}"; do
-    for LAYER_IDX in "${LAYER_INDICES[@]}"; do
       echo "bash "$EVAL_SCRIPT" "$DATASET" "$MODEL" "$FINETUNED_MODEL" "$CKPT" "$NUM_CLASS" "$INPUT_SIZE" "$XAI_METHOD" "$INPUT_SIZE" --select_index $LAYER_IDX""
-      bash "$EVAL_SCRIPT" "$DATASET" "$MODEL" "$FINETUNED_MODEL" "$CKPT" "$NUM_CLASS" "$INPUT_SIZE" "$XAI_METHOD" "$INPUT_SIZE" --select_index $LAYER_IDX"
-    done
+      #bash "$EVAL_SCRIPT" "$DATASET" "$MODEL" "$FINETUNED_MODEL" "$CKPT" "$NUM_CLASS" "$INPUT_SIZE" "$XAI_METHOD" "$INPUT_SIZE" --select_index $LAYER_IDX"
   done
 done
 
