@@ -11,7 +11,10 @@
 #SBATCH --qos=ruogu.fang
 
 EVAL_SCRIPT="finetune_retfound_UFbenchmark_v5_eval_full2.sh"
-LAYER_IDX=${1:-"-1"}
+MODEL=${1:-"RETFound_mae"}
+FINETUNED_MODEL=${2:-"RETFound_mae_natureOCT"}
+INPUT_SIZE=${3:-"224"}
+LAYER_IDX=${4:-"-1"}
 
 XAI_METHODS=("hirescam" "gradcam++" "gradcamv2")
 
@@ -22,9 +25,6 @@ ADD_WORD1=""
 ADD_WORD2=""
 data_type="IRB2024_v5_all"
 
-# "model_arg  finetuned_model  input_size"
-# model_arg  → passed as --model (drives GradCAM model_name checks)
-# finetuned_model → passed as --finetune and used in checkpoint path
 MODELS=(
   "RETFound_mae RETFound_mae_natureOCT 224"
   "vit-base-patch16-224 google/vit-base-patch16-224-in21k 224"
@@ -32,14 +32,11 @@ MODELS=(
   "resnet-50 microsoft/resnet-50 224"
 )
 
-for MODEL_ENTRY in "${MODELS[@]}"; do
-  read -r MODEL FINETUNED_MODEL INPUT_SIZE <<< "$MODEL_ENTRY"
-  CKPT="$MODEL_DIR/$DATASET-$data_type-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth"
+CKPT="$MODEL_DIR/$DATASET-$data_type-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth"
 
-  for XAI_METHOD in "${XAI_METHODS[@]}"; do
-      echo "bash $EVAL_SCRIPT $DATASET $MODEL $FINETUNED_MODEL $CKPT $NUM_CLASS $INPUT_SIZE $XAI_METHOD $INPUT_SIZE --select_index $LAYER_IDX"
-      #bash $EVAL_SCRIPT $DATASET $MODEL $FINETUNED_MODEL $CKPT $NUM_CLASS $INPUT_SIZE $XAI_METHOD $INPUT_SIZE --select_index $LAYER_IDX
-  done
+for XAI_METHOD in "${XAI_METHODS[@]}"; do
+    echo "bash $EVAL_SCRIPT $DATASET $MODEL $FINETUNED_MODEL $CKPT $NUM_CLASS $INPUT_SIZE $XAI_METHOD 224 --select_index $LAYER_IDX"
+    bash $EVAL_SCRIPT $DATASET $MODEL $FINETUNED_MODEL $CKPT $NUM_CLASS $INPUT_SIZE $XAI_METHOD 224 --select_index $LAYER_IDX
 done
 
 echo "=== Sensitivity sweep complete ==="
