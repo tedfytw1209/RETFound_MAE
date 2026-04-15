@@ -45,6 +45,6 @@ for XAI in "${XAI_METHODS[@]}"
 do
     # Submit the job to Slurm
     echo "bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-$data_type-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE $ADD_WORD1 $ADD_WORD2"
-    #bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-$data_type-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE $ADD_WORD1 $ADD_WORD2
+    bash $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $MODEL_DIR/$DATASET-$data_type-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth $NUM_CLASS $INPUT_SIZE $XAI $INPUT_SIZE $ADD_WORD1 $ADD_WORD2
 done
 #done
