@@ -32,8 +32,11 @@ MODELS=(
   "resnet-50 microsoft/resnet-50 224"
 )
 
+#sbatch KDD_baseline_layer_sensitivity.sh RETFound_mae RETFound_mae_natureOCT 224 -1
+#sbatch KDD_baseline_layer_sensitivity.sh vit-base-patch16-224 google/vit-base-patch16-224-in21k 224 -1
+#sbatch KDD_baseline_layer_sensitivity.sh timm_efficientnet-b4 timm_efficientnet-b4 380 -1
+#sbatch KDD_baseline_layer_sensitivity.sh resnet-50 microsoft/resnet-50 224 -1
 CKPT="$MODEL_DIR/$DATASET-$data_type-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth"
-
 for XAI_METHOD in "${XAI_METHODS[@]}"; do
     echo "bash $EVAL_SCRIPT $DATASET $MODEL $FINETUNED_MODEL $CKPT $NUM_CLASS $INPUT_SIZE $XAI_METHOD 224 --select_index $LAYER_IDX"
     bash $EVAL_SCRIPT $DATASET $MODEL $FINETUNED_MODEL $CKPT $NUM_CLASS $INPUT_SIZE $XAI_METHOD 224 --select_index $LAYER_IDX
