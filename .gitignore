@@ -146,3 +146,4 @@ output_logs/
 wandb/
 /.claude
 /docs/plans
+figure_prompt/figure_prompts.md
