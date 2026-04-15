@@ -44,8 +44,8 @@ for MODEL_ENTRY in "${MODELS[@]}"; do
 
   for XAI_METHOD in "${XAI_METHODS[@]}"; do
     for LAYER_IDX in "${LAYER_INDICES[@]}"; do
-      echo "bash "$EVAL_SCRIPT" "$DATASET" "$MODEL" "$FINETUNED_MODEL" "$CKPT" "$NUM_CLASS" "$INPUT_SIZE" "$XAI_METHOD" "$INPUT_SIZE" "$ADD_WORD1" "$ADD_WORD2 --select_index $LAYER_IDX""
-      #bash "$EVAL_SCRIPT" "$DATASET" "$MODEL" "$FINETUNED_MODEL" "$CKPT" "$NUM_CLASS" "$INPUT_SIZE" "$XAI_METHOD" "$INPUT_SIZE" "$ADD_WORD1" "$ADD_WORD2 --select_index $LAYER_IDX"
+      echo "bash "$EVAL_SCRIPT" "$DATASET" "$MODEL" "$FINETUNED_MODEL" "$CKPT" "$NUM_CLASS" "$INPUT_SIZE" "$XAI_METHOD" "$INPUT_SIZE" --select_index $LAYER_IDX""
+      bash "$EVAL_SCRIPT" "$DATASET" "$MODEL" "$FINETUNED_MODEL" "$CKPT" "$NUM_CLASS" "$INPUT_SIZE" "$XAI_METHOD" "$INPUT_SIZE" --select_index $LAYER_IDX"
     done
   done
 done
