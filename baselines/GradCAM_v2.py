@@ -139,8 +139,21 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
             return layer
     
     # --- timm EfficientNet 風格
-    if 'efficientnet' in model_name.lower() and _get(model, "conv_head") is not None:
-        layer = model.conv_head
+    if 'efficientnet' in model_name.lower() and _get(model, "blocks") is not None:
+        stages = model.blocks
+        if select_index == -1:
+            # Stem stage has different structure — return the whole stage
+            layer = model.conv_head
+            if debug:
+                print(f"[DEBUG] EfficientNet (timm) path: select_index=-1 (stem), returning whole stage")
+        else:
+            select_index += 1  # Adjust index to skip stem 
+            # For any non-stem stage, hook the last conv (conv_pwl) of the last InvertedResidual
+            stage = stages[select_index]
+            layer = stage[-1].conv_pwl
+            if debug:
+                print(f"[DEBUG] EfficientNet (timm) path: Resolved to blocks[{select_index}][-1].conv_pwl")
+                print(f"  conv_pwl type: {type(layer).__name__}, out_channels: {layer.out_channels}")
         return layer
     
     # --- timm ViT 風格
@@ -200,18 +213,17 @@ def _resolve_target_layer(model, model_name=None, module_name=None, select_index
     # --- HF ResNet (wrapped under .resnet)
     resnet = _get(model, "resnet")
     if 'resnet' in model_name.lower() and resnet is not None:
-        conv_list = []
-        for name, module in resnet.named_modules():
-            if isinstance(module, nn.Conv2d):
-                conv_list.append((name, module))
-        if len(conv_list) > 0:
+        enc = _get(resnet, "encoder")
+        stages = _get(enc, "stages") if enc is not None else None
+        if isinstance(stages, (nn.ModuleList, list)) and len(stages) > 0:
+            # Navigate to the last Conv2d of the selected stage:
+            # stages[i].layers[-1].layer[-1].convolution
+            stage = stages[select_index]
+            target = stage.layers[-1].layer[-1].convolution
             if debug:
-                print(f"[DEBUG] HF ResNet path:")
-                print(f"  Found {len(conv_list)} Conv2d layers in .resnet")
-                print(f"  Selected: {conv_list[select_index][0]}")
-                selected = conv_list[select_index][1]
-                print(f"  {selected.in_channels} -> {selected.out_channels}")
-            return conv_list[select_index][1]
+                print(f"[DEBUG] HF ResNet path: Resolved to resnet.encoder.stages[{select_index}].layers[-1].layer[-1].convolution")
+                print(f"  Conv2d: {target}")
+            return target
 
     # --- HF EfficientNet often wrapped under .efficientnet
     eff = _get(model, "efficientnet")

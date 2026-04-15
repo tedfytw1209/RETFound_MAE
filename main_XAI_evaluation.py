@@ -1054,7 +1054,7 @@ def main(args, criterion):
     elif args.xai == 'attn':
         XAI_module = Attention_Map(model, args.model, input_size=args.input_size, N=11, use_rollout=args.use_rollout, print_layers=True, device=device)
     elif args.xai == 'gradcam':
-        XAI_module = GradCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, device=device)
+        XAI_module = GradCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, select_index=args.select_index, device=device)
     elif args.xai == 'gradcamv2':
         XAI_module = PytorchCAM(model, model_name=args.model, img_size=args.input_size, patch_size=patch_size, method=GradCAMv2, target_module=args.target_module, select_index=args.select_index, device=device)
     elif args.xai == 'scorecam':
@@ -1176,7 +1176,7 @@ if __name__ == '__main__':
         else:
             args.task = f"{study_name}-{data_type}-{finetune_model}-{args.xai}-{args.SMPMode}-fea{args.enc_idx}{args.dec_idx}-{args.target_module}{args.select_index}-seed{args.seed}"
     else:
-        args.task = f"{study_name}-{data_type}-{args.model}-{finetune_model}-{args.xai}-{args.input_size}-seed{args.seed}"
+        args.task = f"{study_name}-{data_type}-{args.model}-{finetune_model}-{args.xai}-{args.input_size}-blk{args.select_index}-seed{args.seed}"
     
     if args.seg_mask and args.mask_softmax:
         args.task += '-softsegmask'
