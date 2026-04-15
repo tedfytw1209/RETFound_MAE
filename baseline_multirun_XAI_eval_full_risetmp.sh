@@ -32,8 +32,8 @@ data_type="IRB2024_v5_all"
 #sbatch baseline_multirun_XAI_eval_full_risetmp.sh finetune_retfound_UFbenchmark_v5_eval_full2.sh DME_binary_all_split 2 resnet-50 microsoft/resnet-50 224
 #sbatch baseline_multirun_XAI_eval_full_risetmp.sh finetune_retfound_UFbenchmark_v5_eval_full2.sh DME_binary_all_split 2 vit-base-patch16-224 google/vit-base-patch16-224-in21k 224
 #sbatch baseline_multirun_XAI_eval_full_risetmp.sh finetune_retfound_UFbenchmark_v5_eval_full2.sh DME_binary_all_split 2 timm_efficientnet-b4 timm_efficientnet-b4 380
-#XAI_METHODS=("rise")
-XAI_METHODS=("hirescam" "gradcam++" "gradcamv2")  # List of XAI methods
+XAI_METHODS=("rise")
+#XAI_METHODS=("hirescam" "gradcam++" "gradcamv2")  # List of XAI methods
 #XAI_METHODS=("attn" "gradcamv2" "scorecam" "rise" "crp")  # List of XAI methods
 #for i in "${!DATASETS[@]}"
 #do
