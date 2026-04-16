@@ -59,7 +59,7 @@ echo $Num_CLASS
 # sbatch finetune_retfound_OCTDL_eval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-dec--/checkpoint-best.pth 2 512 hirescam 1024 /orange/ruogu.fang/tienyuchang/OCTDL_masks_multiclass_resnet50_new/ dec weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 decoder -1 conv
 # sbatch finetune_retfound_OCTDL_eval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth-OCT-bs16ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask---smp_learnable_alpha-/checkpoint-best.pth 2 512 hirescam 1024 /orange/ruogu.fang/tienyuchang/OCTDL_masks_multiclass_resnet50_new/ fuse weighted_sum 0.5 decoder_to_encoder 9 pre -2 -1 head -1 conv --seg_mask --smp_learnable_alpha
 
-XAI_METHODS=("hirescam" "gradcamv2" "gradcam++" "crp")  # List of XAI methods
+XAI_METHODS=("hirescam" "gradcamv2" "gradcam++")  # List of XAI methods
 
 for XAI in "${XAI_METHODS[@]}"
 do

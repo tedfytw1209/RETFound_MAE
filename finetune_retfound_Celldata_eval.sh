@@ -57,7 +57,7 @@ echo $Num_CLASS
 
 # sbatch finetune_retfound_Celldata_eval.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass.pth-OCT-bs8ep50lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-\{0\}-fea-1-1-0.5-decoder_to_encoder---/checkpoint-best.pth 2 512 hirescam 1024 /orange/ruogu.fang/tienyuchang/CellData_masks/ enc weighted_sum 0.5 decoder_to_encoder 0 -1 -1 encoder -1 conv
 
-XAI_METHODS=("hirescam" "gradcamv2" "gradcam++" "crp")  # List of XAI methods
+XAI_METHODS=("hirescam" "gradcamv2" "gradcam++")  # List of XAI methods
 #XAI_METHODS=("crp")  # List of XAI methods
 
 for XAI in "${XAI_METHODS[@]}"
