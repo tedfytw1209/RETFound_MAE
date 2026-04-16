@@ -37,54 +37,8 @@ XAI_METHODS=("hirescam" "gradcamv2" "gradcam++")  # List of XAI methods
 
 for XAI in "${XAI_METHODS[@]}"
 do
-    bash finetune_retfound_OCTDL_eval.sh \
-        ${OCTDL_STUDY} \
-        SMP \
-        ${BASE_CKPT} \
-        "${RESUME}" \
-        ${NUM_CLASS} \
-        ${INPUT_SIZE} \
-        ${XAI} \
-        ${STEP_PIXELS} \
-        /orange/ruogu.fang/tienyuchang/OCTDL_masks_multiclass_resnet50_new/ \
-        fuse \
-        weighted_sum \
-        0.5 \
-        decoder_to_encoder \
-        ${FUSION_DIM} \
-        pre \
-        -2 \
-        ${FIXED_DEC_IDX} \
-        head \
-        -1 \
-        conv \
-        "--seg_mask" \
-        "--smp_learnable_alpha" \
-        "--smp_alpha_type ${ALPHA_TYPE}"
+    bash finetune_retfound_OCTDL_eval.sh ${OCTDL_STUDY} SMP ${BASE_CKPT} "${RESUME}" ${NUM_CLASS} ${INPUT_SIZE} ${XAI} ${STEP_PIXELS} /orange/ruogu.fang/tienyuchang/OCTDL_masks_multiclass_resnet50_new/ fuse weighted_sum 0.5 decoder_to_encoder ${FUSION_DIM} pre -2 ${FIXED_DEC_IDX} head -1 conv "--seg_mask" "--smp_learnable_alpha" "--smp_alpha_type ${ALPHA_TYPE}"
 
     # --- Eval on CellData ---
-    bash finetune_retfound_Celldata_eval.sh \
-        ${CELLDATA_STUDY} \
-        SMP \
-        ${BASE_CKPT} \
-        "${RESUME}" \
-        ${NUM_CLASS} \
-        ${INPUT_SIZE} \
-        ${XAI} \
-        ${STEP_PIXELS} \
-        /orange/ruogu.fang/tienyuchang/CellData_masks_multiclass_resnet50_new/ \
-        fuse \
-        weighted_sum \
-        0.5 \
-        decoder_to_encoder \
-        ${FUSION_DIM} \
-        pre \
-        -2 \
-        ${FIXED_DEC_IDX} \
-        head \
-        -1 \
-        conv \
-        "--seg_mask" \
-        "--smp_learnable_alpha" \
-        "--smp_alpha_type ${ALPHA_TYPE}"
+    bash finetune_retfound_Celldata_eval.sh ${CELLDATA_STUDY} SMP ${BASE_CKPT} "${RESUME}" ${NUM_CLASS} ${INPUT_SIZE} ${XAI} ${STEP_PIXELS} /orange/ruogu.fang/tienyuchang/CellData_masks_multiclass_resnet50_new/ fuse weighted_sum 0.5 decoder_to_encoder ${FUSION_DIM} pre -2 ${FIXED_DEC_IDX} head -1 conv "--seg_mask" "--smp_learnable_alpha" "--smp_alpha_type ${ALPHA_TYPE}"
 done
