@@ -22,37 +22,28 @@ ALPHA_TYPE=scalar
 NUM_CLASS=2
 INPUT_SIZE=512
 
-#ENC_IDXS=(-1 -2 -3)       # passed to ENC_IDX position (pos 16) in training script
-#FUSION_DIMS=(4 9 16 32)
-ENC_IDXS=(-1 -3)
-FUSION_DIMS=(16 32)
+ENC_IDXS=(-2)
+FUSION_DIMS=(4 16 32)
 
 for ENC_IDX in "${ENC_IDXS[@]}"; do
     for FUSION_DIM in "${FUSION_DIMS[@]}"; do
         RESUME="${RESULTS_DIR}/${DATASET}-${DATA_TYPE}-all-${BASE_CKPT}-${MODALITY}-bs${BATCH_SIZE}ep${EPOCHS}lr${LR}optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-${FUSION_DIM}-fea${ENC_IDX}${FIXED_DEC_IDX}-0.5-decoder_to_encoder-conv-alpha${ALPHA_TYPE}---seg_mask---smp_learnable_alpha-/checkpoint-best.pth"
 
-        echo "Submitting XAI eval for FUSION_DIM=${FUSION_DIM}, ENC_IDX=${ENC_IDX} ..."
-        sbatch baseline_multirun_XAI_eval_smp.sh \
-            finetune_retfound_UFbenchmark_v5_eval_smp_full.sh \
-            ${DATASET} \
-            ${NUM_CLASS} \
-            SMP \
-            ${BASE_CKPT} \
-            "${RESUME}" \
-            ${INPUT_SIZE} \
-            fuse \
-            weighted_sum \
-            0.5 \
-            decoder_to_encoder \
-            ${FUSION_DIM} \
-            pre \
-            ${ENC_IDX} \
-            ${FIXED_DEC_IDX} \
-            head \
-            -1 \
-            conv \
-            "--seg_mask" \
-            "--smp_learnable_alpha" \
-            "--smp_alpha_type ${ALPHA_TYPE}"
+        CMD="sbatch baseline_multirun_XAI_eval_smp.sh finetune_retfound_UFbenchmark_v5_eval_smp_full.sh ${DATASET} ${NUM_CLASS} SMP ${BASE_CKPT} ${RESUME} ${INPUT_SIZE} fuse weighted_sum 0.5 decoder_to_encoder ${FUSION_DIM} pre ${ENC_IDX} ${FIXED_DEC_IDX} head -1 conv --seg_mask --smp_learnable_alpha --smp_alpha_type ${ALPHA_TYPE}"
+        echo "${CMD}"
+        #eval "${CMD}"
+    done
+done
+
+ENC_IDXS=(-1 -3)
+FUSION_DIMS=(9)
+
+for ENC_IDX in "${ENC_IDXS[@]}"; do
+    for FUSION_DIM in "${FUSION_DIMS[@]}"; do
+        RESUME="${RESULTS_DIR}/${DATASET}-${DATA_TYPE}-all-${BASE_CKPT}-${MODALITY}-bs${BATCH_SIZE}ep${EPOCHS}lr${LR}optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-${FUSION_DIM}-fea${ENC_IDX}${FIXED_DEC_IDX}-0.5-decoder_to_encoder-conv-alpha${ALPHA_TYPE}---seg_mask---smp_learnable_alpha-/checkpoint-best.pth"
+
+        CMD="sbatch baseline_multirun_XAI_eval_smp.sh finetune_retfound_UFbenchmark_v5_eval_smp_full.sh ${DATASET} ${NUM_CLASS} SMP ${BASE_CKPT} ${RESUME} ${INPUT_SIZE} fuse weighted_sum 0.5 decoder_to_encoder ${FUSION_DIM} pre ${ENC_IDX} ${FIXED_DEC_IDX} head -1 conv --seg_mask --smp_learnable_alpha --smp_alpha_type ${ALPHA_TYPE}"
+        echo "${CMD}"
+        #eval "${CMD}"
     done
 done
