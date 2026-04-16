@@ -24,7 +24,8 @@ ADD_WORD1=""
 ADD_WORD2=""
 data_type="IRB2024_v5_all"
 
-LAYER_IDXS=(-2 -3)
+LAYER_IDXS=(-3)
+#LAYER_IDXS=(-2 -3)
 
 MODELS=(
   "RETFound_mae RETFound_mae_natureOCT 224"
