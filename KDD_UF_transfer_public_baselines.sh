@@ -58,8 +58,8 @@ for i in "${!MODELS[@]}"; do
     echo "${RESUME}"
 
     # --- Eval on OCTDL ---
-    #bash finetune_retfound_OCTDL_eval.sh ${OCTDL_STUDY} ${MODEL} ${FINETUNED_MODEL} "${RESUME}" ${NUM_CLASS} ${INPUT_SIZE} ${XAI_METHOD} ${STEP_PIXELS} /orange/ruogu.fang/tienyuchang/OCTDL_masks_multiclass_resnet50_new/ enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
+    bash finetune_retfound_OCTDL_eval.sh ${OCTDL_STUDY} ${MODEL} ${FINETUNED_MODEL} "${RESUME}" ${NUM_CLASS} ${INPUT_SIZE} ${XAI_METHOD} ${STEP_PIXELS} /orange/ruogu.fang/tienyuchang/OCTDL_masks_multiclass_resnet50_new/ enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
 
     # --- Eval on CellData ---
-    #bash finetune_retfound_Celldata_eval.sh ${CELLDATA_STUDY} ${MODEL} ${FINETUNED_MODEL} "${RESUME}" ${NUM_CLASS} ${INPUT_SIZE} ${XAI_METHOD} ${STEP_PIXELS} /orange/ruogu.fang/tienyuchang/CellData_masks_multiclass_resnet50_new/ enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
+    bash finetune_retfound_Celldata_eval.sh ${CELLDATA_STUDY} ${MODEL} ${FINETUNED_MODEL} "${RESUME}" ${NUM_CLASS} ${INPUT_SIZE} ${XAI_METHOD} ${STEP_PIXELS} /orange/ruogu.fang/tienyuchang/CellData_masks_multiclass_resnet50_new/ enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
 done
