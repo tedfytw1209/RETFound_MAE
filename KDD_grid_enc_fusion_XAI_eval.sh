@@ -23,7 +23,7 @@ NUM_CLASS=2
 INPUT_SIZE=512
 
 ENC_IDXS=(-2)
-FUSION_DIMS=(4 16 32)
+FUSION_DIMS=(16 32)
 
 for ENC_IDX in "${ENC_IDXS[@]}"; do
     for FUSION_DIM in "${FUSION_DIMS[@]}"; do
@@ -31,7 +31,7 @@ for ENC_IDX in "${ENC_IDXS[@]}"; do
 
         CMD="sbatch baseline_multirun_XAI_eval_smp.sh finetune_retfound_UFbenchmark_v5_eval_smp_full.sh ${DATASET} ${NUM_CLASS} SMP ${BASE_CKPT} ${RESUME} ${INPUT_SIZE} fuse weighted_sum 0.5 decoder_to_encoder ${FUSION_DIM} pre ${ENC_IDX} ${FIXED_DEC_IDX} head -1 conv --seg_mask --smp_learnable_alpha --smp_alpha_type ${ALPHA_TYPE}"
         echo "${CMD}"
-        #eval "${CMD}"
+        eval "${CMD}"
     done
 done
 
@@ -44,6 +44,6 @@ for ENC_IDX in "${ENC_IDXS[@]}"; do
 
         CMD="sbatch baseline_multirun_XAI_eval_smp.sh finetune_retfound_UFbenchmark_v5_eval_smp_full.sh ${DATASET} ${NUM_CLASS} SMP ${BASE_CKPT} ${RESUME} ${INPUT_SIZE} fuse weighted_sum 0.5 decoder_to_encoder ${FUSION_DIM} pre ${ENC_IDX} ${FIXED_DEC_IDX} head -1 conv --seg_mask --smp_learnable_alpha --smp_alpha_type ${ALPHA_TYPE}"
         echo "${CMD}"
-        #eval "${CMD}"
+        eval "${CMD}"
     done
 done
