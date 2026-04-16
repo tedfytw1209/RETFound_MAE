@@ -1,13 +1,14 @@
 #!/bin/bash
-# Transfer evaluation launcher — submits SLURM eval jobs for models trained on UF dataset,
-# evaluated on public datasets (OCTDL, CellData) per (ENC_IDX × FUSION_DIM) grid.
-#
-# Usage:
-#   bash KDD_UF_transfer_public.sh          # evaluate all 2×2 = 4 combinations
-#
-# Grid axes:
-#   ENC_IDX    — encoder layer index (maps to DEC_IDX pos in training script): -1, -3
-#   FUSION_DIM — fusion spatial dimension: 16, 32
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem-per-cpu=8gb
+#SBATCH --partition=hpg-turin
+#SBATCH --gpus=1
+#SBATCH --time=72:00:00
+#SBATCH --output=%x.%j.out
+#SBATCH --account=ruogu.fang
+#SBATCH --qos=ruogu.fang
 
 BASE_CKPT=/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth
 RESULTS_DIR=/orange/ruogu.fang/tienyuchang/RETfound_results

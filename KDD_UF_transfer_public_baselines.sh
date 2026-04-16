@@ -1,11 +1,14 @@
 #!/bin/bash
-# Transfer evaluation launcher — submits SLURM eval jobs for BASELINE models trained on UF dataset,
-# evaluated on public datasets (OCTDL, CellData).
-#
-# Baseline models: RETFound_mae, timm_efficientnet-b4, vit-base-patch16-224, resnet-50
-#
-# Usage:
-#   bash KDD_UF_transfer_public_baselines.sh
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem-per-cpu=8gb
+#SBATCH --partition=hpg-turin
+#SBATCH --gpus=1
+#SBATCH --time=72:00:00
+#SBATCH --output=%x.%j.out
+#SBATCH --account=ruogu.fang
+#SBATCH --qos=ruogu.fang
 
 RESULTS_DIR=/orange/ruogu.fang/tienyuchang/RETfound_results
 DATASET=DME_binary_all_split
