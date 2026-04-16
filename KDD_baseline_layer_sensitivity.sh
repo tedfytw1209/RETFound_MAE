@@ -27,6 +27,9 @@ data_type="IRB2024_v5_all"
 LAYER_IDXS=(-3)
 #LAYER_IDXS=(-2 -3)
 
+#TMP
+bash finetune_retfound_UFbenchmark_v5_eval_full2.sh DME_binary_all_split RETFound_mae RETFound_mae_natureOCT /orange/ruogu.fang/tienyuchang/RETfound_results/DME_binary_all_split-IRB2024_v5_all-all-RETFound_mae_natureOCT-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0--/checkpoint-best.pth 2 224 gradcamv2 224 --select_index -2
+
 MODELS=(
   "RETFound_mae RETFound_mae_natureOCT 224"
   "vit-base-patch16-224 google/vit-base-patch16-224-in21k 224"
