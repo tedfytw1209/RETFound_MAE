@@ -41,7 +41,7 @@ for LAYER_IDX in "${LAYER_IDXS[@]}"; do
     CKPT="$MODEL_DIR/$DATASET-$data_type-all-$FINETUNED_MODEL-OCT-bs16ep50lr5e-4optadamw-defaulteval-trsub0-$ADD_WORD1-$ADD_WORD2/checkpoint-best.pth"
     for XAI_METHOD in "${XAI_METHODS[@]}"; do
         echo "bash $EVAL_SCRIPT $DATASET $MODEL $FINETUNED_MODEL $CKPT $NUM_CLASS $INPUT_SIZE $XAI_METHOD $INPUT_SIZE --select_index $LAYER_IDX"
-        bash $EVAL_SCRIPT $DATASET $MODEL $FINETUNED_MODEL $CKPT $NUM_CLASS $INPUT_SIZE $XAI_METHOD $INPUT_SIZE --select_index $LAYER_IDX
+        #bash $EVAL_SCRIPT $DATASET $MODEL $FINETUNED_MODEL $CKPT $NUM_CLASS $INPUT_SIZE $XAI_METHOD $INPUT_SIZE --select_index $LAYER_IDX
     done
 done
 
