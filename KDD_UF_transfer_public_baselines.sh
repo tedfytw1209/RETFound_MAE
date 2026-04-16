@@ -18,8 +18,6 @@ LR=5e-4
 BATCH_SIZE=16
 EPOCHS=100
 NUM_CLASS=2
-INPUT_SIZE=224
-STEP_PIXELS=224
 XAI_METHOD=${1:-"hirescam"}  # Default to "hirescam" if not provided
 
 # Public dataset study names (equivalent disease split used in transfer eval)
@@ -41,10 +39,18 @@ FINETUNED_MODELS=(
     "google/vit-base-patch16-224-in21k"
     "microsoft/resnet-50"
 )
+INPUT_SIZES=(
+    224
+    380
+    224
+    224
+)
 
 for i in "${!MODELS[@]}"; do
     MODEL="${MODELS[$i]}"
     FINETUNED_MODEL="${FINETUNED_MODELS[$i]}"
+    INPUT_SIZE="${INPUT_SIZES[$i]}"
+    STEP_PIXELS="${INPUT_SIZES[$i]}"
 
     RESUME="${RESULTS_DIR}/${DATASET}-${DATA_TYPE}-all-${FINETUNED_MODEL}-${MODALITY}-bs${BATCH_SIZE}ep${EPOCHS}lr${LR}optadamw-defaulteval-trsub0---/checkpoint-best.pth"
     echo "${RESUME}"
