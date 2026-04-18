@@ -72,11 +72,17 @@ IRB_DEC_SUFFIX="OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-dec-smpweighted_s
 IRB_FUSE_WS_SUFFIX="OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask---smp_learnable_alpha-"
 IRB_FUSE_MUL_SUFFIX="OCT-bs16ep100lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask--"
 
-# Public datasets: ep50, lr1e-4
+# Public datasets (OCTDL): ep50, lr1e-4
 PUB_ENC_SUFFIX="OCT-bs16ep50lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-pre-0-fea-1-1-0.5-decoder_to_encoder-conv---"
 PUB_DEC_SUFFIX="OCT-bs16ep50lr1e-4optadamw-defaulteval-trsub0-dec-smpweighted_sum-pre-0-fea-1-1-0.5-decoder_to_encoder-conv---"
 PUB_FUSE_WS_SUFFIX="OCT-bs16ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask---smp_learnable_alpha-"
 PUB_FUSE_MUL_SUFFIX="OCT-bs16ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask--"
+
+# CellData: ep5, lr1e-4
+CELL_ENC_SUFFIX="OCT-bs16ep5lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-pre-0-fea-1-1-0.5-decoder_to_encoder-conv---"
+CELL_DEC_SUFFIX="OCT-bs16ep5lr1e-4optadamw-defaulteval-trsub0-dec-smpweighted_sum-pre-0-fea-1-1-0.5-decoder_to_encoder-conv---"
+CELL_FUSE_WS_SUFFIX="OCT-bs16ep5lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask---smp_learnable_alpha-"
+CELL_FUSE_MUL_SUFFIX="OCT-bs16ep5lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask--"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Set DRY_RUN=1 to print all resume paths and existence checks without running.
@@ -164,7 +170,7 @@ run_task "OCTDL_ERM"    "ERM_all" "OCTDL" \
     "${PUB_ENC_SUFFIX}" "${PUB_DEC_SUFFIX}" "${PUB_FUSE_WS_SUFFIX}" "${PUB_FUSE_MUL_SUFFIX}"
 
 run_task "CellData_DME" "DME_all" "CellData" \
-    "${PUB_ENC_SUFFIX}" "${PUB_DEC_SUFFIX}" "${PUB_FUSE_WS_SUFFIX}" "${PUB_FUSE_MUL_SUFFIX}"
+    "${CELL_ENC_SUFFIX}" "${CELL_DEC_SUFFIX}" "${CELL_FUSE_WS_SUFFIX}" "${CELL_FUSE_MUL_SUFFIX}"
 
 echo ""
 echo "All tasks complete. CSVs written to ${OUTPUT_DIR}/KDD_computation_*.csv"

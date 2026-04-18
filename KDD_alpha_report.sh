@@ -18,8 +18,10 @@
 #     DME_binary_all_split, AMD_all_split,
 #     Glaucoma_binary_all_split, ERM_all_split
 #   Public dataset tasks (each trained directly on the public dataset):
-#     OCTDL    (study: DME_all, lr=1e-4, ep=50)
-#     CellData (study: DME_all, lr=1e-4, ep=50)
+#     OCTDL_DME (study: DME_all, lr=1e-4, ep=50)
+#     OCTDL_AMD (study: AMD_all, lr=1e-4, ep=50)
+#     OCTDL_ERM (study: ERM_all, lr=1e-4, ep=50)
+#     CellData  (study: DME_all, lr=1e-4, ep=50)
 #
 # Architecture is fixed for all experiments:
 #   mode=fuse, fuse_mode=weighted_sum, enc_idx=-2, dec_idx=-1, fusion_dim=9
@@ -109,13 +111,17 @@ for DATASET in DME_binary_all_split AMD_all_split Glaucoma_binary_all_split ERM_
 done
 
 # ── Public dataset tasks — each has its own trained checkpoint ────────────────
-# Checkpoint pattern: DME_all-{OCTDL|CellData}-all-${SEG_CKPT}-OCT-bs16ep50lr1e-4...
+# Checkpoint pattern: {STUDY}-{OCTDL|CellData}-all-${SEG_CKPT}-OCT-bs16ep50lr1e-4...
 # (trained directly on public datasets, not transferred from IRB2024)
-OCTDL_RESUME=${RESULTS_DIR}/DME_all-OCTDL-all-${SEG_CKPT}-${PUBLIC_FUSE_WS_SUFFIX}/checkpoint-best.pth
+OCTDL_DME_RESUME=${RESULTS_DIR}/DME_all-OCTDL-all-${SEG_CKPT}-${PUBLIC_FUSE_WS_SUFFIX}/checkpoint-best.pth
+OCTDL_AMD_RESUME=${RESULTS_DIR}/AMD_all-OCTDL-all-${SEG_CKPT}-${PUBLIC_FUSE_WS_SUFFIX}/checkpoint-best.pth
+OCTDL_ERM_RESUME=${RESULTS_DIR}/ERM_all-OCTDL-all-${SEG_CKPT}-${PUBLIC_FUSE_WS_SUFFIX}/checkpoint-best.pth
 CELLDATA_RESUME=${RESULTS_DIR}/DME_all-CellData-all-${SEG_CKPT}-${PUBLIC_FUSE_WS_SUFFIX}/checkpoint-best.pth
 
-run_task "OCTDL"    "${OCTDL_RESUME}"
-run_task "CellData" "${CELLDATA_RESUME}"
+run_task "OCTDL_DME" "${OCTDL_DME_RESUME}"
+run_task "OCTDL_AMD" "${OCTDL_AMD_RESUME}"
+run_task "OCTDL_ERM" "${OCTDL_ERM_RESUME}"
+run_task "CellData"  "${CELLDATA_RESUME}"
 
 echo ""
 echo "All tasks complete. CSVs written to ${OUTPUT_DIR}/KDD_alpha_*.csv"
