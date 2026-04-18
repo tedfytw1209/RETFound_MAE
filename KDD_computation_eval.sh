@@ -83,14 +83,6 @@ SMP_RESUME_DEC=${RESULTS_DIR}/${DATASET}-${DATA_TYPE}-all-${SEG_CKPT}-OCT-bs16ep
 SMP_RESUME_FUSE_WS=${RESULTS_DIR}/${DATASET}-${DATA_TYPE}-all-${SEG_CKPT}-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask---smp_learnable_alpha-/checkpoint-best.pth
 SMP_RESUME_FUSE_MUL=${RESULTS_DIR}/${DATASET}-${DATA_TYPE}-all-${SEG_CKPT}-OCT-bs16ep100lr1e-4optadamw-defaulteval-trsub0-fuse-smpmultiply-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask--/checkpoint-best.pth
 
-# ── Optional grid sweep (appended to fixed configs when --grid is passed) ────
-# Mirrors KDD_grid_enc_fusion_train.sh axes.
-# Remove "--grid" below to run only the 4 fixed configs from run_xai_layermap_multirun.sh.
-GRID_FLAG="--grid"
-ENC_IDXS="-1 -2 -3"
-DEC_IDXS="-1"
-FUSION_DIMS="4 9 16 32"
-
 # ── Baseline models (from run_xai_layermap_multirun.sh) ───────────────────────
 BASELINES="RETFound_mae ViT-Base-patch16-224 ResNet-50 EfficientNet-B4"
 
@@ -130,7 +122,6 @@ python KDD_computation_eval.py \
     --dec_idxs          ${DEC_IDXS} \
     --fusion_dims       ${FUSION_DIMS} \
     --baselines         ${BASELINES} \
-    ${GRID_FLAG} \
     --n_warmup          ${N_WARMUP} \
     --n_runs            ${N_RUNS} \
     --batch_size        ${BATCH_SIZE} \

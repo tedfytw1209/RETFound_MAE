@@ -324,6 +324,20 @@ def build_smp_model(args, cfg):
     return model
 
 
+def extract_alpha(model, cfg):
+    """Return alpha value(s) from the fusion head, or None if not applicable."""
+    if cfg.get('mode') != 'fuse':
+        return None
+    head = getattr(model, 'head', None)
+    if head is None or not hasattr(head, 'get_alpha_stats'):
+        return None
+    stats = head.get_alpha_stats()
+    if stats is None:
+        return None
+    # scalar alpha → single value; channel/spatial → return mean
+    return round(stats.get('alpha', stats.get('alpha_mean')), 6)
+
+
 def smp_component_params(model):
     """Parameter counts for encoder / decoder / seg-head / classifier-head."""
     r = {'encoder_params': 0, 'decoder_params': 0,
@@ -470,6 +484,7 @@ def _empty_row(cfg, err=''):
         'seghead_params_M': None, 'head_params_M': None, 'seg_model_params_M': None,
         'total_flops_G': None,
         'inference_mean_ms': None, 'inference_std_ms': None,
+        'alpha_value': None,
         'error': err,
     })
     return row
@@ -511,28 +526,37 @@ def evaluate_config(cfg, args, device):
         row['seghead_params_M'] = row['head_params_M'] = row['seg_model_params_M'] = None
 
     # ── FLOPs ────────────────────────────────────────────────────────────────
-    dummy = torch.randn(args.batch_size, 3, input_size, input_size).to(device)
-    row['total_flops_G'] = measure_flops(model, dummy, 3, input_size)
+    if args.alpha_only:
+        row['total_flops_G'] = None
+    else:
+        dummy = torch.randn(args.batch_size, 3, input_size, input_size).to(device)
+        row['total_flops_G'] = measure_flops(model, dummy, 3, input_size)
 
     # ── Inference time ───────────────────────────────────────────────────────
-    try:
-        mean_ms, std_ms = measure_inference_time(
-            model, dummy,
-            n_warmup=args.n_warmup,
-            n_runs=args.n_runs,
-            device=str(device),
-        )
-        row['inference_mean_ms'] = round(mean_ms, 4)
-        row['inference_std_ms']  = round(std_ms,  4)
-    except Exception as e:
-        print(f"  [ERROR] timing failed: {e}")
+    if args.alpha_only:
         row['inference_mean_ms'] = row['inference_std_ms'] = None
+    else:
+        try:
+            mean_ms, std_ms = measure_inference_time(
+                model, dummy,
+                n_warmup=args.n_warmup,
+                n_runs=args.n_runs,
+                device=str(device),
+            )
+            row['inference_mean_ms'] = round(mean_ms, 4)
+            row['inference_std_ms']  = round(std_ms,  4)
+        except Exception as e:
+            print(f"  [ERROR] timing failed: {e}")
+            row['inference_mean_ms'] = row['inference_std_ms'] = None
+
+    row['alpha_value'] = extract_alpha(model, cfg)
 
     row['error'] = ''
     print(
         f"  params={total_params/1e6:.3f}M  "
         f"flops={row['total_flops_G']}G  "
-        f"time={row['inference_mean_ms']}±{row['inference_std_ms']}ms"
+        f"time={row['inference_mean_ms']}±{row['inference_std_ms']}ms  "
+        f"alpha={row['alpha_value']}"
     )
 
     del model
@@ -651,6 +675,17 @@ def get_args_parser():
 
     # ── Output ────────────────────────────────────────────────────────────────
     p.add_argument('--output_csv', type=str, default='computation_overhead.csv')
+
+    # ── Alpha-only mode ───────────────────────────────────────────────────────
+    p.add_argument('--alpha_only', action='store_true', default=False,
+                   help='Skip FLOPs and inference timing; only load models and report alpha values.')
+
+    # ── SMP config filters ────────────────────────────────────────────────────
+    p.add_argument('--smp_modes', type=str, nargs='+', default=None,
+                   choices=['enc', 'dec', 'fuse'],
+                   help='Only include SMP configs with these modes. Default: all.')
+    p.add_argument('--smp_fuse_modes', type=str, nargs='+', default=None,
+                   help='Only include SMP fuse configs with these fuse_modes (e.g. weighted_sum multiply). Default: all.')
     return p
 
 
@@ -673,7 +708,12 @@ def main():
     if not args.skip_baselines:
         all_configs += baseline_configs(args)
 
-    all_configs += smp_configs(args)
+    smp = smp_configs(args)
+    if args.smp_modes:
+        smp = [c for c in smp if c['mode'] in args.smp_modes]
+    if args.smp_fuse_modes:
+        smp = [c for c in smp if c.get('fuse_mode') in args.smp_fuse_modes]
+    all_configs += smp
 
     all_rows = [evaluate_config(cfg, args, device) for cfg in all_configs]
     all_rows = add_overhead_columns(all_rows)
@@ -692,11 +732,12 @@ def main():
         print(f"\nResults saved → {args.output_csv}")
 
     # ── Summary table ─────────────────────────────────────────────────────────
-    W = 136
+    W = 150
     hdr = (
         f"{'model_id':<42} {'type':<9} {'sz':>4} "
         f"{'params_M':>9} {'flops_G':>9} {'time_ms':>11} "
-        f"{'+params_M':>10} {'+flops_G':>9} {'+time_ms':>10}"
+        f"{'+params_M':>10} {'+flops_G':>9} {'+time_ms':>10} "
+        f"{'alpha':>8}"
     )
     print(f"\n{'─'*W}")
     print(hdr)
@@ -711,10 +752,11 @@ def main():
             f"{str(r.get('inference_mean_ms','?')):>11} "
             f"{str(r.get('overhead_params_M','?')):>10} "
             f"{str(r.get('overhead_flops_G','?')):>9} "
-            f"{str(r.get('overhead_time_ms','?')):>10}"
+            f"{str(r.get('overhead_time_ms','?')):>10} "
+            f"{str(r.get('alpha_value','?')):>8}"
         )
     print(f"{'─'*W}")
-    print("Overhead columns (+) are relative to the SMP-enc baseline.")
+    print("Overhead columns (+) are relative to the SMP-enc baseline. alpha = trained fusion gate value.")
 
 
 if __name__ == '__main__':
