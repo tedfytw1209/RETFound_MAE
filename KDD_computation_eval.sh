@@ -118,9 +118,6 @@ python KDD_computation_eval.py \
     --effnet_resume     "${EFFNET_RESUME}" \
     --smp_resumes       "${SMP_RESUME_ENC}" "${SMP_RESUME_DEC}" \
                         "${SMP_RESUME_FUSE_WS}" "${SMP_RESUME_FUSE_MUL}" \
-    --enc_idxs          ${ENC_IDXS} \
-    --dec_idxs          ${DEC_IDXS} \
-    --fusion_dims       ${FUSION_DIMS} \
     --baselines         ${BASELINES} \
     --n_warmup          ${N_WARMUP} \
     --n_runs            ${N_RUNS} \
