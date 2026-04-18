@@ -64,6 +64,7 @@ ALIGN=pre
 # Fuse-weighted_sum checkpoint suffixes (lr and epochs differ between datasets)
 IRB2024_FUSE_WS_SUFFIX="OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask---smp_learnable_alpha-"
 PUBLIC_FUSE_WS_SUFFIX="OCT-bs16ep50lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask---smp_learnable_alpha-"
+CELLDATA_FUSE_WS_SUFFIX="OCT-bs16ep5lr1e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask---smp_learnable_alpha-"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helper: run alpha extraction for one task
@@ -116,7 +117,7 @@ done
 OCTDL_DME_RESUME=${RESULTS_DIR}/DME_all-OCTDL-all-${SEG_CKPT}-${PUBLIC_FUSE_WS_SUFFIX}/checkpoint-best.pth
 OCTDL_AMD_RESUME=${RESULTS_DIR}/AMD_all-OCTDL-all-${SEG_CKPT}-${PUBLIC_FUSE_WS_SUFFIX}/checkpoint-best.pth
 OCTDL_ERM_RESUME=${RESULTS_DIR}/ERM_all-OCTDL-all-${SEG_CKPT}-${PUBLIC_FUSE_WS_SUFFIX}/checkpoint-best.pth
-CELLDATA_RESUME=${RESULTS_DIR}/DME_all-CellData-all-${SEG_CKPT}-${PUBLIC_FUSE_WS_SUFFIX}/checkpoint-best.pth
+CELLDATA_RESUME=${RESULTS_DIR}/DME_all-CellData-all-${SEG_CKPT}-${CELLDATA_FUSE_WS_SUFFIX}/checkpoint-best.pth
 
 run_task "OCTDL_DME" "${OCTDL_DME_RESUME}"
 run_task "OCTDL_AMD" "${OCTDL_AMD_RESUME}"
