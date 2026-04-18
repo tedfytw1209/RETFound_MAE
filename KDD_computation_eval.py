@@ -117,8 +117,10 @@ def _load_resume(model, resume):
       - weights_only=False  (allows arbitrary checkpoint objects)
       - strict=True         (all keys must match — finetuned ckpt contains full model state)
     """
-    if not resume or not os.path.exists(resume):
+    if not resume:
         return
+    if not os.path.exists(resume):
+        raise FileNotFoundError(f"Resume checkpoint not found: {resume}")
     print(f"  Loading resume checkpoint: {resume}")
     checkpoint = torch.load(resume, map_location='cpu', weights_only=False)
     checkpoint_model = checkpoint['model'] if isinstance(checkpoint, dict) and 'model' in checkpoint else checkpoint
