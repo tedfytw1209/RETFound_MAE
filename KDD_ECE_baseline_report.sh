@@ -134,31 +134,31 @@ for i in "${!MODEL_NAMES[@]}"; do
     PUBLIC_INPUT_SIZE=224
 
     # ── IRB2024 tasks (ep50, lr5e-4, trsub0) ──────────────────────────────────
-    for DATASET in DME_binary_all_split AMD_all_split Glaucoma_binary_all_split ERM_all_split; do
-        RESUME="${RESULTS_DIR}/${DATASET}-${DATA_TYPE}-all-${FINETUNE}-${IRB2024_BASELINE_SUFFIX}/checkpoint-best.pth"
-        run_task "${DATASET}-${LABEL}" "${MODEL}" "${FINETUNE}" "${RESUME}" "${IRB2024_INPUT_SIZE}" \
-            "${IRB2024_DATA_DIR}/${DATASET}.csv" \
-            "${IRB2024_IMG_DIR}" "${IRB2024_MASK_DIR}"
-    done
+    #for DATASET in DME_binary_all_split AMD_all_split Glaucoma_binary_all_split ERM_all_split; do
+    #    RESUME="${RESULTS_DIR}/${DATASET}-${DATA_TYPE}-all-${FINETUNE}-${IRB2024_BASELINE_SUFFIX}/checkpoint-best.#pth"
+    #    run_task "${DATASET}-${LABEL}" "${MODEL}" "${FINETUNE}" "${RESUME}" "${IRB2024_INPUT_SIZE}" \
+    #        "${IRB2024_DATA_DIR}/${DATASET}.csv" \
+    #        "${IRB2024_IMG_DIR}" "${IRB2024_MASK_DIR}"
+    #done
 
     # ── OCTDL tasks (ep50, lr5e-4) ────────────────────────────────────────────
     OCTDL_DME_RESUME="${RESULTS_DIR}/DME_all-OCTDL-all-${FINETUNE}-${OCTDL_BASELINE_SUFFIX}/checkpoint-best.pth"
     OCTDL_AMD_RESUME="${RESULTS_DIR}/AMD_all-OCTDL-all-${FINETUNE}-${OCTDL_BASELINE_SUFFIX}/checkpoint-best.pth"
     OCTDL_ERM_RESUME="${RESULTS_DIR}/ERM_all-OCTDL-all-${FINETUNE}-${OCTDL_BASELINE_SUFFIX}/checkpoint-best.pth"
 
-    run_task "OCTDL_DME-${LABEL}" "${MODEL}" "${FINETUNE}" "${OCTDL_DME_RESUME}" "${PUBLIC_INPUT_SIZE}" \
-        "${OCTDL_DATA_DIR}/DME_all.csv" "${OCTDL_IMG_DIR}" "${OCTDL_MASK_DIR}"
-
-    run_task "OCTDL_AMD-${LABEL}" "${MODEL}" "${FINETUNE}" "${OCTDL_AMD_RESUME}" "${PUBLIC_INPUT_SIZE}" \
-        "${OCTDL_DATA_DIR}/AMD_all.csv" "${OCTDL_IMG_DIR}" "${OCTDL_MASK_DIR}"
+    #run_task "OCTDL_DME-${LABEL}" "${MODEL}" "${FINETUNE}" "${OCTDL_DME_RESUME}" "${PUBLIC_INPUT_SIZE}" \
+    #    "${OCTDL_DATA_DIR}/DME_all.csv" "${OCTDL_IMG_DIR}" "${OCTDL_MASK_DIR}"
+#
+    #run_task "OCTDL_AMD-${LABEL}" "${MODEL}" "${FINETUNE}" "${OCTDL_AMD_RESUME}" "${PUBLIC_INPUT_SIZE}" \
+    #    "${OCTDL_DATA_DIR}/AMD_all.csv" "${OCTDL_IMG_DIR}" "${OCTDL_MASK_DIR}"
 
     run_task "OCTDL_ERM-${LABEL}" "${MODEL}" "${FINETUNE}" "${OCTDL_ERM_RESUME}" "${PUBLIC_INPUT_SIZE}" \
         "${OCTDL_DATA_DIR}/ERM_all.csv" "${OCTDL_IMG_DIR}" "${OCTDL_MASK_DIR}"
 
     # ── CellData task (ep3, lr5e-4) ───────────────────────────────────────────
     CELLDATA_RESUME="${RESULTS_DIR}/DME_all-CellData-all-${FINETUNE}-${CELLDATA_BASELINE_SUFFIX}/checkpoint-best.pth"
-    run_task "CellData-${LABEL}" "${MODEL}" "${FINETUNE}" "${CELLDATA_RESUME}" "${PUBLIC_INPUT_SIZE}" \
-        "${CELLDATA_DATA_DIR}/DME_all.csv" "${CELLDATA_IMG_DIR}" "${CELLDATA_MASK_DIR}"
+    #run_task "CellData-${LABEL}" "${MODEL}" "${FINETUNE}" "${CELLDATA_RESUME}" "${PUBLIC_INPUT_SIZE}" \
+    #    "${CELLDATA_DATA_DIR}/DME_all.csv" "${CELLDATA_IMG_DIR}" "${CELLDATA_MASK_DIR}"
 
 done
 
