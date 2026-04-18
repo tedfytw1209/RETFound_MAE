@@ -721,7 +721,7 @@ def main():
     # ── Write CSV ─────────────────────────────────────────────────────────────
     Path(args.output_csv).parent.mkdir(parents=True, exist_ok=True)
     if all_rows:
-        fieldnames = list(all_rows[0].keys())
+        fieldnames = list(dict.fromkeys(k for r in all_rows for k in r.keys()))
         for r in all_rows:
             for f in fieldnames:
                 r.setdefault(f, None)
