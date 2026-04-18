@@ -78,6 +78,7 @@ def measure_flops(model, dummy_input, in_channels, input_size):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def measure_inference_time(model, dummy_input, n_warmup, n_runs, device):
+    device = torch.device(device) if isinstance(device, str) else device
     model.eval()
     dummy_input = dummy_input.to(device)
     with torch.no_grad():
@@ -85,7 +86,7 @@ def measure_inference_time(model, dummy_input, n_warmup, n_runs, device):
             _ = model(dummy_input)
 
     times = []
-    if device == 'cuda' and torch.cuda.is_available():
+    if device.type == 'cuda' and torch.cuda.is_available():
         for _ in range(n_runs):
             s = torch.cuda.Event(enable_timing=True)
             e = torch.cuda.Event(enable_timing=True)
@@ -335,7 +336,8 @@ def extract_alpha(model, cfg):
     if stats is None:
         return None
     # scalar alpha → single value; channel/spatial → return mean
-    return round(stats.get('alpha', stats.get('alpha_mean')), 6)
+    val = stats.get('alpha', stats.get('alpha_mean'))
+    return round(val, 6) if val is not None else None
 
 
 def smp_component_params(model):
@@ -485,6 +487,7 @@ def _empty_row(cfg, err=''):
         'total_flops_G': None,
         'inference_mean_ms': None, 'inference_std_ms': None,
         'alpha_value': None,
+        'overhead_params_M': None, 'overhead_flops_G': None, 'overhead_time_ms': None,
         'error': err,
     })
     return row
@@ -582,15 +585,15 @@ def add_overhead_columns(rows):
         if r.get('model_type') == 'proposed':
             r['overhead_params_M'] = (
                 round((r['total_params'] - bp) / 1e6, 4)
-                if (bp and r.get('total_params')) else None
+                if (bp is not None and r.get('total_params') is not None) else None
             )
             r['overhead_flops_G'] = (
                 round(r['total_flops_G'] - bf, 4)
-                if (bf and r.get('total_flops_G')) else None
+                if (bf is not None and r.get('total_flops_G') is not None) else None
             )
             r['overhead_time_ms'] = (
                 round(r['inference_mean_ms'] - bt, 4)
-                if (bt and r.get('inference_mean_ms')) else None
+                if (bt is not None and r.get('inference_mean_ms') is not None) else None
             )
         else:
             r['overhead_params_M'] = None
