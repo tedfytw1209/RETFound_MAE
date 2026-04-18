@@ -241,6 +241,8 @@ def get_args_parser():
                         help='Save generated heatmaps to output_dir; load cached heatmaps if they already exist')
     parser.add_argument('--no_save_heatmaps', dest='save_heatmaps', action='store_false',
                         help='Disable heatmap saving/loading cache')
+    parser.add_argument('--skip_xai', action='store_true', default=False,
+                        help='Skip XAI evaluation; only run classification metrics (ECE, accuracy, etc.)')
 
     return parser
 
@@ -542,6 +544,48 @@ def get_model(args):
         else:
             print("No checkpoints from: %s" % args.finetune)
     return model, processor, patch_size
+
+def compute_ece_from_loader(data_loader, model, device, n_bins=15):
+    """Run a forward pass and return (overall_ECE, mean_classwise_ECE)."""
+    model.eval()
+    all_probs, all_labels = [], []
+    with torch.no_grad():
+        for batch in data_loader:
+            images = batch[0].to(device, non_blocking=True)
+            labels = batch[1].cpu().numpy()
+            output = model(images)
+            if hasattr(output, 'logits'):
+                output = output.logits
+            elif isinstance(output, dict) and 'logits' in output:
+                output = output['logits']
+            probs = torch.nn.functional.softmax(output, dim=1).cpu().numpy()
+            all_probs.append(probs)
+            all_labels.append(labels)
+    all_probs = np.concatenate(all_probs, axis=0)
+    all_labels = np.concatenate(all_labels, axis=0)
+
+    bins = np.linspace(0.0, 1.0, n_bins + 1)
+
+    def _ece(probs_1d, labels_1d):
+        ece = 0.0
+        for bl, bu in zip(bins[:-1], bins[1:]):
+            in_bin = (probs_1d > bl) & (probs_1d <= bu)
+            if not np.any(in_bin):
+                continue
+            ece += abs(probs_1d[in_bin].mean() - labels_1d[in_bin].mean()) * in_bin.mean()
+        return float(ece)
+
+    confidences = np.max(all_probs, axis=1)
+    accuracies = (np.argmax(all_probs, axis=1) == all_labels).astype(float)
+    overall_ece = _ece(confidences, accuracies)
+
+    num_classes = all_probs.shape[1]
+    classwise_ece = [
+        _ece(all_probs[:, k], (all_labels == k).astype(float))
+        for k in range(num_classes)
+    ]
+    return overall_ece, float(np.mean(classwise_ece))
+
 
 def evaluate_XAI(data_loader, xai_method, metric_func_dict, device, args, epoch, mode, num_class, k, log_writer):
     """Evaluate the XAI method on the dataset."""
@@ -1044,6 +1088,26 @@ def main(args, criterion):
                                     num_class=args.nb_classes,k=args.num_k, log_writer=log_writer)
     wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
     wandb.log(wandb_dict)
+
+    print("Computing ECE on test set...")
+    ece, mean_cls_ece = compute_ece_from_loader(data_loader_test, model, device)
+    print(f"ECE: {ece:.4f}  Mean class-wise ECE: {mean_cls_ece:.4f}")
+    wandb.log({'test_ECE': ece, 'test_mean_classwise_ECE': mean_cls_ece})
+    ece_path = os.path.join(args.output_dir, args.task, 'ece_test.csv')
+    os.makedirs(os.path.join(args.output_dir, args.task), exist_ok=True)
+    with open(ece_path, 'w', newline='') as f:
+        import csv as _csv
+        w = _csv.writer(f)
+        w.writerow(['ECE', 'mean_classwise_ECE'])
+        w.writerow([ece, mean_cls_ece])
+    print(f"ECE saved to {ece_path}")
+
+    if args.skip_xai:
+        print("Skipping XAI evaluation (--skip_xai).")
+        if log_writer is not None and misc.is_main_process():
+            log_writer.close()
+            wandb.finish()
+        return
 
     print(f"Start evaluating XAI:")
     start_time = time.time()

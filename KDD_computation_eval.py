@@ -21,9 +21,11 @@ import os
 import argparse
 import time
 import csv
+import json
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from pathlib import Path
 
 os.environ['TIMM_FUSED_ATTN'] = '0'   # same guard as case_study_SMP_layermap_bs.py
@@ -104,6 +106,80 @@ def measure_inference_time(model, dummy_input, n_warmup, n_runs, device):
             times.append((time.perf_counter() - t0) * 1e3)
 
     return float(np.mean(times)), float(np.std(times))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ECE / calibration
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _ece(probs: np.ndarray, labels: np.ndarray, n_bins: int = 20) -> float:
+    bins = np.linspace(0.0, 1.0, n_bins + 1)
+    ece_val = 0.0
+    for bl, bu in zip(bins[:-1], bins[1:]):
+        mask = (probs > bl) & (probs <= bu)
+        if not np.any(mask):
+            continue
+        ece_val += np.abs(probs[mask].mean() - labels[mask].mean()) * mask.mean()
+    return float(ece_val)
+
+
+def calibration_assessment(probabilities: np.ndarray, true_labels: np.ndarray,
+                            n_bins: int = 20) -> dict:
+    confidences = np.max(probabilities, axis=1)
+    predictions = np.argmax(probabilities, axis=1)
+    accuracies  = (predictions == true_labels).astype(float)
+
+    overall_ece = _ece(confidences, accuracies, n_bins)
+
+    num_classes = probabilities.shape[1]
+    classwise_ece = []
+    for k in range(num_classes):
+        cp = probabilities[:, k]
+        cl = (true_labels == k).astype(float)
+        classwise_ece.append(0.0 if np.all(cp == 0) else _ece(cp, cl, n_bins))
+
+    return {
+        'ECE': overall_ece,
+        'mean_classwise_ECE': float(np.mean(classwise_ece)) if num_classes > 0 else 0.0,
+        'classwise_ECE': classwise_ece,
+    }
+
+
+def run_smp_ece(model, args, cfg_input_size, device):
+    """Run inference on the test set and return calibration metrics."""
+    from util.datasets import build_dataset
+
+    import types
+    ds_args = types.SimpleNamespace(
+        data_path=args.data_path,
+        nb_classes=args.nb_classes,
+        modality=args.modality,
+        input_size=cfg_input_size,
+        output_mask=False,
+        add_mask=False,
+        use_img_per_patient=False,
+    )
+    dataset = build_dataset(args.eval_split, ds_args, img_dir=args.img_dir, eval_mode=True)
+    loader  = torch.utils.data.DataLoader(
+        dataset, batch_size=args.ece_batch_size,
+        shuffle=False, num_workers=4, pin_memory=True,
+    )
+
+    all_probs, all_labels = [], []
+    model.eval()
+    with torch.no_grad():
+        for batch in loader:
+            images, labels = batch[0].to(device), batch[1]
+            logits = model(images)
+            if isinstance(logits, (tuple, list)):
+                logits = logits[0]
+            probs = F.softmax(logits, dim=1).cpu().numpy()
+            all_probs.append(probs)
+            all_labels.append(labels.numpy() if hasattr(labels, 'numpy') else np.array(labels))
+
+    all_probs  = np.concatenate(all_probs,  axis=0)
+    all_labels = np.concatenate(all_labels, axis=0)
+    return calibration_assessment(all_probs, all_labels, n_bins=args.ece_n_bins)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -490,6 +566,7 @@ def _empty_row(cfg, err=''):
         'inference_mean_ms': None, 'inference_std_ms': None,
         'alpha_value': None,
         'overhead_params_M': None, 'overhead_flops_G': None, 'overhead_time_ms': None,
+        'ECE': None, 'mean_classwise_ECE': None, 'classwise_ECE': None,
         'error': err,
     })
     return row
@@ -555,6 +632,19 @@ def evaluate_config(cfg, args, device):
             row['inference_mean_ms'] = row['inference_std_ms'] = None
 
     row['alpha_value'] = extract_alpha(model, cfg)
+
+    # ── ECE (SMP models only, when --data_path is supplied) ──────────────────
+    if cfg.get('model_type') == 'proposed' and getattr(args, 'data_path', ''):
+        try:
+            cal = run_smp_ece(model, args, input_size, device)
+            row['ECE']              = round(cal['ECE'], 6)
+            row['mean_classwise_ECE'] = round(cal['mean_classwise_ECE'], 6)
+            row['classwise_ECE']    = json.dumps([round(v, 6) for v in cal['classwise_ECE']])
+        except Exception as e:
+            print(f"  [ERROR] ECE failed: {e}")
+            row['ECE'] = row['mean_classwise_ECE'] = row['classwise_ECE'] = None
+    else:
+        row['ECE'] = row['mean_classwise_ECE'] = row['classwise_ECE'] = None
 
     row['error'] = ''
     print(
@@ -681,6 +771,17 @@ def get_args_parser():
     # ── Output ────────────────────────────────────────────────────────────────
     p.add_argument('--output_csv', type=str, default='computation_overhead.csv')
 
+    # ── ECE / calibration ─────────────────────────────────────────────────────
+    p.add_argument('--data_path',  type=str, default='',
+                   help='CSV file for ECE evaluation (SMP models only). Skip ECE if empty.')
+    p.add_argument('--img_dir',    type=str, default='',
+                   help='Root image directory used by build_dataset.')
+    p.add_argument('--modality',   type=str, default='OCT')
+    p.add_argument('--eval_split', type=str, default='test',
+                   choices=['train', 'val', 'test'])
+    p.add_argument('--ece_batch_size', type=int, default=16)
+    p.add_argument('--ece_n_bins',     type=int, default=20)
+
     # ── Alpha-only mode ───────────────────────────────────────────────────────
     p.add_argument('--alpha_only', action='store_true', default=False,
                    help='Skip FLOPs and inference timing; only load models and report alpha values.')
@@ -742,8 +843,9 @@ def main():
         f"{'model_id':<42} {'type':<9} {'sz':>4} "
         f"{'params_M':>9} {'flops_G':>9} {'time_ms':>11} "
         f"{'+params_M':>10} {'+flops_G':>9} {'+time_ms':>10} "
-        f"{'alpha':>8}"
+        f"{'alpha':>8} {'ECE':>8} {'mcECE':>8}"
     )
+    W = 170
     print(f"\n{'─'*W}")
     print(hdr)
     print(f"{'─'*W}")
@@ -758,7 +860,9 @@ def main():
             f"{str(r.get('overhead_params_M','?')):>10} "
             f"{str(r.get('overhead_flops_G','?')):>9} "
             f"{str(r.get('overhead_time_ms','?')):>10} "
-            f"{str(r.get('alpha_value','?')):>8}"
+            f"{str(r.get('alpha_value','?')):>8} "
+            f"{str(r.get('ECE','?')):>8} "
+            f"{str(r.get('mean_classwise_ECE','?')):>8}"
         )
     print(f"{'─'*W}")
     print("Overhead columns (+) are relative to the SMP-enc baseline. alpha = trained fusion gate value.")
