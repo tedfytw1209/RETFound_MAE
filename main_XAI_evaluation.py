@@ -1250,7 +1250,9 @@ if __name__ == '__main__':
         args.task += '-ignbg'
     if args.skip_model_dependent_metrics:
         args.task += '-skipMD'
-    
+    if args.skip_xai:
+        args.task += '-skipXAI'
+
     main(args, criterion)
 
 
