@@ -5,7 +5,7 @@
 #SBATCH --mem-per-cpu=4gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
-#SBATCH --time=48:00:00
+#SBATCH --time=72:00:00
 #SBATCH --output=%x.%j.out
 #SBATCH --account=ruogu.fang
 #SBATCH --qos=ruogu.fang
@@ -19,18 +19,20 @@ conda activate retfound_new
 # Based on research paper specifications for Alzheimer's Disease detection using OCT images
 
 STUDY=$1
-MODEL=${2:-"ad_oct_model"}
-FEATURE_CHANNELS=${3:-"256"}  # Number of feature channels (default: 256)
-NUM_GROUPS=${4:-"3"}          # Number of polarization feature groups (default: 3)
-INCLUDE_LOCALIZATION=${5:-"false"}  # Enable localization head (true/false)
+data_type=${2:-"IRB2024v5_ADCON_DL_data"}
+SPLIT_DIR=${3:-"/blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split"}
+MODEL=${4:-"ad_oct_model"}
+FEATURE_CHANNELS=${5:-"256"}  # Number of feature channels (default: 256)
+NUM_GROUPS=${6:-"3"}          # Number of polarization feature groups (default: 3)
+INCLUDE_LOCALIZATION=${7:-"false"}  # Enable localization head (true/false)
 
 # Training hyperparameters based on research paper
 BS=18                         # Batch size as specified in paper
-LR=${6:-"7e-5"}              # Learning rate: 7e-5 as specified in paper  
-WD=${7:-"1e-2"}              # Weight decay: 1e-2 as specified in paper
+LR=${8:-"7e-5"}              # Learning rate: 7e-5 as specified in paper  
+WD=${9:-"1e-2"}              # Weight decay: 1e-2 as specified in paper
 EPOCHS="100"                  # Number of training epochs
-Num_CLASS=${8:-"2"}          # Number of classes (AD vs Control)
-ADDCMD=${9:-""} # Additional command line arguments
+Num_CLASS=${10:-"2"}          # Number of classes (AD vs Control)
+ADDCMD=${11:-""} # Additional command line arguments
 Eval_score="roc_auc"         # Evaluation metric
 Modality="OCT"               # Modality type
 OPTIMIZER="adabelief"        # AdaBelief optimizer as specified in paper
@@ -39,12 +41,13 @@ TRANSFORM="3"                # AD-OCT specific data augmentation
 #SUBSET_RATIO=4
 SUBSET_RATIO=0
 Relative="Mahendran"
-NFOLDS=5
-FOLDS=(0 1 2 3 4)
+NFOLDS=10
+FOLDS=(0 1 2 3 4 5 6 7 8 9) # CV folds for training
 
 # Data paths
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
-data_type="IRB2024v5_ADCON_DL_data"
+#SPLIT_DIR="/blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split"
+#data_type="IRB2024v5_ADCON_DL_data"
 
 # Scheduler parameters
 Scheduler_step=20
@@ -59,7 +62,7 @@ if [ "$INCLUDE_LOCALIZATION" = "true" ]; then
 fi
 
 # Usage examples:
-# sbatch finetune_Mahendran_ad_oct_model_cv.sh ad_control_detect_data ad_oct_model 256 3 false 7e-5 1e-2 2 --use_img_per_patient
+# sbatch finetune_Mahendran_ad_oct_model_cv.sh ad_control_detect_data IRB2024v5_ADCON_DL_data /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split ad_oct_model 256 3 false 7e-5 1e-2 2 --use_img_per_patient
 for fold in ${FOLDS[@]}; do
     torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
         --savemodel \
@@ -80,6 +83,7 @@ for fold in ${FOLDS[@]}; do
         --modality $Modality \
         --img_dir $IMG_Path \
         --finetune $MODEL \
+        --split_dir $SPLIT_DIR \
         --num_workers 0 \
         --input_size 224 \
         --num_k 0 \

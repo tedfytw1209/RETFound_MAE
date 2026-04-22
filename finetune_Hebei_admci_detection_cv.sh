@@ -5,7 +5,7 @@
 #SBATCH --mem-per-cpu=4gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
-#SBATCH --time=48:00:00
+#SBATCH --time=72:00:00
 #SBATCH --output=%x.%j.out
 #SBATCH --account=ruogu.fang
 #SBATCH --qos=ruogu.fang
@@ -20,21 +20,23 @@ conda activate retfound_new
 # Based on research paper specifications with dual-modal cross-attention network
 
 STUDY=$1
-MODEL=${2:-"ducan"}
-FUNDUS_WEIGHT=${3:-"0.7"}      # α weight for fundus loss (paper specifies 0.7)
-OCT_WEIGHT=${4:-"0.7"}         # β weight for OCT loss (paper specifies 0.7)
-MULTIMODAL_WEIGHT=${5:-"1.0"}  # Weight for fusion loss (normalized to 1.0)
+SPLIT_DIR=${3:-"/blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split"}
+MODEL=${4:-"RETFound_mae"}
+MODEL=${5:-"ducan"}
+FUNDUS_WEIGHT=${6:-"0.7"}      # α weight for fundus loss (paper specifies 0.7)
+OCT_WEIGHT=${7:-"0.7"}         # β weight for OCT loss (paper specifies 0.7)
+MULTIMODAL_WEIGHT=${8:-"1.0"}  # Weight for fusion loss (normalized to 1.0)
 Relative="Hebei"
-NFOLDS=5
-FOLDS=(0 1 2 3 4)
+NFOLDS=10
+FOLDS=(0 1 2 3 4 5 6 7 8 9) # CV folds for training
 
 # Training hyperparameters based on research paper specifications
 BS=8                           # Batch size: 8 as specified in paper
-LR=${6:-"3e-4"}               # Initial learning rate: 0.0003 as specified in paper
-WD=${7:-"1e-2"}               # Weight decay: 0.01 as specified in paper (initial decay factor)
+LR=${9:-"3e-4"}               # Initial learning rate: 0.0003 as specified in paper
+WD=${10:-"1e-2"}              # Weight decay: 0.01 as specified in paper (initial decay factor)
 EPOCHS="400"                   # Number of training epochs: 400 as specified in paper
-Num_CLASS=${8:-"3"}           # Number of classes (AD, MCI, CN)
-ADDCMD=${9:-""} # Additional command line arguments
+Num_CLASS=${11:-"3"}          # Number of classes (AD, MCI, CN)
+ADDCMD=${12:-""} # Additional command line arguments
 #SUBSET_RATIO=1.3        # Subset ratio for dataset sampling
 SUBSET_RATIO=0        # Subset ratio for dataset sampling
 Eval_score="accuracy"         # Evaluation metric
@@ -44,7 +46,8 @@ TRANSFORM="3"                 # Data augmentation with random cropping and rever
 
 # Data paths for dual-modal training
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
-data_type="IRB2024v5_ADCON_DL_data"
+#data_type="IRB2024v5_ADCON_DL_data"
+#SPLIT_DIR="/blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split"
 
 # Scheduler parameters - not specified in paper, using reasonable defaults
 Scheduler_step=50
@@ -62,7 +65,7 @@ MULTIMODAL_LOSS_WEIGHT=$MULTIMODAL_WEIGHT
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
-#sbatch finetune_Hebei_admci_detection_cv.sh ad_mci_control_detect_data ducan 0.7 0.7 1.0 3e-4 1e-2 3 --use_img_per_patient
+#sbatch finetune_Hebei_admci_detection_cv.sh ad_mci_control_detect_data IRB2024v5_ADCON_DL_data /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split ducan 0.7 0.7 1.0 3e-4 1e-2 3 --use_img_per_patient
 for fold in ${FOLDS[@]}; do
     torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
         --savemodel \
@@ -101,5 +104,6 @@ for fold in ${FOLDS[@]}; do
         --min_lr 1e-6 \
         --clip_grad 1.0 \
         --cv_folds $NFOLDS --cv_fold $fold \
+        --split_dir $SPLIT_DIR \
         $ADDCMD
 done

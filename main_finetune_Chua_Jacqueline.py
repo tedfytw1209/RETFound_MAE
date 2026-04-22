@@ -260,6 +260,8 @@ def get_args_parser():
                         help='Column name for patient ID in CSV file for CV splitting')
     parser.add_argument('--cv_seed', type=int, default=42,
                         help='Random seed for CV patient splitting (default: 42)')
+    parser.add_argument('--split_dir', type=str, default=None,
+                        help='Directory containing fold split information')
     
     # Enhanced fairness and uncertainty parameters
     parser.add_argument('--n_bootstrap', type=int, default=1000,
@@ -385,18 +387,10 @@ def visualize_dataset_samples(dataset, args, num_samples=8, save_path=None):
     
     plt.close()
 
-def create_cv_patient_splits(data_path, cv_folds, cv_seed, patient_id_col='patient_id'):
+def create_cv_patient_splits_old(data_path, cv_folds, cv_seed, patient_id_col='patient_id'):
     """
     Create cross-validation splits based on patient IDs to ensure no data leakage.
-    
-    Args:
-        data_path: Path to CSV file
-        cv_folds: Number of CV folds
-        cv_seed: Random seed for reproducible splits
-        patient_id_col: Column name for patient ID
-        
-    Returns:
-        List of patient ID lists for each fold
+    Not used now but kept for reference.
     """
     import pandas as pd
 
@@ -452,6 +446,64 @@ def create_cv_patient_splits(data_path, cv_folds, cv_seed, patient_id_col='patie
     
     return cv_patient_splits
 
+def create_cv_patient_splits(data_path, cv_folds, cv_seed, patient_id_col='patient_id', split_dir=None):
+    """
+    Create cross-validation splits based on patient IDs to ensure no data leakage.
+    
+    Args:
+        data_path: Path to CSV file
+        cv_folds: Number of CV folds
+        cv_seed: Random seed for reproducible splits
+        patient_id_col: Column name for patient ID
+        split_dir: Directory to save split files (optional)
+    Returns:
+        List of patient ID lists for each fold
+    """
+    import pandas as pd
+
+    print(f"Creating {cv_folds}-fold cross-validation splits by {patient_id_col}:")
+    print(f"Data path: {data_path}")
+    # Read CSV to get patient IDs
+    df = pd.read_csv(data_path)
+    
+    if split_dir is None:
+        raise ValueError("split_dir must be specified to load fold splits")
+    if patient_id_col not in df.columns:
+        raise ValueError(f"Patient ID column '{patient_id_col}' not found in CSV. Available columns: {df.columns.tolist()}")
+    
+    # Get unique patient IDs
+    unique_patients = df[patient_id_col].unique()
+    print(f"Found {len(unique_patients)} unique patients")
+    
+    def _load_fold_splits(split_dir, cv_folds):
+        """Yield (fold_idx, train_ids, test_ids) from saved CSVs."""
+        for fold_idx in range(cv_folds):
+            fpath = os.path.join(split_dir, f"fold{fold_idx}-{cv_folds}.csv")
+            fold_df = pd.read_csv(fpath)
+            yield (
+                fold_idx,
+                fold_df.loc[fold_df["split"] == "train", "person_id"].to_numpy(),
+                fold_df.loc[fold_df["split"] == "test",  "person_id"].to_numpy(),
+            )
+
+    print(f"  Loading pre-saved fold splits from: {split_dir}")
+    fold_iterator = _load_fold_splits(split_dir, cv_folds)
+    
+    # Convert indices to patient ID lists
+    cv_patient_splits = []
+    for fold_idx, (train_patients, test_patients) in enumerate(fold_iterator):
+        train_patients, val_patients = train_test_split(train_patients, test_size=0.125, random_state=cv_seed)
+        cv_patient_splits.append({
+            'train': train_patients,
+            'val': val_patients,
+            'test': test_patients,
+            'fold': fold_idx
+        })
+        print(f"Fold {fold_idx}: {len(train_patients)} train patients, {len(val_patients)} val patients, {len(test_patients)} test patients")
+        print(f"  Train patient IDs: {train_patients[:5]}")
+    
+    return cv_patient_splits
+
 def get_cv_datasets(args, transform_train, transform_eval, Select_Layer):
     """
     Create datasets for cross-validation based on patient ID splits.
@@ -476,7 +528,8 @@ def get_cv_datasets(args, transform_train, transform_eval, Select_Layer):
         args.data_path, 
         args.cv_folds, 
         args.cv_seed, 
-        args.cv_patient_col
+        args.cv_patient_col,
+        split_dir=args.split_dir
     )
     
     current_split = cv_splits[args.cv_fold]
