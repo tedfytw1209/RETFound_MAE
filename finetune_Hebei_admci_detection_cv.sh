@@ -20,23 +20,23 @@ conda activate retfound_new
 # Based on research paper specifications with dual-modal cross-attention network
 
 STUDY=$1
+data_type=${2:-"IRB2024v5_ADCON_DL_data"}
 SPLIT_DIR=${3:-"/blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split"}
-MODEL=${4:-"RETFound_mae"}
-MODEL=${5:-"ducan"}
-FUNDUS_WEIGHT=${6:-"0.7"}      # α weight for fundus loss (paper specifies 0.7)
-OCT_WEIGHT=${7:-"0.7"}         # β weight for OCT loss (paper specifies 0.7)
-MULTIMODAL_WEIGHT=${8:-"1.0"}  # Weight for fusion loss (normalized to 1.0)
+MODEL=${4:-"ducan"}
+FUNDUS_WEIGHT=${5:-"0.7"}      # α weight for fundus loss (paper specifies 0.7)
+OCT_WEIGHT=${6:-"0.7"}         # β weight for OCT loss (paper specifies 0.7)
+MULTIMODAL_WEIGHT=${7:-"1.0"}  # Weight for fusion loss (normalized to 1.0)
 Relative="Hebei"
 NFOLDS=10
 FOLDS=(0 1 2 3 4 5 6 7 8 9) # CV folds for training
 
 # Training hyperparameters based on research paper specifications
 BS=8                           # Batch size: 8 as specified in paper
-LR=${9:-"3e-4"}               # Initial learning rate: 0.0003 as specified in paper
-WD=${10:-"1e-2"}              # Weight decay: 0.01 as specified in paper (initial decay factor)
+LR=${8:-"3e-4"}               # Initial learning rate: 0.0003 as specified in paper
+WD=${9:-"1e-2"}              # Weight decay: 0.01 as specified in paper (initial decay factor)
 EPOCHS="400"                   # Number of training epochs: 400 as specified in paper
-Num_CLASS=${11:-"3"}          # Number of classes (AD, MCI, CN)
-ADDCMD=${12:-""} # Additional command line arguments
+Num_CLASS=${10:-"3"}          # Number of classes (AD, MCI, CN)
+ADDCMD=${11:-""} # Additional command line arguments
 #SUBSET_RATIO=1.3        # Subset ratio for dataset sampling
 SUBSET_RATIO=0        # Subset ratio for dataset sampling
 Eval_score="accuracy"         # Evaluation metric
@@ -65,7 +65,8 @@ MULTIMODAL_LOSS_WEIGHT=$MULTIMODAL_WEIGHT
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 
-#sbatch finetune_Hebei_admci_detection_cv.sh ad_mci_control_detect_data IRB2024v5_ADCON_DL_data /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split ducan 0.7 0.7 1.0 3e-4 1e-2 3 --use_img_per_patient
+# Usage: sbatch finetune_Hebei_admci_detection_cv.sh STUDY data_type SPLIT_DIR MODEL FUNDUS_WEIGHT OCT_WEIGHT MULTIMODAL_WEIGHT LR WD Num_CLASS [ADDCMD...]
+# Example: sbatch finetune_Hebei_admci_detection_cv.sh ad_mci_control_detect_data IRB2024v5_ADCON_DL_data /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split ducan 0.7 0.7 1.0 3e-4 1e-2 3 --use_img_per_patient
 for fold in ${FOLDS[@]}; do
     torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
         --savemodel \
@@ -78,7 +79,7 @@ for fold in ${FOLDS[@]}; do
         --weight_decay $WD \
         --nb_classes $Num_CLASS \
         --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv \
-        --task $STUDY-${data_type}-${Relative}-$MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}wd${WD}-${Eval_score}eval-subset${SUBSET_RATIO} \
+        --task $STUDY-${data_type}-${Relative}-$MODEL-${Modality}-bs${BS}ep${EPOCHS}lr${LR}wd${WD}-${Eval_score}eval-subset${SUBSET_RATIO} \
         --eval_score $Eval_score \
         --modality $Modality \
         --img_dir $IMG_Path \

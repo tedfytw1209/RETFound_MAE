@@ -491,7 +491,7 @@ def create_cv_patient_splits(data_path, cv_folds, cv_seed, patient_id_col='patie
     
     # Convert indices to patient ID lists
     cv_patient_splits = []
-    for fold_idx, (train_patients, test_patients) in enumerate(fold_iterator):
+    for fold_idx, train_patients, test_patients in fold_iterator:
         train_patients, val_patients = train_test_split(train_patients, test_size=0.125, random_state=cv_seed)
         cv_patient_splits.append({
             'train': train_patients,

@@ -78,7 +78,7 @@ for fold in ${FOLDS[@]}; do
         --weight_decay $WD \
         --nb_classes $Num_CLASS \
         --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv \
-        --task $STUDY-${data_type}-${Relative}-$MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}wd${WD}-${Eval_score}eval-subset${SUBSET_RATIO} \
+        --task $STUDY-${data_type}-${Relative}-$MODEL-${Modality}-bs${BS}ep${EPOCHS}lr${LR}wd${WD}-${Eval_score}eval-subset${SUBSET_RATIO} \
         --eval_score $Eval_score \
         --modality $Modality \
         --img_dir $IMG_Path \
