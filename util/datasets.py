@@ -268,7 +268,7 @@ class CSV_Dataset(Dataset):
         else:
             self.annotations = data
         #for subgroup analysis
-        if patient_ids:
+        if patient_ids is not None and len(patient_ids) > 0:
             self.annotations = self.annotations[self.annotations[pid_key].isin(patient_ids)].reset_index(drop=True)
             print('After filtering with patient ids, data len: ', self.annotations.shape[0])
         print('Split: ', is_train_l,' Data len: ', self.annotations.shape[0])
