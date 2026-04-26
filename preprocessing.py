@@ -62,18 +62,31 @@ class FundusPreprocessor:
         """
         if not isinstance(image, np.ndarray):
             image = np.asarray(image)
-        image = np.ascontiguousarray(image)
         if image.dtype != np.uint8:
             if np.issubdtype(image.dtype, np.floating) and image.max() <= 1.0:
-                image = (image * 255).astype(np.uint8)
+                image = np.array(image * 255, dtype=np.uint8)
             else:
-                image = np.clip(image, 0, 255).astype(np.uint8)
+                image = np.array(np.clip(image, 0, 255), dtype=np.uint8)
+        else:
+            image = np.array(image, dtype=np.uint8)
         if len(image.shape) == 3:
-            # Convert to grayscale for mask creation
-            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+            try:
+                gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+            except cv2.error:
+                import sys
+                print(
+                    f"[preprocessing DEBUG] cvtColor failed: "
+                    f"type={type(image).__module__}.{type(image).__qualname__}, "
+                    f"dtype={image.dtype}, shape={image.shape}, "
+                    f"c_contiguous={image.flags['C_CONTIGUOUS']}, "
+                    f"writeable={image.flags['WRITEABLE']}, "
+                    f"base_type={type(image.base).__name__ if image.base is not None else 'None'}",
+                    file=sys.stderr, flush=True,
+                )
+                raise
         else:
             gray = image.copy()
-        
+
         # Create mask by thresholding to remove black background
         _, mask = cv2.threshold(gray, self.roi_threshold, 255, cv2.THRESH_BINARY)
         
@@ -171,12 +184,13 @@ class FundusPreprocessor:
             image = np.array(image)
         elif not isinstance(image, np.ndarray):
             image = np.asarray(image)
-        image = np.ascontiguousarray(image)
         if image.dtype != np.uint8:
             if np.issubdtype(image.dtype, np.floating) and image.max() <= 1.0:
-                image = (image * 255).astype(np.uint8)
+                image = np.array(image * 255, dtype=np.uint8)
             else:
-                image = np.clip(image, 0, 255).astype(np.uint8)
+                image = np.array(np.clip(image, 0, 255), dtype=np.uint8)
+        else:
+            image = np.array(image, dtype=np.uint8)
 
         # Ensure image is in RGB format
         if len(image.shape) == 3 and image.shape[2] == 3:
@@ -252,6 +266,15 @@ class OCTPreprocessor:
         Returns:
             Tuple of (masked_image, mask)
         """
+        if not isinstance(image, np.ndarray):
+            image = np.asarray(image)
+        if image.dtype != np.uint8:
+            if np.issubdtype(image.dtype, np.floating) and image.max() <= 1.0:
+                image = np.array(image * 255, dtype=np.uint8)
+            else:
+                image = np.array(np.clip(image, 0, 255), dtype=np.uint8)
+        else:
+            image = np.array(image, dtype=np.uint8)
         # Convert to grayscale for Otsu thresholding
         if len(image.shape) == 3:
             gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
@@ -379,10 +402,19 @@ class OCTPreprocessor:
         Returns:
             Preprocessed OCT image with highlighted indicative features
         """
-        # Convert PIL Image to numpy array if needed
+        # Convert to numpy array if needed
         if isinstance(image, Image.Image):
             image = np.array(image)
-        
+        elif not isinstance(image, np.ndarray):
+            image = np.asarray(image)
+        if image.dtype != np.uint8:
+            if np.issubdtype(image.dtype, np.floating) and image.max() <= 1.0:
+                image = np.array(image * 255, dtype=np.uint8)
+            else:
+                image = np.array(np.clip(image, 0, 255), dtype=np.uint8)
+        else:
+            image = np.array(image, dtype=np.uint8)
+
         # Ensure image is in proper format
         if len(image.shape) == 3 and image.shape[2] == 4:
             # RGBA to RGB
