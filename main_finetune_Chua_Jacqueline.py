@@ -586,9 +586,32 @@ def get_cv_datasets(args, transform_train, transform_eval, Select_Layer):
         pid_key=args.cv_patient_col, CV=True
     )
 
+    # Load holdout patients from holdout.csv and build holdout dataset
+    holdout_csv = os.path.join(args.split_dir, "holdout.csv")
+    dataset_holdout = None
+    if os.path.exists(holdout_csv):
+        holdout_pids = pd.read_csv(holdout_csv)["person_id"].to_numpy()
+        print(f"Holdout patients: {len(holdout_pids)}")
+        dataset_holdout = build_dataset(
+            is_train='test',
+            args=args,
+            k=args.num_k,
+            img_dir=args.img_dir,
+            modality=args.modality,
+            transform=transform_eval,
+            select_layers=Select_Layer,
+            th_resize=True,
+            th_heatmap=True,
+            patient_ids=holdout_pids,
+            pid_key=args.cv_patient_col, CV=True
+        )
+        print(f"Holdout dataset size: {len(dataset_holdout)}")
+    else:
+        print(f"No holdout.csv found at {holdout_csv}, skipping holdout dataset")
+
     print(f"Final dataset sizes - Train: {len(dataset_train)}, Val: {len(dataset_val)}, Test: {len(dataset_test)}")
-    
-    return dataset_train, dataset_val, dataset_test
+
+    return dataset_train, dataset_val, dataset_test, dataset_holdout
 
 class CustomResNet18Paper(torch.nn.Module):
     """
@@ -1130,7 +1153,7 @@ def main(args, criterion):
     # Check if cross-validation is enabled
     if args.cv_folds > 1:
         print(f"Using {args.cv_folds}-fold cross-validation (fold {args.cv_fold + 1}/{args.cv_folds})")
-        dataset_train, dataset_val, dataset_test = get_cv_datasets(args, transform_train, transform_eval, Select_Layer)
+        dataset_train, dataset_val, dataset_test, dataset_holdout = get_cv_datasets(args, transform_train, transform_eval, Select_Layer)
         
         # Update task name to include CV fold information
         original_task = args.task
@@ -1379,7 +1402,13 @@ def main(args, criterion):
                 shuffle=True)  # shuffle=True to reduce monitor bias
         else:
             sampler_test = torch.utils.data.SequentialSampler(dataset_test)
-    
+
+        # Holdout sampler (CV mode only)
+        if args.cv_folds > 1 and dataset_holdout is not None:
+            sampler_holdout = torch.utils.data.SequentialSampler(dataset_holdout)
+        else:
+            sampler_holdout = None
+
     # Log regularization settings to wandb
     if args.l1_reg > 0 or args.l2_reg > 0:
         wandb.log({
@@ -1419,6 +1448,17 @@ def main(args, criterion):
         pin_memory=args.pin_mem,
         drop_last=False
     )
+
+    data_loader_holdout = None
+    if args.cv_folds > 1 and sampler_holdout is not None:
+        data_loader_holdout = torch.utils.data.DataLoader(
+            dataset_holdout, sampler=sampler_holdout,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=False
+        )
+        print(f'Holdout set size: {len(dataset_holdout)}')
 
     mixup_fn = None
     mixup_active = args.mixup > 0 or args.cutmix > 0. or args.cutmix_minmax is not None
@@ -1674,6 +1714,20 @@ def main(args, criterion):
     wandb_dict = {}
     wandb_dict.update({f'test_{k}': v for k, v in test_stats.items()})
     wandb.log(wandb_dict)
+
+    if data_loader_holdout is not None and misc.is_main_process():
+        print("\nEvaluating on holdout set with best model...")
+        if 'dual_input_cnn' in args.model:
+            holdout_stats, holdout_score = evaluate_dualv2(data_loader_holdout, model_without_ddp, device, args, epoch=0, mode='holdout', num_class=args.nb_classes, k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+        elif 'ducan' in args.model:
+            from engine_finetune import evaluate_ducan
+            holdout_stats, holdout_score = evaluate_ducan(data_loader_holdout, model_without_ddp, device, args, epoch=0, mode='holdout', num_class=args.nb_classes, k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+        else:
+            holdout_stats, holdout_score = evaluate(data_loader_holdout, model_without_ddp, device, args, epoch=0, mode='holdout', num_class=args.nb_classes, k=args.num_k, log_writer=log_writer, eval_score=args.eval_score)
+        holdout_dict = {f'holdout_{k}': v for k, v in holdout_stats.items()}
+        wandb.log(holdout_dict)
+        print(f"Holdout score: {holdout_score:.4f}")
+
     if log_writer is not None and misc.is_main_process():
         log_writer.close()
         wandb.finish()
