@@ -60,6 +60,14 @@ class FundusPreprocessor:
         Returns:
             Tuple of (roi_image, mask)
         """
+        if not isinstance(image, np.ndarray):
+            image = np.asarray(image)
+        image = np.ascontiguousarray(image)
+        if image.dtype != np.uint8:
+            if np.issubdtype(image.dtype, np.floating) and image.max() <= 1.0:
+                image = (image * 255).astype(np.uint8)
+            else:
+                image = np.clip(image, 0, 255).astype(np.uint8)
         if len(image.shape) == 3:
             # Convert to grayscale for mask creation
             gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
@@ -158,10 +166,18 @@ class FundusPreprocessor:
         Returns:
             Preprocessed fundus image
         """
-        # Convert PIL Image to numpy array if needed
+        # Convert to numpy array if needed
         if isinstance(image, Image.Image):
             image = np.array(image)
-        
+        elif not isinstance(image, np.ndarray):
+            image = np.asarray(image)
+        image = np.ascontiguousarray(image)
+        if image.dtype != np.uint8:
+            if np.issubdtype(image.dtype, np.floating) and image.max() <= 1.0:
+                image = (image * 255).astype(np.uint8)
+            else:
+                image = np.clip(image, 0, 255).astype(np.uint8)
+
         # Ensure image is in RGB format
         if len(image.shape) == 3 and image.shape[2] == 3:
             # Already RGB
