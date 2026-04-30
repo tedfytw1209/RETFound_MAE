@@ -36,7 +36,8 @@ LR=${8:-"3e-4"}               # Initial learning rate: 0.0003 as specified in pa
 WD=${9:-"1e-2"}              # Weight decay: 0.01 as specified in paper (initial decay factor)
 EPOCHS="400"                   # Number of training epochs: 400 as specified in paper
 Num_CLASS=${10:-"3"}          # Number of classes (AD, MCI, CN)
-ADDCMD=${11:-""} # Additional command line arguments
+START_FOLD=${11:-0} # Start fold index for resuming CV
+ADDCMD=${12:-""} # Additional command line arguments
 #SUBSET_RATIO=1.3        # Subset ratio for dataset sampling
 SUBSET_RATIO=0        # Subset ratio for dataset sampling
 Eval_score="accuracy"         # Evaluation metric
@@ -68,6 +69,7 @@ MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 # Usage: sbatch finetune_Hebei_admci_detection_cv.sh STUDY data_type SPLIT_DIR MODEL FUNDUS_WEIGHT OCT_WEIGHT MULTIMODAL_WEIGHT LR WD Num_CLASS [ADDCMD...]
 # Example: sbatch finetune_Hebei_admci_detection_cv.sh ad_mci_control_detect_data IRB2024v5_ADCON_DL_data /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split ducan 0.7 0.7 1.0 3e-4 1e-2 3 --use_img_per_patient
 for fold in ${FOLDS[@]}; do
+    [ "$fold" -lt "$START_FOLD" ] && continue
     torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
         --savemodel \
         --global_pool \
@@ -80,6 +82,7 @@ for fold in ${FOLDS[@]}; do
         --nb_classes $Num_CLASS \
         --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv \
         --task $STUDY-${data_type}-${Relative}-$MODEL-${Modality}-bs${BS}ep${EPOCHS}lr${LR}wd${WD}-${Eval_score}eval-subset${SUBSET_RATIO} \
+        --output_dir /orange/ruogu.fang/tienyuchang/RETfound_results \
         --eval_score $Eval_score \
         --modality $Modality \
         --img_dir $IMG_Path \

@@ -36,7 +36,8 @@ IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 Scheduler_step=10
 Scheduler_gamma=0.5
 Quantitative_Features=${11:-"10"} # Number of quantitative features
-ADDCMD=${12:-""} # Additional command line arguments
+START_FOLD=${12:-0} # Start fold index for resuming CV
+ADDCMD=${13:-""} # Additional command line arguments
 Relative="Wisely2"
 NFOLDS=10
 FOLDS=(0 1 2 3 4 5 6 7 8 9) # CV folds for training
@@ -61,6 +62,7 @@ echo $Num_CLASS
 # Usage examples:
 # sbatch finetune_Wisely2_adcon_irb2024_v5_cv.sh mci_control_detect_data IRB2024v5_ADCON_DL_data /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split dual_input_cnn images_only 0.01 1e-4 0.01 2 1.3 10 --use_img_per_patient
 for fold in ${FOLDS[@]}; do
+    [ "$fold" -lt "$START_FOLD" ] && continue
     torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
         --savemodel \
         --global_pool \
@@ -75,6 +77,7 @@ for fold in ${FOLDS[@]}; do
         --nb_classes $Num_CLASS \
         --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv \
         --task $STUDY-${data_type}-${Relative}-$MODEL-${INPUT_MODE}-${Modality}-${Eval_score}eval-subset${SUBSET_RATIO} \
+        --output_dir /orange/ruogu.fang/tienyuchang/RETfound_results \
         --eval_score $Eval_score \
         --modality $Modality \
         --img_dir $IMG_Path \
