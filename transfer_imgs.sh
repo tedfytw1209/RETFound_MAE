@@ -9,8 +9,8 @@
 #SBATCH --account=ruogu.fang
 #SBATCH --qos=ruogu.fang
 
-SRC="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
-DST="/blue/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
+SRC="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/"
+DST="/blue/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/"
 
 mkdir -p "$DST"
 
