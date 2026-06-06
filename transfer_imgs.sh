@@ -23,7 +23,7 @@ if [ -z "$SUBDIRS" ]; then
     rsync -av --no-perms --info=progress2 "$SRC" "$DST"
 else
     echo "Running parallel rsync with $SLURM_CPUS_PER_TASK streams..."
-    echo "$SUBDIRS" | parallel -j "$SLURM_CPUS_PER_TASK" \
+    echo "$SUBDIRS" | xargs -P "$SLURM_CPUS_PER_TASK" -I{} \
         rsync -a --no-perms --info=progress2 {} "$DST"/
 fi
 
