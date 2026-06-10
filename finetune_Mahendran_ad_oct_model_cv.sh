@@ -46,7 +46,7 @@ NFOLDS=10
 FOLDS=(0 1 2 3 4 5 6 7 8 9) # CV folds for training
 
 # Data paths
-IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
+IMG_Path="/blue/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
 #SPLIT_DIR="/blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split"
 #data_type="IRB2024v5_ADCON_DL_data"
 

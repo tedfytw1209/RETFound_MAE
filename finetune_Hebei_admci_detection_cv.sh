@@ -46,7 +46,7 @@ OPTIMIZER="sgd"               # Stochastic Gradient Descent as specified in pape
 TRANSFORM="3"                 # Data augmentation with random cropping and reversing
 
 # Data paths for dual-modal training
-IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
+IMG_Path="/blue/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
 #data_type="IRB2024v5_ADCON_DL_data"
 #SPLIT_DIR="/blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split"
 
