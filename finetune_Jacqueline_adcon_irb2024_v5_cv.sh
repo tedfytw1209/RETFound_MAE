@@ -39,7 +39,8 @@ Patience="10"
 Relative="Jacqueline"
 NFOLDS=10
 #FOLDS=(0 1 2 3 4 5 6 7 8 9) # CV folds for training
-FOLDS=(0) # CV folds for training
+FOLDS=(1 2 3 4 5 6 7 8 9) # CV folds for training
+#FOLDS=(0) # CV folds for training
 
 #data_type="IRB2024v5_Jacqueline_ADCON_DL_data"
 #data_type="IRB2024v5_ADCON_DL_data"
