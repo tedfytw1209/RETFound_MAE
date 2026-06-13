@@ -37,7 +37,14 @@ WD=${9:-"1e-2"}              # Weight decay: 0.01 as specified in paper (initial
 EPOCHS="400"                   # Number of training epochs: 400 as specified in paper
 Num_CLASS=${10:-"3"}          # Number of classes (AD, MCI, CN)
 START_FOLD=${11:-0} # Start fold index for resuming CV
-ADDCMD=${12:-""} # Additional command line arguments
+# Everything after the 11 named positional args is forwarded to the python script.
+# This lets you append arbitrary flags, e.g. `... 3 0 --use_img_per_patient --foo bar`.
+if [ "$#" -gt 11 ]; then
+    shift 11
+    ADDCMD="$@"
+else
+    ADDCMD=""
+fi
 #SUBSET_RATIO=1.3        # Subset ratio for dataset sampling
 SUBSET_RATIO=0        # Subset ratio for dataset sampling
 Eval_score="accuracy"         # Evaluation metric
@@ -64,10 +71,11 @@ FUNDUS_LOSS_WEIGHT=$FUNDUS_WEIGHT
 OCT_LOSS_WEIGHT=$OCT_WEIGHT
 MULTIMODAL_LOSS_WEIGHT=$MULTIMODAL_WEIGHT
 
-MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
+MASTER_PORT=$(expr 10000 + $(echo -n "${SLURM_JOBID:-0}" | tail -c 4))
 
-# Usage: sbatch finetune_Hebei_admci_detection_cv.sh STUDY data_type SPLIT_DIR MODEL FUNDUS_WEIGHT OCT_WEIGHT MULTIMODAL_WEIGHT LR WD Num_CLASS [ADDCMD...]
-# Example: sbatch finetune_Hebei_admci_detection_cv.sh ad_mci_control_detect_data IRB2024v5_ADCON_DL_data /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split ducan 0.7 0.7 1.0 3e-4 1e-2 3 --use_img_per_patient
+# Usage: sbatch finetune_Hebei_admci_detection_cv.sh STUDY data_type SPLIT_DIR MODEL FUNDUS_WEIGHT OCT_WEIGHT MULTIMODAL_WEIGHT LR WD Num_CLASS START_FOLD [ADDCMD...]
+# Note: START_FOLD is positional arg 11; any extra flags (ADDCMD) must come AFTER it.
+# Example: sbatch finetune_Hebei_admci_detection_cv.sh ad_mci_control_detect_data IRB2024v5_ADCON_DL_data /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split ducan 0.7 0.7 1.0 3e-4 1e-2 3 0 --use_img_per_patient
 for fold in ${FOLDS[@]}; do
     [ "$fold" -lt "$START_FOLD" ] && continue
     torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
