@@ -117,6 +117,9 @@ def get_args_parser():
                     help='Use Focal Loss instead of CrossEntropy')
     parser.add_argument('--focal_gamma', default=2.0, type=float,
                         help='Gamma parameter for Focal Loss')
+    parser.add_argument('--class_weight', action='store_true', default=False,
+                        help='Use class-weighted CrossEntropy loss for imbalanced datasets '
+                             '(adds _CW to the task/wandb name and a "class_weight" wandb tag)')
 
     # Augmentation parameters
     parser.add_argument('--train_no_aug', action='store_true', default=False,
@@ -1114,11 +1117,18 @@ def build_transform3(is_train, args):
 def main(args, criterion):
 
     misc.init_distributed_mode(args)
-    
+
+    # Tag class-weighted runs in the task name (so output dirs / wandb name carry _CW)
+    wandb_tags = []
+    if args.class_weight:
+        args.task = f"{args.task}_CW"
+        wandb_tags.append('class_weight')
+
     wandb.init(
         project="OCTAD_Relatives",
         name=args.task,
         config=args,
+        tags=wandb_tags,
     )
 
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
@@ -1332,7 +1342,7 @@ def main(args, criterion):
         print(f"Dataset visualizations saved to: {vis_dir}")
     
     #for weighted loss
-    if args.loss_weight:
+    if args.loss_weight or args.class_weight:
         train_target = np.array(dataset_train.targets)
         train_weight = np.zeros(len(dataset_train.classes))
         class_idx = [dataset_train.class_to_idx[c] for c in dataset_train.classes]
@@ -1553,6 +1563,10 @@ def main(args, criterion):
     elif args.use_focal_loss:
         print(f"Using Focal Loss (gamma={args.focal_gamma}, alpha={alpha})")
         criterion = FocalLoss(gamma=args.focal_gamma, alpha=alpha)
+    elif args.class_weight:
+        weight_tensor = torch.tensor(train_weight).to(torch.float32).to(device) if train_weight is not None else None
+        print(f"Using class-weighted CrossEntropy loss (weights={train_weight}, label_smoothing={args.smoothing})")
+        criterion = torch.nn.CrossEntropyLoss(weight=weight_tensor, label_smoothing=args.smoothing)
     elif args.smoothing > 0.:
         criterion = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
     else:
