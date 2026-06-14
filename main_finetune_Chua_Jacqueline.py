@@ -1562,7 +1562,11 @@ def main(args, criterion):
         criterion = SoftTargetCrossEntropy()
     elif args.use_focal_loss:
         print(f"Using Focal Loss (gamma={args.focal_gamma}, alpha={alpha})")
-        criterion = FocalLoss(gamma=args.focal_gamma, alpha=alpha)
+        # Model emits args.nb_classes logits and targets are class indices, so use the
+        # multi-class focal path. The binary path expects a SCALAR alpha and breaks when
+        # given a per-class alpha vector (length nb_classes) from compute_alpha_from_labels.
+        criterion = FocalLoss(gamma=args.focal_gamma, alpha=alpha,
+                              task_type='multi-class', num_classes=args.nb_classes)
     elif args.class_weight:
         weight_tensor = torch.tensor(train_weight).to(torch.float32).to(device) if train_weight is not None else None
         print(f"Using class-weighted CrossEntropy loss (weights={train_weight}, label_smoothing={args.smoothing})")
