@@ -162,6 +162,9 @@ def get_args_parser():
                         help='finetune from checkpoint')
     parser.add_argument('--task', default='', type=str,
                         help='finetune from checkpoint')
+    parser.add_argument('--wandb_tags', type=str, default=None,
+                        help="Comma-separated wandb tags (e.g. 'study3,ad_mci_control'). "
+                             "Merged with auto tags such as 'class_weight'.")
     parser.add_argument('--global_pool', action='store_true')
     parser.set_defaults(global_pool=True)
     parser.add_argument('--cls_token', action='store_false', dest='global_pool',
@@ -290,12 +293,18 @@ def get_args_parser():
     return parser
 
 def get_label_mappings(args):
-    if 'ad_control' in args.task:
+    # Order matters: 'mci_control' is a substring of 'ad_mci_control', so test the
+    # 3-class task first. Indices follow AD_LIST = ['control','mci','ad'] in util.datasets.
+    task = args.task
+    if 'ad_mci_control' in task:
+        id2label = {0: "control", 1: "mci", 2: "ad"}
+    elif 'mci_control' in task:
+        id2label = {0: "control", 1: "mci"}
+    elif 'ad_control' in task:
         id2label = {0: "control", 1: "ad"}
-        label2id = {v: k for k, v in id2label.items()}
     else:
         id2label = {i: f"class_{i}" for i in range(args.nb_classes)}
-        label2id = {v: k for k, v in id2label.items()}
+    label2id = {v: k for k, v in id2label.items()}
     return id2label, label2id
 
 def visualize_dataset_samples(dataset, args, num_samples=8, save_path=None):
@@ -1118,8 +1127,15 @@ def main(args, criterion):
 
     misc.init_distributed_mode(args)
 
+    # Multi-class tasks (e.g. ad_mci_control) drive multiclass fairness/uncertainty handling.
+    if args.nb_classes > 2 and args.outcome_flag == 'binary':
+        args.outcome_flag = 'multiclass'
+        print(f"nb_classes={args.nb_classes} > 2 -> outcome_flag set to 'multiclass'")
+
+    # wandb tags: user-supplied (comma-separated, e.g. "study3,ad_mci_control") merged
+    # with auto tags below.
+    wandb_tags = [t.strip() for t in args.wandb_tags.split(",") if t.strip()] if args.wandb_tags else []
     # Tag class-weighted runs in the task name (so output dirs / wandb name carry _CW)
-    wandb_tags = []
     if args.class_weight:
         args.task = f"{args.task}_CW"
         wandb_tags.append('class_weight')

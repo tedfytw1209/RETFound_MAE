@@ -21,6 +21,29 @@ conda activate retfound_new
 STUDY=$1
 data_type=${2:-"IRB2024v5_ADCON_DL_data"}
 SPLIT_DIR=${3:-"/blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split"}
+# --- Task-aware split-subdir resolution (study3: ad_control / mci_control / ad_mci_control) ---
+# TASK is inferred from the STUDY csv name, e.g. ad_mci_control_detect_data -> ad_mci_control.
+# If SPLIT_DIR is a study base dir (leaf is not split*/), the matching subdir is appended:
+#   ad_control -> split | mci_control -> split_mcicon | ad_mci_control -> split_admcicon
+TASK="${STUDY%_detect_data}"
+case "$(basename "$SPLIT_DIR")" in
+    split|split_*) : ;;                       # already a resolved split dir; keep as-is
+    *)
+        case "$TASK" in
+            ad_mci_control) SPLIT_DIR="$SPLIT_DIR/split_admcicon" ;;
+            mci_control)    SPLIT_DIR="$SPLIT_DIR/split_mcicon" ;;
+            *)              SPLIT_DIR="$SPLIT_DIR/split" ;;
+        esac ;;
+esac
+echo "Resolved SPLIT_DIR: $SPLIT_DIR  (TASK=$TASK)"
+# wandb tags (reference format "study3,<task>"): study id inferred from split path + task
+case "$SPLIT_DIR" in
+    *study3*) STUDY_TAG=study3 ;;
+    *study2*) STUDY_TAG=study2 ;;
+    *)        STUDY_TAG="" ;;
+esac
+WANDB_TAGS="${STUDY_TAG:+$STUDY_TAG,}${TASK}"
+echo "wandb tags: $WANDB_TAGS"
 MODEL=${4:-"ad_oct_model"}
 FEATURE_CHANNELS=${5:-"256"}  # Number of feature channels (default: 256)
 NUM_GROUPS=${6:-"3"}          # Number of polarization feature groups (default: 3)
@@ -103,5 +126,6 @@ for fold in ${FOLDS[@]}; do
         --patience 15 \
         --cv_folds $NFOLDS --cv_fold $fold \
         --visualize_samples \
+        --wandb_tags "$WANDB_TAGS" \
         $ADDCMD
 done
