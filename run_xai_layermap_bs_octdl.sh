@@ -40,7 +40,7 @@ ADDCMD=${17:-""}
 ADDCMD2=${18:-""}
 ADDCMD3=${19:-""}
 
-OUTPUT_DIR="./heatmap_params_octdl_dme"
+OUTPUT_DIR="./heatmap_params_octdl_dme_full"
 
 # ============================================================================
 # Common parameters
@@ -50,7 +50,7 @@ DATASET_FNAME="sampled_labels01.csv"
 THICKNESS_DIR="/orange/ruogu.fang/tienyuchang/OCTDL_masks_multiclass_resnet50_new/"
 THICKNESS_CSV=""
 BATCH_SIZE=8
-NUM_SAMPLES=50
+NUM_SAMPLES=-1
 Num_CLASS=2
 STEP_PIXELS=1024
 #XAI_METHODS="gradcamv2 scorecam crp"
