@@ -785,6 +785,9 @@ def get_args_parser():
                         choices=["weighted_sum", "add", "channel_merge", "channel_multiply", "multiply"])
     parser.add_argument('--smp_learnable_alpha', action='store_true', default=False)
     parser.add_argument('--smp_alpha', type=float, default=0.5)
+    parser.add_argument('--smp_alpha_type', type=str, default='scalar',
+                        choices=['scalar', 'channel', 'spatial', 'se', 'attn'],
+                        help='Gate design for weighted_sum fusion (scalar/channel/spatial/se/attn) (default: "scalar")')
     parser.add_argument('--smp_size_match', type=str, default='decoder_to_encoder',
                         choices=["decoder_to_encoder", "encoder_to_decoder"])
     parser.add_argument('--seg_mask', action='store_true', default=False)
