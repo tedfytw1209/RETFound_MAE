@@ -71,7 +71,7 @@ echo "SPLIT_DIR=$SPLIT_DIR"
 sbatch finetune_Hebei_admci_detection_cv.sh $STUDY $DATA $SPLIT_DIR ducan 0.7 0.7 1.0 3e-4 1e-2 $NUM_CLASS $START_FOLD $CW
 
 #Wisely2 (dual_input_cnn, images_only)
-sbatch finetune_Wisely2_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR dual_input_cnn images_only 0.01 1e-4 0.01 $NUM_CLASS 0 10 $START_FOLD $CW
+#sbatch finetune_Wisely2_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR dual_input_cnn images_only 0.01 1e-4 0.01 $NUM_CLASS 0 10 $START_FOLD $CW
 
 # ==================================================================
 # Reference: original study2 invocations (verbatim)
