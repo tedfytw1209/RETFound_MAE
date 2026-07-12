@@ -4,21 +4,23 @@
 ## (see ADML_Relatives.sh for study2 / original)
 ##
 ## Usage:
-##   bash ADML_Relatives2.sh [TASK] [PERIOD] [CW_MODE] [START_FOLD]
+##   bash ADML_Relatives2.sh [TASK] [DATA] [PERIOD] [CW_MODE] [START_FOLD]
 ##     TASK       : ad_control | mci_control | ad_mci_control  (default: ad_mci_control)
+##     DATA       : path to study3 data folder                 (default: IRB2024v5_ADCON_DL_data_retinaf_study3_diseaseclean_1yr)
 ##     PERIOD     : split period, e.g. 1yr                     (default: 1yr)
 ##     CW_MODE    : none | cw    (add class weighting)         (default: none)
 ##     START_FOLD : resume CV from this fold                   (default: 0)
 ##
 ## Examples:
-##   bash ADML_Relatives2.sh ad_control 1yr
-##   bash ADML_Relatives2.sh mci_control 1yr
-##   bash ADML_Relatives2.sh ad_mci_control 1yr cw    # 3-class, class-weighted
+##   bash ADML_Relatives2.sh ad_control /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_combined_study3_retinaf_diseaseclean_1yr 1yr
+##   bash ADML_Relatives2.sh mci_control /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_combined_study3_retinaf_diseaseclean_1yr 1yr
+##   bash ADML_Relatives2.sh ad_mci_control /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_combined_study3_retinaf_diseaseclean_1yr 1yr cw    # 3-class, class-weighted
 
 TASK=${1:-ad_mci_control}     # ad_control | mci_control | ad_mci_control
-PERIOD=${2:-1yr}
-CW_MODE=${3:-none}            # none | cw
-START_FOLD=${4:-0}
+DATA=${2:-IRB2024v5_ADCON_DL_data_retinaf_study3_diseaseclean_1yr}  # default study3 data folder
+PERIOD=${3:-1yr}
+CW_MODE=${4:-none}            # none | cw
+START_FOLD=${5:-0}
 if [ "$CW_MODE" = "cw" ]; then CW="--class_weight"; else CW=""; fi
 
 # ------------------------------------------------------------------
@@ -46,7 +48,7 @@ SPLIT_DIR=${SPLIT_BASE}/${SUBDIR}
 # Folder under /blue/ruogu.fang/tienyuchang/ that holds ${STUDY}.csv for study3.
 # All relatives read from the same folder; modality selects thickness vs paired images.
 # Override via env if needed, e.g. DATA=... bash ADML_Relatives2.sh ...
-DATA=${DATA:-IRB2024v5_ADCON_DL_data_retinaf_study3_diseaseclean}
+
 
 echo "STUDY3  TASK=$TASK  NUM_CLASS=$NUM_CLASS  STUDY=$STUDY  PERIOD=$PERIOD  CW='${CW}'"
 echo "DATA=$DATA"
