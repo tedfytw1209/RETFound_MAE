@@ -6,18 +6,18 @@
 ## Usage:
 ##   bash ADML_Relatives2.sh [TASK] [DATA] [PERIOD] [CW_MODE] [START_FOLD]
 ##     TASK       : ad_control | mci_control | ad_mci_control  (default: ad_mci_control)
-##     DATA       : path to study3 data folder                 (default: IRB2024v5_ADCON_DL_data_retinaf_study3_diseaseclean_1yr)
+##     DATA       : path to study3 data folder                 (default: IRB2024v5_ADCON_DL_study3_retinaf_1yr)
 ##     PERIOD     : split period, e.g. 1yr                     (default: 1yr)
 ##     CW_MODE    : none | cw    (add class weighting)         (default: none)
 ##     START_FOLD : resume CV from this fold                   (default: 0)
 ##
 ## Examples:
-##   bash ADML_Relatives2.sh ad_control /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_combined_study3_retinaf_diseaseclean_1yr 1yr
-##   bash ADML_Relatives2.sh mci_control /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_combined_study3_retinaf_diseaseclean_1yr 1yr
-##   bash ADML_Relatives2.sh ad_mci_control /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_combined_study3_retinaf_diseaseclean_1yr 1yr cw    # 3-class, class-weighted
+##   bash ADML_Relatives2.sh ad_control /blue/ruogu.fang/tienyuchang/IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr
+##   bash ADML_Relatives2.sh mci_control /blue/ruogu.fang/tienyuchang/IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr
+##   bash ADML_Relatives2.sh ad_mci_control /blue/ruogu.fang/tienyuchang/IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr cw    # 3-class, class-weighted
 
 TASK=${1:-ad_mci_control}     # ad_control | mci_control | ad_mci_control
-DATA=${2:-IRB2024v5_ADCON_DL_data_retinaf_study3_diseaseclean_1yr}  # default study3 data folder
+DATA=${2:-IRB2024v5_ADCON_DL_study3_retinaf_1yr}  # default study3 data folder
 PERIOD=${3:-1yr}
 CW_MODE=${4:-none}            # none | cw
 START_FOLD=${5:-0}
