@@ -12,9 +12,9 @@
 ##     START_FOLD : resume CV from this fold                   (default: 0)
 ##
 ## Examples:
-##   bash ADML_Relatives2.sh ad_control /blue/ruogu.fang/tienyuchang/IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr
-##   bash ADML_Relatives2.sh mci_control /blue/ruogu.fang/tienyuchang/IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr
-##   bash ADML_Relatives2.sh ad_mci_control /blue/ruogu.fang/tienyuchang/IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr cw    # 3-class, class-weighted
+##   bash ADML_Relatives2.sh ad_control IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr
+##   bash ADML_Relatives2.sh mci_control IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr
+##   bash ADML_Relatives2.sh ad_mci_control IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr cw    # 3-class, class-weighted
 
 TASK=${1:-ad_mci_control}     # ad_control | mci_control | ad_mci_control
 DATA=${2:-IRB2024v5_ADCON_DL_study3_retinaf_1yr}  # default study3 data folder

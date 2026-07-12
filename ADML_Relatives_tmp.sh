@@ -11,10 +11,7 @@
 ##     START_FOLD : resume CV from this fold                   (default: 0)
 ##
 ## Examples:
-##   bash ADML_Relatives_tmp.sh ad_control              # study2 disease-clean, ad_control
-##   bash ADML_Relatives_tmp.sh ad_control cw           # + class weighting
-##   bash ADML_Relatives_tmp.sh ad_control none raw     # original (non-disease-clean) study2
-##   bash ADML_Relatives_tmp.sh ad_mci_control cw       # 3-class, class-weighted
+##   bash ADML_Relatives_tmp.sh mci_control none clean       # 3-class, class-weighted
 
 TASK=${1:-ad_control}         # ad_control | mci_control | ad_mci_control
 CW_MODE=${2:-none}            # none | cw
@@ -59,19 +56,19 @@ echo "SPLIT_DIR=$SPLIT_DIR"
 # ------------------------------------------------------------------
 
 #Jacq (convnext_tiny, thickness)
-#sbatch finetune_Jacqueline_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR convnext_tiny 128 1e-3 5e-4 $NUM_CLASS 0 0.001 0.2 $START_FOLD $CW
+sbatch finetune_Jacqueline_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR convnext_tiny 128 1e-3 5e-4 $NUM_CLASS 0 0.001 0.2 $START_FOLD $CW
 
 #Wisely (resnet18_paper, thickness)
-sbatch finetune_Wisely_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR resnet18_paper 0.01 1e-3 0.01 $NUM_CLASS 0 5 $CW
+sbatch finetune_Wisely_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR resnet18_paper 0.01 1e-3 0.01 $NUM_CLASS 0 4 $CW
 
 #Mahendran (ad_oct_model, OCT)
-sbatch finetune_Mahendran_ad_oct_model_cv.sh $STUDY $DATA $SPLIT_DIR ad_oct_model 256 3 false 7e-5 1e-2 $NUM_CLASS 1 $CW
+sbatch finetune_Mahendran_ad_oct_model_cv.sh $STUDY $DATA $SPLIT_DIR ad_oct_model 256 3 false 7e-5 1e-2 $NUM_CLASS 2 $CW
 
 #hebei (ducan, dual)
-#sbatch finetune_Hebei_admci_detection_cv.sh $STUDY $DATA $SPLIT_DIR ducan 0.7 0.7 1.0 3e-4 1e-2 $NUM_CLASS $START_FOLD $CW
+sbatch finetune_Hebei_admci_detection_cv.sh $STUDY $DATA $SPLIT_DIR ducan 0.7 0.7 1.0 3e-4 1e-2 $NUM_CLASS 1 $CW
 
 #Wisely2 (dual_input_cnn, images_only)
-#sbatch finetune_Wisely2_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR dual_input_cnn images_only 0.01 1e-4 0.01 $NUM_CLASS 0 10 $START_FOLD $CW
+sbatch finetune_Wisely2_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR dual_input_cnn images_only 0.01 1e-4 0.01 $NUM_CLASS 0 10 6 $CW
 
 # ==================================================================
 # Reference: original study2 invocations (verbatim)
