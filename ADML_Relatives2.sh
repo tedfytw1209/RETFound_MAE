@@ -18,7 +18,7 @@
 
 TASK=${1:-ad_mci_control}     # ad_control | mci_control | ad_mci_control
 DATA=${2:-IRB2024v5_ADCON_DL_study3_retinaf_1yr}  # default study3 data folder
-PERIOD=${3:-1yr}
+export PERIOD=${3:-1yr}   # exported so sbatch (--export=ALL) forwards it to the relative jobs for wandb tagging
 CW_MODE=${4:-none}            # none | cw
 START_FOLD=${5:-0}
 if [ "$CW_MODE" = "cw" ]; then CW="--class_weight"; else CW=""; fi

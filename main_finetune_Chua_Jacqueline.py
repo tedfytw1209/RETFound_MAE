@@ -36,7 +36,11 @@ from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.losses import FocalLoss, compute_alpha_from_labels
 from huggingface_hub import hf_hub_download, login
-from engine_finetune import evaluate_half3D, train_one_epoch, evaluate, train_one_epoch_dual, evaluate_dualv2
+from engine_finetune import evaluate_half3D, train_one_epoch, train_one_epoch_dual, evaluate_dualv2
+# NOTE: `evaluate` is intentionally NOT imported from engine_finetune. This project uses a
+# local, reference-matching version defined below (binary-positive F1/precision/recall for
+# 2-class tasks, macro for >2). The shared engine_finetune.evaluate is left untouched so other
+# projects that import it are unaffected.
 import wandb
 from pytorch_pretrained_vit import ViT
 
@@ -45,6 +49,123 @@ import faulthandler
 
 faulthandler.enable()
 warnings.simplefilter(action='ignore', category=FutureWarning)
+
+
+def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_writer, eval_score=''):
+    """Project-local evaluate (overrides engine_finetune.evaluate for THIS project only).
+
+    Difference vs the shared engine_finetune.evaluate: F1 / precision / recall are computed
+    from the label vectors (not one-hot) so they match the reference metric definitions --
+      * num_class == 2 -> average='binary' (positive/disease class, pos_label=1)
+      * num_class  > 2 -> average='macro' over the labels actually present
+    This also reports specificity for the binary case. All other metrics (roc_auc, hamming,
+    jaccard, average_precision, kappa, mcc) are unchanged.
+    """
+    import csv
+    from sklearn.metrics import (
+        accuracy_score, roc_auc_score, f1_score, average_precision_score,
+        hamming_loss, jaccard_score, recall_score, precision_score,
+        cohen_kappa_score, matthews_corrcoef, confusion_matrix,
+    )
+    from pycm import ConfusionMatrix
+
+    criterion = torch.nn.CrossEntropyLoss()
+    metric_logger = misc.MetricLogger(delimiter="  ")
+    os.makedirs(os.path.join(args.output_dir, args.task), exist_ok=True)
+    use_amp = getattr(args, "use_amp", True)
+    model.eval()
+    true_onehot, pred_onehot, true_labels, pred_labels, pred_softmax = [], [], [], [], []
+
+    for batch in metric_logger.log_every(data_loader, 10, f'{mode}:'):
+        images, target = batch[0].to(device, non_blocking=True), batch[1].to(device, non_blocking=True)
+        target_onehot = torch.nn.functional.one_hot(target.to(torch.int64), num_classes=num_class)
+
+        with torch.cuda.amp.autocast(enabled=use_amp):
+            output = model(images)
+            if hasattr(output, 'logits'):
+                output = output.logits
+            elif isinstance(output, dict) and 'logits' in output:
+                output = output['logits']
+            else:
+                output = output
+            loss = criterion(output, target)
+        output_ = torch.nn.Softmax(dim=1)(output)
+        output_label = output_.argmax(dim=1)
+        output_onehot = torch.nn.functional.one_hot(output_label.to(torch.int64), num_classes=num_class)
+
+        metric_logger.update(loss=loss.item())
+        true_onehot.extend(target_onehot.cpu().numpy())
+        pred_onehot.extend(output_onehot.detach().cpu().numpy())
+        true_labels.extend(target.cpu().numpy())
+        pred_labels.extend(output_label.detach().cpu().numpy())
+        pred_softmax.extend(output_.detach().cpu().numpy())
+
+    try:
+        accuracy = accuracy_score(true_labels, pred_labels)
+        hamming = hamming_loss(true_onehot, pred_onehot)
+        jaccard = jaccard_score(true_onehot, pred_onehot, average='macro')
+        average_precision = average_precision_score(true_onehot, pred_softmax, average='macro')
+        kappa = cohen_kappa_score(true_labels, pred_labels)
+        # --- reference-matching F1 / precision / recall (from label vectors) ---
+        _avg = 'binary' if num_class == 2 else 'macro'
+        f1 = f1_score(true_labels, pred_labels, zero_division=0, average=_avg)
+        precision = precision_score(true_labels, pred_labels, zero_division=0, average=_avg)
+        recall = recall_score(true_labels, pred_labels, zero_division=0, average=_avg)
+        roc_auc = roc_auc_score(true_onehot, pred_softmax, multi_class='ovr', average='macro')
+        mcc = matthews_corrcoef(true_labels, pred_labels)
+        if num_class == 2:
+            _cm = confusion_matrix(true_labels, pred_labels, labels=[0, 1])
+            tn, fp, fn, tp = _cm.ravel()
+            specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+        else:
+            specificity = float('nan')
+    except Exception as e:
+        print("Error in metric calculation:", e)
+        print("true_labels:", np.array(true_labels))
+        print('true_onehot:', np.array(true_onehot))
+        print("pred_softmax:", np.array(pred_softmax))
+        print("pred_labels:", np.array(pred_labels))
+        print('pred_onehot:', np.array(pred_onehot))
+        return {k: meter.global_avg for k, meter in metric_logger.meters.items()}, 0.0
+
+    conf = confusion_matrix(true_labels, pred_labels)
+    if eval_score == 'mcc':
+        score = mcc
+    elif eval_score == 'roc_auc':
+        score = roc_auc
+    else:
+        score = (f1 + roc_auc + kappa) / 3
+    metric_dict = {}
+    if log_writer:
+        for metric_name, value in zip(['accuracy', 'f1', 'roc_auc', 'hamming', 'jaccard', 'precision', 'recall', 'average_precision', 'kappa', 'mcc', 'specificity', 'score'],
+                                       [accuracy, f1, roc_auc, hamming, jaccard, precision, recall, average_precision, kappa, mcc, specificity, score]):
+            log_writer.add_scalar(f'perf/{metric_name}', value, epoch)
+            metric_dict[metric_name] = value
+
+    print(f'val loss: {metric_logger.meters["loss"].global_avg}')
+    print(f'Accuracy: {accuracy:.4f}, F1 Score: {f1:.4f}, ROC AUC: {roc_auc:.4f}, Hamming Loss: {hamming:.4f},\n'
+          f' Jaccard Score: {jaccard:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f},\n'
+          f' Average Precision: {average_precision:.4f}, Kappa: {kappa:.4f}, MCC: {mcc:.4f}, Specificity: {specificity:.4f}, Score: {score:.4f}')
+    print("confusion_matrix:\n", conf)
+    metric_logger.synchronize_between_processes()
+
+    results_path = os.path.join(args.output_dir, args.task, f'metrics_{mode}.csv')
+    file_exists = os.path.isfile(results_path)
+    with open(results_path, 'a', newline='', encoding='utf8') as cfa:
+        wf = csv.writer(cfa)
+        if not file_exists:
+            wf.writerow(['val_loss', 'accuracy', 'f1', 'roc_auc', 'hamming', 'jaccard', 'precision', 'recall', 'average_precision', 'kappa', 'mcc', 'specificity'])
+        wf.writerow([metric_logger.meters["loss"].global_avg, accuracy, f1, roc_auc, hamming, jaccard, precision, recall, average_precision, kappa, mcc, specificity])
+
+    if mode == 'test':
+        cm = ConfusionMatrix(actual_vector=true_labels, predict_vector=pred_labels)
+        cm.plot(cmap=plt.cm.Blues, number_label=True, normalized=True, plot_lib="matplotlib")
+        plt.savefig(os.path.join(args.output_dir, args.task, 'confusion_matrix_test.jpg'), dpi=600, bbox_inches='tight')
+
+    out_dict = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    out_dict.update(metric_dict)
+    return out_dict, score
+
 
 def get_args_parser():
     parser = argparse.ArgumentParser('MAE fine-tuning for image classification', add_help=False)

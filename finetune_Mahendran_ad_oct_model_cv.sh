@@ -36,13 +36,13 @@ case "$(basename "$SPLIT_DIR")" in
         esac ;;
 esac
 echo "Resolved SPLIT_DIR: $SPLIT_DIR  (TASK=$TASK)"
-# wandb tags (reference format "study3,<task>"): study id inferred from split path + task
+# wandb tags (reference format "study3,<task>,<period>"): study id inferred from split path + task, period (1yr/3yr/5yr/10yr) from launcher
 case "$SPLIT_DIR" in
     *study3*) STUDY_TAG=study3 ;;
     *study2*) STUDY_TAG=study2 ;;
     *)        STUDY_TAG="" ;;
 esac
-WANDB_TAGS="${STUDY_TAG:+$STUDY_TAG,}${TASK}"
+WANDB_TAGS="${STUDY_TAG:+$STUDY_TAG,}${TASK}${PERIOD:+,$PERIOD}"
 echo "wandb tags: $WANDB_TAGS"
 MODEL=${4:-"ad_oct_model"}
 FEATURE_CHANNELS=${5:-"256"}  # Number of feature channels (default: 256)
