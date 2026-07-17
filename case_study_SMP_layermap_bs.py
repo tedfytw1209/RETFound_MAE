@@ -106,6 +106,15 @@ dataset_fname = 'sampled_labels01.csv'
 dataset_dir = '/blue/ruogu.fang/tienyuchang/OCT_EDA'
 img_p_fmt = "label_%d/%s" #label index and oct_img name
 
+# Full test-split data source (main_XAI_evaluation.py-style --data_path/--img_dir/--use_split).
+# When DATA_PATH is set, load_sample_data() builds the dataset via util.datasets.build_dataset()
+# -- the same function main_XAI_evaluation.py calls -- and reads its full USE_SPLIT split,
+# instead of a hand-sampled subset.
+DATA_PATH = ""
+IMG_DIR = ""
+USE_SPLIT = "test"
+ARGS = None  # set in main(); passed through to build_dataset() for full-split loading
+
 # model
 Model_root = "/orange/ruogu.fang/tienyuchang/RETfound_results"
 Model_fname = "checkpoint-best.pth"
@@ -136,7 +145,20 @@ def masked_img_func(img, mask_slice):
 
 # Data loading and preprocessing functions
 def load_sample_data(task, num_sample=-1, save_mask=False):
-    """Load sample images for a given task"""
+    """Load images for a given task.
+
+    If DATA_PATH is set (main_XAI_evaluation.py-style --data_path/--img_dir), this loads the
+    full USE_SPLIT split (default 'test') of that CSV — the same dataset main_XAI_evaluation.py
+    evaluates on. Otherwise it falls back to the legacy hand-picked '<task>_sampled' folder.
+    Pass num_sample > 0 to still sub-sample for a quick look; -1 processes every image found.
+    """
+    if DATA_PATH:
+        return _load_full_split_data(task, num_sample=num_sample, save_mask=save_mask)
+    return _load_sampled_folder_data(task, num_sample=num_sample, save_mask=save_mask)
+
+
+def _load_sampled_folder_data(task, num_sample=-1, save_mask=False):
+    """(legacy) Load images from the hand-picked '<task>_sampled/<dataset_fname>' CSV/folder."""
     df = pd.read_csv(os.path.join(dataset_dir, "%s_sampled"%task, dataset_fname))
     if LOAD_MASK and 'Surface Name' not in df.columns:
         masked_df = pd.read_csv(Thickness_CSV)
@@ -149,12 +171,12 @@ def load_sample_data(task, num_sample=-1, save_mask=False):
         task_df = task_df.sample(n=num_sample, random_state=42).reset_index(drop=True)
     else:
         task_df = task_df.reset_index(drop=True)
-    
+
     images = []
     labels = []
     filenames = []
     mask_slices = []
-    
+
     for _, row in task_df.iterrows():
         # Extract just the filename from oct_img
         filename = os.path.basename(row['OCT']) if isinstance(row['OCT'], str) else row['OCT']
@@ -173,7 +195,7 @@ def load_sample_data(task, num_sample=-1, save_mask=False):
                     mask_slices.append(None)
             else:
                 mask_slices.append(None)
-            
+
             img_np = np.array(img)  # Convert PIL image to numpy array
             if IMG_MASK:
                 masked_img_np = masked_img_func(img_np, mask_slice)
@@ -181,20 +203,98 @@ def load_sample_data(task, num_sample=-1, save_mask=False):
                 images.append(masked_img)
             else:
                 images.append(img)
-            
+
             if save_mask:
                 binary_mask = _build_binary_mask(mask_slice, img_np)
                 mask_path = img_path.replace('.jpg','.npy')
                 layer_path = img_path.replace('.jpg','_layer.npy')
                 np.save(str(mask_path), binary_mask)
                 np.save(str(layer_path), mask_slice)
-            
-            
+
+
             labels.append(row['label'])
             # Store filename without extension for directory naming
             image_name = os.path.splitext(filename)[0]
             filenames.append(image_name)
 
+    return images, labels, filenames, mask_slices
+
+
+def _load_full_split_data(task, num_sample=-1, save_mask=False):
+    """Load images from the full USE_SPLIT split, built via util.datasets.build_dataset() --
+    the exact same function main_XAI_evaluation.py calls to construct its evaluation dataset --
+    instead of re-implementing CSV parsing/filtering by hand.
+
+    build_dataset()/CSV_Dataset_eval already resolves, per row: the image path, the mapped
+    class index, and (for the UF/IRB2024 cohort) the thickness-mask path, including the same
+    split filter and the "IRB2024_v5" thickness-CSV merge main_XAI_evaluation.py relies on. We
+    reuse its `.samples` list but bypass `__getitem__` (which returns normalized tensors for
+    model input) and instead load the raw image/mask ourselves, so the existing overlay/
+    layer-line visualization pipeline keeps working unchanged. Masks are only meaningful in
+    this (Layer, slice, W) curve format for the UF cohort; other cohorts (e.g. OCTDL) run with
+    --no_load_mask, same as the existing convention.
+    """
+    from util.datasets import build_dataset
+
+    is_uf = 'IRB2024_v5' in DATA_PATH
+    want_mask = bool(LOAD_MASK and is_uf)
+    # output_mask/add_mask/modality are read directly (not via getattr) inside build_dataset(),
+    # so make sure they exist on ARGS regardless of what this script's own CLI exposed.
+    ARGS.output_mask = want_mask
+    if not hasattr(ARGS, 'add_mask'):
+        ARGS.add_mask = False
+    if not hasattr(ARGS, 'use_img_per_patient'):
+        ARGS.use_img_per_patient = False
+    modality = getattr(ARGS, 'modality', 'OCT')
+
+    dataset = build_dataset(
+        is_train=USE_SPLIT, args=ARGS, k=0, img_dir=IMG_DIR,
+        transform=lambda x: x,  # identity: __getitem__ is bypassed, we only need .samples/.root_dir
+        modality=modality, eval_mode=True,
+    )
+
+    samples = dataset.samples
+    if num_sample > 0 and num_sample < len(samples):
+        idx = np.random.RandomState(42).choice(len(samples), size=num_sample, replace=False)
+        samples = [samples[i] for i in idx]
+
+    images = []
+    labels = []
+    filenames = []
+    mask_slices = []
+
+    for image_rel, label_idx, mask_rel in samples:
+        img_path = os.path.join(dataset.root_dir, image_rel)
+        if not os.path.exists(img_path):
+            continue
+
+        img = Image.open(img_path).convert('RGB')
+        mask_slice = None
+        if want_mask and mask_rel:
+            try:
+                mask_path = os.path.join(dataset.thickness_dir, mask_rel)
+                mask = np.load(mask_path)  # (Layer, slice, W)
+                slice_index = int(os.path.basename(img_path).split("_")[-1].split(".")[0])
+                mask_slice = mask[:, slice_index, :]  # shape: (Layer, W)
+            except Exception:
+                mask_slice = None
+
+        img_np = np.array(img)
+        if IMG_MASK and mask_slice is not None:
+            img = Image.fromarray(masked_img_func(img_np, mask_slice))
+
+        if save_mask and mask_slice is not None:
+            binary_mask = _build_binary_mask(mask_slice, img_np)
+            np.save(str(img_path).replace('.jpg', '.npy'), binary_mask)
+            np.save(str(img_path).replace('.jpg', '_layer.npy'), mask_slice)
+
+        images.append(img)
+        labels.append(label_idx)
+        filenames.append(os.path.splitext(os.path.basename(image_rel))[0])
+        mask_slices.append(mask_slice)
+
+    print(f"[full-split] task={task} split={USE_SPLIT} data_path={DATA_PATH} "
+          f"dataset_type={getattr(dataset, 'dataset_type', '?')} loaded={len(images)}/{len(dataset.samples)} images")
     return images, labels, filenames, mask_slices
 
 def preprocess_image(image, processor=None, input_size=224, device=None, dtype=torch.float32):
@@ -763,7 +863,7 @@ def get_args_parser():
     parser.add_argument('--finetune', default='', type=str, help='Finetune from checkpoint (main-style). For SMP: pretrained seg ckpt.')
     parser.add_argument('--task', default='DME', type=str, help='Task name(s). Supports comma/space separated list.')
     parser.add_argument('--theme', default='', type=str, help='Theme name for wandb')
-    parser.add_argument('--use_split', default='test', type=str, choices=['test', 'val', 'train'], help='(unused) main-style.')
+    parser.add_argument('--use_split', default='test', type=str, choices=['test', 'val', 'train'], help='Split to load when --data_path is set (full-dataset mode).')
     parser.add_argument('--input_size', default=512, type=int, help='Input image size.')
     parser.add_argument('--xai', default='gradcam', type=str, help='XAI method (main-style: attn/rise/gradcam/hirescam/scorecam/gradcam++/all).')
     parser.add_argument('--use_rollout', action='store_true', help='Use rollout (main-style).')
@@ -807,11 +907,16 @@ def get_args_parser():
     parser.add_argument('--select_index', type=int, default=-1, help='Select index for CAM methods (single index).')
 
     # ---- this script: dataset + sampling ----
-    parser.add_argument('--dataset_dir', type=str, default=dataset_dir, help='Root directory for dataset.')
-    parser.add_argument('--dataset_fname', type=str, default=dataset_fname, help='Dataset CSV filename.')
+    parser.add_argument('--dataset_dir', type=str, default=dataset_dir, help='(legacy) Root directory for the hand-sampled "<task>_sampled" dataset. Ignored if --data_path is set.')
+    parser.add_argument('--dataset_fname', type=str, default=dataset_fname, help='(legacy) Sampled dataset CSV filename. Ignored if --data_path is set.')
+    parser.add_argument('--data_path', type=str, default='', help='Full task CSV with a "split" column (main_XAI_evaluation.py-style). If set, loads the full --use_split split via util.datasets.build_dataset() instead of the "<task>_sampled" folder.')
+    parser.add_argument('--img_dir', type=str, default='', help='Root image directory for --data_path (main_XAI_evaluation.py-style). Required when --data_path is set.')
+    parser.add_argument('--modality', type=str, default='OCT', help='Modality passed to build_dataset() when --data_path is set (main_XAI_evaluation.py-style), e.g. OCT, CFP.')
+    parser.add_argument('--add_mask', action='store_true', default=False, help='(build_dataset()-required) Add mask to the image based on thickness map.')
+    parser.add_argument('--use_img_per_patient', action='store_true', default=False, help='(build_dataset()-required) Sample one image per patient.')
     parser.add_argument('--thickness_dir', type=str, default=Thickness_DIR, help='Directory for thickness mask data.')
     parser.add_argument('--thickness_csv', type=str, default=Thickness_CSV, help='CSV file for thickness mapping.')
-    parser.add_argument('--num_samples', type=int, default=-1, help='Number of samples to process. -1 for all.')
+    parser.add_argument('--num_samples', type=int, default=-1, help='Number of samples to process. -1 for all (i.e. the full split when --data_path is set).')
     parser.add_argument('--nb_classes', type=int, default=2, help='Number of classes for classification.')
 
     # ---- layer selection helpers ----
@@ -1168,11 +1273,17 @@ def main():
     print('Module select dict:', module_select_dict)
     
     # Update global paths based on arguments
-    global dataset_dir, dataset_fname, Thickness_DIR, Thickness_CSV, Model_root, Model_fname
+    global dataset_dir, dataset_fname, Thickness_DIR, Thickness_CSV, Model_root, Model_fname, DATA_PATH, IMG_DIR, USE_SPLIT, ARGS
     dataset_dir = args.dataset_dir
     dataset_fname = args.dataset_fname
     Thickness_DIR = args.thickness_dir
     Thickness_CSV = args.thickness_csv
+    DATA_PATH = args.data_path
+    IMG_DIR = args.img_dir
+    USE_SPLIT = args.use_split
+    ARGS = args  # passed through to util.datasets.build_dataset() for full-split loading
+    if DATA_PATH and not IMG_DIR:
+        raise ValueError('--img_dir is required when --data_path is set (full-split mode).')
     
     # Build model like main_XAI_evaluation.py and load --resume
     model_main, processor, patch_size = build_and_load_model_main_style(args)
