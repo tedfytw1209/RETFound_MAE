@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import json
+import random
 
 import numpy as np
 import pandas as pd
@@ -8,6 +9,7 @@ import os
 import time
 from pathlib import Path
 from scipy.ndimage import zoom
+from requests.exceptions import RequestException
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -352,11 +354,35 @@ def get_label_mappings(args):
         label2id = {v: k for k, v in id2label.items()}
     return id2label, label2id
 
+def _hf_call_with_retry(fn, *args, retries=5, base_delay=5.0, max_delay=60.0, **kwargs):
+    """Call a network-dependent Hugging Face Hub / timm loader (from_pretrained, hf_hub_download,
+    timm.create_model(pretrained=True), ...), retrying on transient connection failures (SSL
+    handshake resets, connection errors, timeouts) with exponential backoff.
+
+    Some HPC compute nodes have flaky or rate-limited routes to huggingface.co; without this,
+    a single dropped connection kills a multi-hour XAI evaluation job outright.
+    """
+    last_exc = None
+    for attempt in range(1, retries + 1):
+        try:
+            return fn(*args, **kwargs)
+        except (RequestException, OSError) as e:
+            last_exc = e
+            if attempt >= retries:
+                break
+            delay = min(max_delay, base_delay * (2 ** (attempt - 1))) + random.uniform(0, 1)
+            fn_name = getattr(fn, '__qualname__', getattr(fn, '__name__', str(fn)))
+            print(f"[HF Hub] {fn_name} attempt {attempt}/{retries} failed "
+                  f"({type(last_exc).__name__}: {last_exc}); retrying in {delay:.1f}s...")
+            time.sleep(delay)
+    raise last_exc
+
+
 def get_timm_model(args):
     import timm
     processor = None
     if 'efficientnet-b4' in args.model:
-        model = timm.create_model('efficientnet_b4', pretrained=True, num_classes=args.nb_classes)
+        model = _hf_call_with_retry(timm.create_model, 'efficientnet_b4', pretrained=True, num_classes=args.nb_classes)
         processor  = transforms.Compose([
             transforms.Resize((380,380)),
             transforms.ToTensor(),
@@ -392,8 +418,9 @@ def get_model(args):
     elif 'vit-base-patch16-224' in args.model:
         # ViT-base-patch16-224 preprocessor
         model_ = args.finetune if args.finetune else 'google/vit-base-patch16-224'
-        processor = TransformWrapper(ViTImageProcessor.from_pretrained(model_))
-        model = ViTForImageClassification.from_pretrained(
+        processor = TransformWrapper(_hf_call_with_retry(ViTImageProcessor.from_pretrained, model_))
+        model = _hf_call_with_retry(
+            ViTForImageClassification.from_pretrained,
             model_,
             image_size=args.input_size, #Not in tianhao code, default 224
             num_labels=args.nb_classes,
@@ -412,8 +439,9 @@ def get_model(args):
     elif 'efficientnet-b0' in args.model:
         # EfficientNet-B0 preprocessor
         model_ = args.finetune if args.finetune else 'google/efficientnet-b0'
-        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_))
-        model = EfficientNetForImageClassification.from_pretrained(
+        processor = TransformWrapper(_hf_call_with_retry(AutoImageProcessor.from_pretrained, model_))
+        model = _hf_call_with_retry(
+            EfficientNetForImageClassification.from_pretrained,
             model_,
             image_size=args.input_size,
             num_labels=args.nb_classes,
@@ -425,8 +453,9 @@ def get_model(args):
     elif 'efficientnet-b4' in args.model:
         # EfficientNet-B0 preprocessor
         model_ = args.finetune if args.finetune else 'google/efficientnet-b4'
-        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_))
-        model = EfficientNetForImageClassification.from_pretrained(
+        processor = TransformWrapper(_hf_call_with_retry(AutoImageProcessor.from_pretrained, model_))
+        model = _hf_call_with_retry(
+            EfficientNetForImageClassification.from_pretrained,
             model_,
             image_size=args.input_size,
             num_labels=args.nb_classes,
@@ -437,8 +466,9 @@ def get_model(args):
         )
     elif 'resnet-50' in args.model:
         model_name = args.finetune if args.finetune else 'microsoft/resnet-50'
-        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_name))
-        model = ResNetForImageClassification.from_pretrained(
+        processor = TransformWrapper(_hf_call_with_retry(AutoImageProcessor.from_pretrained, model_name))
+        model = _hf_call_with_retry(
+            ResNetForImageClassification.from_pretrained,
             model_name,
             num_labels=args.nb_classes,
             id2label=id2label,
@@ -449,8 +479,8 @@ def get_model(args):
         model = ReLayNet(num_classes=args.nb_classes)
     elif 'dinov3' in args.model:
         model_name = f"facebook/{args.finetune}" if args.finetune else "facebook/dinov3-vitl16-pretrain-lvd1689m"
-        processor = TransformWrapper(AutoImageProcessor.from_pretrained(model_name))
-        feature_extractor = AutoModel.from_pretrained(model_name)
+        processor = TransformWrapper(_hf_call_with_retry(AutoImageProcessor.from_pretrained, model_name))
+        feature_extractor = _hf_call_with_retry(AutoModel.from_pretrained, model_name)
         model = models.DinoV3Classifier(feature_extractor, num_labels=args.nb_classes)
         patch_size = 16
     elif args.model.startswith('vig'):
@@ -503,7 +533,8 @@ def get_model(args):
     if args.finetune and not args.eval:
         if 'RETFound' in args.model: 
             print(f"Downloading pre-trained weights from: {args.finetune}")
-            checkpoint_path = hf_hub_download(
+            checkpoint_path = _hf_call_with_retry(
+                hf_hub_download,
                 repo_id=f'YukunZhou/{args.finetune}',
                 filename=f'{args.finetune}.pth',
             )
