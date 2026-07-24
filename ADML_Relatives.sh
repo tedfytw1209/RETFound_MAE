@@ -4,23 +4,28 @@
 ## (see ADML_Relatives2.sh for study3)
 ##
 ## Usage:
-##   bash ADML_Relatives.sh [TASK] [CW_MODE] [CLEAN] [START_FOLD]
+##   bash ADML_Relatives.sh [TASK] [CW_MODE] [CLEAN] [START_FOLD] [TAGS]
 ##     TASK       : ad_control | mci_control | ad_mci_control  (default: ad_control)
 ##     CW_MODE    : none | cw    (add class weighting)         (default: none)
 ##     CLEAN      : clean | raw  (disease-clean vs original)   (default: clean)
 ##     START_FOLD : resume CV from this fold                   (default: 0)
+##     TAGS       : comma-separated manual wandb tags, merged in addition
+##                  to the auto-derived study/task/period tags  (default: none)
 ##
 ## Examples:
 ##   bash ADML_Relatives.sh ad_control              # study2 disease-clean, ad_control
 ##   bash ADML_Relatives.sh ad_control cw           # + class weighting
 ##   bash ADML_Relatives.sh ad_control none raw     # original (non-disease-clean) study2
 ##   bash ADML_Relatives.sh ad_mci_control cw       # 3-class, class-weighted
+##   bash ADML_Relatives.sh ad_control none clean 0 rerun,sanity-check  # + manual tags
 
 TASK=${1:-ad_control}         # ad_control | mci_control | ad_mci_control
 CW_MODE=${2:-none}            # none | cw
 CLEAN=${3:-clean}            # clean | raw
 START_FOLD=${4:-0}
+TAGS=${5:-}                   # manual comma-separated wandb tags (merged with auto tags)
 if [ "$CW_MODE" = "cw" ]; then CW="--class_weight"; else CW=""; fi
+export EXTRA_TAGS="$TAGS"     # inherited by sbatch jobs; merged into WANDB_TAGS downstream
 
 # ------------------------------------------------------------------
 # Derived: number of classes + split subdir per task
@@ -53,6 +58,7 @@ SPLIT_DIR=${SPLIT_BASE}/${SUBDIR}
 echo "STUDY2  TASK=$TASK  NUM_CLASS=$NUM_CLASS  STUDY=$STUDY  CLEAN=$CLEAN  CW='${CW}'"
 echo "DATA=$DATA"
 echo "SPLIT_DIR=$SPLIT_DIR"
+echo "EXTRA_TAGS=$EXTRA_TAGS"
 
 # ------------------------------------------------------------------
 # Submit one job per relative model (uncomment the ones you want to run)

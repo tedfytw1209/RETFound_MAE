@@ -40,7 +40,7 @@ case "$SPLIT_DIR" in
     *study2*) STUDY_TAG=study2 ;;
     *)        STUDY_TAG="" ;;
 esac
-WANDB_TAGS="${STUDY_TAG:+$STUDY_TAG,}${TASK}${PERIOD:+,$PERIOD}"
+WANDB_TAGS="${STUDY_TAG:+$STUDY_TAG,}${TASK}${PERIOD:+,$PERIOD}${EXTRA_TAGS:+,$EXTRA_TAGS}"
 echo "wandb tags: $WANDB_TAGS"
 MODEL=${4:-"resnet18_paper"}
 FINETUNED_MODEL=$MODEL

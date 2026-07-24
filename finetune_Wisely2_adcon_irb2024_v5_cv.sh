@@ -40,7 +40,7 @@ case "$SPLIT_DIR" in
     *study2*) STUDY_TAG=study2 ;;
     *)        STUDY_TAG="" ;;
 esac
-WANDB_TAGS="${STUDY_TAG:+$STUDY_TAG,}${TASK}${PERIOD:+,$PERIOD}"
+WANDB_TAGS="${STUDY_TAG:+$STUDY_TAG,}${TASK}${PERIOD:+,$PERIOD}${EXTRA_TAGS:+,$EXTRA_TAGS}"
 echo "wandb tags: $WANDB_TAGS"
 MODEL=${4:-"dual_input_cnn"}
 INPUT_MODE=${5:-"images_only"} # all, images_only, gc_ipl_only, octa_only, quantitative_only, gc_ipl_quantitative, octa_quantitative
