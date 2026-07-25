@@ -4,20 +4,25 @@
 ## (see ADML_Relatives2.sh for study3)
 ##
 ## Usage:
-##   bash ADML_Relatives.sh [TASK] [CW_MODE] [CLEAN] [START_FOLD]
+##   bash ADML_Relatives.sh [TASK] [CW_MODE] [CLEAN] [START_FOLD] [TAGS]
 ##     TASK       : ad_control | mci_control | ad_mci_control  (default: ad_control)
 ##     CW_MODE    : none | cw    (add class weighting)         (default: none)
 ##     CLEAN      : clean | raw  (disease-clean vs original)   (default: clean)
 ##     START_FOLD : resume CV from this fold                   (default: 0)
+##     TAGS       : comma-separated manual wandb tags, merged in addition
+##                  to the auto-derived study/task/period tags  (default: none)
 ##
 ## Examples:
 ##   bash ADML_Relatives_tmp.sh mci_control none clean       # 2-class, class-weighted
+##   bash ADML_Relatives_tmp.sh mci_control none clean 0 rerun,sanity-check  # + manual tags
 
 TASK=${1:-ad_control}         # ad_control | mci_control | ad_mci_control
 CW_MODE=${2:-none}            # none | cw
 CLEAN=${3:-clean}            # clean | raw
 START_FOLD=${4:-0}
+TAGS=${5:-}                   # manual comma-separated wandb tags (merged with auto tags)
 if [ "$CW_MODE" = "cw" ]; then CW="--class_weight"; else CW=""; fi
+export EXTRA_TAGS="$TAGS"     # inherited by sbatch jobs; merged into WANDB_TAGS downstream
 
 # ------------------------------------------------------------------
 # Derived: number of classes + split subdir per task
@@ -50,13 +55,14 @@ SPLIT_DIR=${SPLIT_BASE}/${SUBDIR}
 echo "STUDY2  TASK=$TASK  NUM_CLASS=$NUM_CLASS  STUDY=$STUDY  CLEAN=$CLEAN  CW='${CW}'"
 echo "DATA=$DATA"
 echo "SPLIT_DIR=$SPLIT_DIR"
+echo "EXTRA_TAGS=$EXTRA_TAGS"
 
 # ------------------------------------------------------------------
 # Submit one job per relative model (uncomment the ones you want to run)
 # ------------------------------------------------------------------
 
 #Jacq (convnext_tiny, thickness)
-#sbatch finetune_Jacqueline_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR convnext_tiny 128 1e-3 5e-4 $NUM_CLASS 0 0.001 0.2 $START_FOLD $CW
+sbatch finetune_Jacqueline_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR convnext_tiny 64 1e-3 5e-4 $NUM_CLASS 0 0.001 0.2 $START_FOLD $CW
 
 #Wisely (resnet18_paper, thickness)
 #sbatch finetune_Wisely_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR resnet18_paper 0.01 1e-3 0.01 $NUM_CLASS 0 9 $CW
@@ -65,10 +71,10 @@ echo "SPLIT_DIR=$SPLIT_DIR"
 #sbatch finetune_Mahendran_ad_oct_model_cv.sh $STUDY $DATA $SPLIT_DIR ad_oct_model 256 3 false 7e-5 1e-2 $NUM_CLASS 2 $CW
 
 #hebei (ducan, dual)
-sbatch finetune_Hebei_admci_detection_cv.sh $STUDY $DATA $SPLIT_DIR ducan 0.7 0.7 1.0 3e-4 1e-2 $NUM_CLASS $START_FOLD $CW
+#sbatch finetune_Hebei_admci_detection_cv.sh $STUDY $DATA $SPLIT_DIR ducan 0.7 0.7 1.0 3e-4 1e-2 $NUM_CLASS $START_FOLD $CW
 
 #Wisely2 (dual_input_cnn, images_only)
-sbatch finetune_Wisely2_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR dual_input_cnn images_only 0.01 1e-4 0.01 $NUM_CLASS 0 10 $START_FOLD $CW
+#sbatch finetune_Wisely2_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR dual_input_cnn images_only 0.01 1e-4 0.01 $NUM_CLASS 0 10 $START_FOLD $CW
 
 # ==================================================================
 # Reference: original study2 invocations (verbatim)
