@@ -686,6 +686,9 @@ def get_label_mappings(args):
     task = args.task
     if 'ad_mci_control' in task:
         id2label = {0: "control", 1: "mci", 2: "ad"}
+    elif 'ad_rest' in task:
+        # mci is folded into the negative class at the dataset level (see build_dataset)
+        id2label = {0: "rest", 1: "ad"}
     elif 'mci_control' in task:
         id2label = {0: "control", 1: "mci"}
     elif 'ad_control' in task:
@@ -1514,6 +1517,17 @@ def build_transform3(is_train, args):
 def main(args, criterion):
 
     misc.init_distributed_mode(args)
+
+    # ad_rest task: binary AD vs REST (mci+control folded into the negative class).
+    # There is no dedicated ad_rest_detect_data.csv, so redirect to the ad_control one;
+    # build_dataset() (see util/datasets.py) uses args.ad_rest to fold mci into control.
+    args.ad_rest = 'ad_rest' in args.task
+    if args.ad_rest and args.data_path.endswith('.csv'):
+        redirected_path = args.data_path.replace('ad_rest_detect_data', 'ad_control_detect_data')
+        if redirected_path != args.data_path:
+            print(f"[ad_rest] Redirecting data_path {args.data_path} -> {redirected_path} "
+                  f"(mci+control treated as negative class)")
+            args.data_path = redirected_path
 
     # Multi-class tasks (e.g. ad_mci_control) drive multiclass fairness/uncertainty handling.
     if args.nb_classes > 2 and args.outcome_flag == 'binary':

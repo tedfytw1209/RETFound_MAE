@@ -5,7 +5,10 @@
 ##
 ## Usage:
 ##   bash ADML_Relatives.sh [TASK] [CW_MODE] [CLEAN] [START_FOLD] [TAGS]
-##     TASK       : ad_control | mci_control | ad_mci_control  (default: ad_control)
+##     TASK       : ad_control | mci_control | ad_mci_control | ad_rest  (default: ad_control)
+##                  ad_rest = binary AD-vs-REST: reuses ad_control_detect_data.csv but
+##                  treats both mci and control rows as the negative class (see
+##                  main_finetune_Chua_Jacqueline.py's ad_rest handling)
 ##     CW_MODE    : none | cw    (add class weighting)         (default: none)
 ##     CLEAN      : clean | raw  (disease-clean vs original)   (default: clean)
 ##     START_FOLD : resume CV from this fold                   (default: 0)
@@ -18,6 +21,7 @@
 ##   bash ADML_Relatives.sh ad_control none raw     # original (non-disease-clean) study2
 ##   bash ADML_Relatives.sh ad_mci_control cw       # 3-class, class-weighted
 ##   bash ADML_Relatives.sh ad_control none clean 0 rerun,sanity-check  # + manual tags
+##   bash ADML_Relatives.sh ad_rest                 # study2 disease-clean, AD-vs-rest (mci+control)
 
 TASK=${1:-ad_control}         # ad_control | mci_control | ad_mci_control
 CW_MODE=${2:-none}            # none | cw
@@ -32,14 +36,18 @@ export EXTRA_TAGS="$TAGS"     # inherited by sbatch jobs; merged into WANDB_TAGS
 #   ad_control     -> 2 classes, split
 #   mci_control    -> 2 classes, split_mcicon
 #   ad_mci_control -> 3 classes, split_admcicon
+#   ad_rest        -> 2 classes, split_admcicon (needs mci patients present to relabel as negative)
 # ------------------------------------------------------------------
 case "$TASK" in
     ad_control)     NUM_CLASS=2; SUBDIR=split ;;
     mci_control)    NUM_CLASS=2; SUBDIR=split_mcicon ;;
     ad_mci_control) NUM_CLASS=3; SUBDIR=split_admcicon ;;
-    *) echo "Unknown TASK: $TASK (use ad_control | mci_control | ad_mci_control)"; exit 1 ;;
+    ad_rest)        NUM_CLASS=2; SUBDIR=split_admcicon ;;
+    *) echo "Unknown TASK: $TASK (use ad_control | mci_control | ad_mci_control | ad_rest)"; exit 1 ;;
 esac
 STUDY=${TASK}_detect_data     # CSV base name, e.g. ad_control_detect_data.csv
+                              # (ad_rest -> ad_rest_detect_data; main_finetune_Chua_Jacqueline.py
+                              #  redirects this to ad_control_detect_data.csv at load time)
 
 # ------------------------------------------------------------------
 # Study2 split + data locations (disease-clean vs original/raw).

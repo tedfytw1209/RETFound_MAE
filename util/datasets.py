@@ -237,7 +237,7 @@ Thickness_DIR = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 Thickness_CSV = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/thickness_map.csv"
 
 class CSV_Dataset(Dataset):
-    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=[], pid_key = 'patient_id', select_layers=None,th_resize=True,th_heatmap=False, use_ducan_preprocessing=False, thickness_dir=Thickness_DIR, add_mask=False, output_mask=False, mask_transforms=None, use_img_per_patient=False, CV=False):
+    def __init__(self,csv_file,img_dir,is_train,transfroms=[],k=0,class_to_idx={}, modality='OCT', patient_ids=[], pid_key = 'patient_id', select_layers=None,th_resize=True,th_heatmap=False, use_ducan_preprocessing=False, thickness_dir=Thickness_DIR, add_mask=False, output_mask=False, mask_transforms=None, use_img_per_patient=False, CV=False, label_remap=None):
         #common args
         self.transfroms = transfroms
         self.root_dir = img_dir
@@ -275,6 +275,11 @@ class CSV_Dataset(Dataset):
         if use_img_per_patient and pid_key in self.annotations.columns:
             self.annotations = self.annotations.drop_duplicates(subset=[pid_key,'eye']).reset_index(drop=True)
             print('After random selection of two image per patient, data len: ', self.annotations.shape[0])
+        if label_remap:
+            # e.g. {'mci': 'control'} for the ad_rest task: fold mci into the negative class
+            # so downstream class_to_idx (AD_LIST-ordered) collapses to a binary ad-vs-rest split.
+            self.annotations['label'] = self.annotations['label'].replace(label_remap)
+            print('After label_remap ', label_remap, ' data len: ', self.annotations.shape[0])
         self.classes = [str(c) for c in self.annotations['label'].unique()]
         self.num_class = len(self.classes)
         #add mask, filter out samples without mask
@@ -598,19 +603,22 @@ def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_A
         csv_func = CSV_Dataset
     
     output_mask = False if not hasattr(args, 'output_mask') else args.output_mask
+    # ad_rest task: reuses the ad_control_detect_data.csv rows (see main's redirect of
+    # args.data_path) but folds mci into the negative ('control') class -> binary ad-vs-rest.
+    label_remap = {'mci': 'control'} if getattr(args, 'ad_rest', False) else None
     if 'dual_input_cnn'  in args.model: #Dual model special dataset
         img_dir_oct = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
         img_dir_cfp = "/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
-        dataset_oct = csv_func(args.data_path, img_dir_oct, is_train, transform, k, modality="Thickness", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, output_mask=output_mask, use_img_per_patient=args.use_img_per_patient, CV=CV)
-        dataset_cfp = csv_func(args.data_path, img_dir_cfp, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_img_per_patient=args.use_img_per_patient, CV=CV)
+        dataset_oct = csv_func(args.data_path, img_dir_oct, is_train, transform, k, modality="Thickness", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, output_mask=output_mask, use_img_per_patient=args.use_img_per_patient, CV=CV, label_remap=label_remap)
+        dataset_cfp = csv_func(args.data_path, img_dir_cfp, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_img_per_patient=args.use_img_per_patient, CV=CV, label_remap=label_remap)
         dataset = DualCSV_Dataset(dataset_oct, dataset_cfp)
     elif 'ducan' in args.model: #DuCAN dual-modal dataset
         # DuCAN requires both fundus and OCT images with specialized preprocessing
-        dataset_oct = csv_func(args.data_path, img_dir, is_train, transform, k, modality="OCT", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True,add_mask=args.add_mask, output_mask=output_mask, mask_transforms=mask_transforms, use_img_per_patient=args.use_img_per_patient, CV=CV)
-        dataset_fundus = csv_func(args.data_path, img_dir, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True, use_img_per_patient=args.use_img_per_patient, CV=CV)
+        dataset_oct = csv_func(args.data_path, img_dir, is_train, transform, k, modality="OCT", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True,add_mask=args.add_mask, output_mask=output_mask, mask_transforms=mask_transforms, use_img_per_patient=args.use_img_per_patient, CV=CV, label_remap=label_remap)
+        dataset_fundus = csv_func(args.data_path, img_dir, is_train, transform, k, modality="CFP", patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, use_ducan_preprocessing=True, use_img_per_patient=args.use_img_per_patient, CV=CV, label_remap=label_remap)
         dataset = DualCSV_Dataset(dataset_fundus, dataset_oct)  # Note: fundus first, OCT second for DuCAN
     elif args.data_path.endswith('.csv'):
-        dataset = csv_func(args.data_path, img_dir, is_train, transform, k, modality=modality, patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, thickness_dir=args.thickness_dir, add_mask=args.add_mask, output_mask=output_mask, mask_transforms=mask_transforms, use_img_per_patient=args.use_img_per_patient, CV=CV)
+        dataset = csv_func(args.data_path, img_dir, is_train, transform, k, modality=modality, patient_ids=patient_ids, pid_key=pid_key, select_layers=select_layers, th_resize=th_resize, th_heatmap=th_heatmap, thickness_dir=args.thickness_dir, add_mask=args.add_mask, output_mask=output_mask, mask_transforms=mask_transforms, use_img_per_patient=args.use_img_per_patient, CV=CV, label_remap=label_remap)
     else:
         root = os.path.join(args.data_path, is_train)
         dataset = datasets.ImageFolder(root, transform=transform)

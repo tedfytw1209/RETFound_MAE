@@ -5,7 +5,10 @@
 ##
 ## Usage:
 ##   bash ADML_Relatives2.sh [TASK] [DATA] [PERIOD] [CW_MODE] [START_FOLD]
-##     TASK       : ad_control | mci_control | ad_mci_control  (default: ad_mci_control)
+##     TASK       : ad_control | mci_control | ad_mci_control | ad_rest  (default: ad_mci_control)
+##                  ad_rest = binary AD-vs-REST: reuses ad_control_detect_data.csv but
+##                  treats both mci and control rows as the negative class (see
+##                  main_finetune_Chua_Jacqueline.py's ad_rest handling)
 ##     DATA       : path to study3 data folder                 (default: IRB2024v5_ADCON_DL_study3_retinaf_1yr)
 ##     PERIOD     : split period, e.g. 1yr                     (default: 1yr)
 ##     CW_MODE    : none | cw    (add class weighting)         (default: none)
@@ -15,6 +18,7 @@
 ##   bash ADML_Relatives2.sh ad_control IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr
 ##   bash ADML_Relatives2.sh mci_control IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr
 ##   bash ADML_Relatives2.sh ad_mci_control IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr cw    # 3-class, class-weighted
+##   bash ADML_Relatives2.sh ad_rest IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr               # AD-vs-rest (mci+control)
 
 TASK=${1:-ad_mci_control}     # ad_control | mci_control | ad_mci_control
 DATA=${2:-IRB2024v5_ADCON_DL_study3_retinaf_1yr}  # default study3 data folder
@@ -28,14 +32,18 @@ if [ "$CW_MODE" = "cw" ]; then CW="--class_weight"; else CW=""; fi
 #   ad_control     -> 2 classes, split
 #   mci_control    -> 2 classes, split_mcicon
 #   ad_mci_control -> 3 classes, split_admcicon
+#   ad_rest        -> 2 classes, split_admcicon (needs mci patients present to relabel as negative)
 # ------------------------------------------------------------------
 case "$TASK" in
     ad_control)     NUM_CLASS=2; SUBDIR=split ;;
     mci_control)    NUM_CLASS=2; SUBDIR=split_mcicon ;;
     ad_mci_control) NUM_CLASS=3; SUBDIR=split_admcicon ;;
-    *) echo "Unknown TASK: $TASK (use ad_control | mci_control | ad_mci_control)"; exit 1 ;;
+    ad_rest)        NUM_CLASS=2; SUBDIR=split_admcicon ;;
+    *) echo "Unknown TASK: $TASK (use ad_control | mci_control | ad_mci_control | ad_rest)"; exit 1 ;;
 esac
 STUDY=${TASK}_detect_data     # CSV base name, e.g. ad_mci_control_detect_data.csv
+                              # (ad_rest -> ad_rest_detect_data; main_finetune_Chua_Jacqueline.py
+                              #  redirects this to ad_control_detect_data.csv at load time)
 
 # ------------------------------------------------------------------
 # Study3 (disease-clean) split + data locations.
