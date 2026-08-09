@@ -15,6 +15,7 @@
 ##   bash ADML_Relatives2_tmp.sh ad_control IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr
 ##   bash ADML_Relatives2_tmp.sh mci_control IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr
 ##   bash ADML_Relatives2_tmp.sh ad_mci_control IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr cw    # 3-class, class-weighted
+##  bash ADML_Relatives2_tmp.sh ad_rest IRB2024v5_ADCON_DL_study3_retinaf_1yr 1yr               # AD-vs-rest (mci+control)  
 
 TASK=${1:-ad_mci_control}     # ad_control | mci_control | ad_mci_control
 DATA=${2:-IRB2024v5_ADCON_DL_study3_retinaf_1yr}  # default study3 data folder
@@ -33,6 +34,7 @@ case "$TASK" in
     ad_control)     NUM_CLASS=2; SUBDIR=split ;;
     mci_control)    NUM_CLASS=2; SUBDIR=split_mcicon ;;
     ad_mci_control) NUM_CLASS=3; SUBDIR=split_admcicon ;;
+    ad_rest)        NUM_CLASS=2; SUBDIR=split_admcicon ;;
     *) echo "Unknown TASK: $TASK (use ad_control | mci_control | ad_mci_control)"; exit 1 ;;
 esac
 STUDY=${TASK}_detect_data     # CSV base name, e.g. ad_mci_control_detect_data.csv
@@ -62,13 +64,13 @@ echo "SPLIT_DIR=$SPLIT_DIR"
 #sbatch finetune_Jacqueline_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR convnext_tiny 64 1e-3 5e-4 $NUM_CLASS 0 0.001 0.2 $START_FOLD $CW
 
 #Wisely (resnet18_paper, thickness)
-sbatch finetune_Wisely_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR resnet18_paper 0.01 1e-3 0.01 $NUM_CLASS 0 5 $CW
+sbatch finetune_Wisely_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR resnet18_paper 0.01 1e-3 0.01 $NUM_CLASS 0 8 $CW
 
 #Mahendran (ad_oct_model, OCT)
 #sbatch finetune_Mahendran_ad_oct_model_cv.sh $STUDY $DATA $SPLIT_DIR ad_oct_model 256 3 false 7e-5 1e-2 $NUM_CLASS $START_FOLD $CW
 
 #hebei (ducan, dual)
-sbatch finetune_Hebei_admci_detection_cv.sh $STUDY $DATA $SPLIT_DIR ducan 0.7 0.7 1.0 3e-4 1e-2 $NUM_CLASS 0 $CW
+sbatch finetune_Hebei_admci_detection_cv.sh $STUDY $DATA $SPLIT_DIR ducan 0.7 0.7 1.0 3e-4 1e-2 $NUM_CLASS 8 $CW
 
 #Wisely2 (dual_input_cnn, images_only)
 #sbatch finetune_Wisely2_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR dual_input_cnn images_only 0.01 1e-4 0.01 $NUM_CLASS 0 10 5 $CW
