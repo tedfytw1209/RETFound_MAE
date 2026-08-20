@@ -1761,6 +1761,15 @@ def main(args, criterion):
     
     #for weighted loss
     if args.loss_weight or args.class_weight:
+        if len(dataset_train.classes) != args.nb_classes:
+            raise RuntimeError(
+                f"dataset_train has {len(dataset_train.classes)} classes {dataset_train.classes} "
+                f"(class_to_idx={dataset_train.class_to_idx}) but args.nb_classes={args.nb_classes}. "
+                f"The model outputs args.nb_classes logits, so the per-class weight tensor must match "
+                f"that count. For ad_rest, this means label_remap did not fully collapse 'mci' into "
+                f"'control' -- check the '[<modality>] label value_counts BEFORE/AFTER remap' log lines "
+                f"above for the raw label values actually present."
+            )
         train_target = np.array(dataset_train.targets)
         train_weight = np.zeros(len(dataset_train.classes))
         class_idx = [dataset_train.class_to_idx[c] for c in dataset_train.classes]

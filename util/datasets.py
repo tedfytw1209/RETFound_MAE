@@ -278,10 +278,13 @@ class CSV_Dataset(Dataset):
         if label_remap:
             # e.g. {'mci': 'control'} for the ad_rest task: fold mci into the negative class
             # so downstream class_to_idx (AD_LIST-ordered) collapses to a binary ad-vs-rest split.
+            print(f'[{modality}] label value_counts BEFORE remap:\n{self.annotations["label"].value_counts(dropna=False)}')
             self.annotations['label'] = self.annotations['label'].replace(label_remap)
             print('After label_remap ', label_remap, ' data len: ', self.annotations.shape[0])
+            print(f'[{modality}] label value_counts AFTER remap:\n{self.annotations["label"].value_counts(dropna=False)}')
         self.classes = [str(c) for c in self.annotations['label'].unique()]
         self.num_class = len(self.classes)
+        print(f'[{modality}] self.classes (post-remap unique labels): {self.classes}')
         #add mask, filter out samples without mask
         self.add_mask = add_mask
         self.output_mask = output_mask
