@@ -74,7 +74,7 @@ echo "EXTRA_TAGS=$EXTRA_TAGS"
 
 #Jacq (convnext_tiny, thickness)
 echo "sbatch finetune_Jacqueline_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR convnext_tiny 64 1e-3 5e-4 $NUM_CLASS 0 0.001 0.2 $START_FOLD $CW"
-#sbatch finetune_Jacqueline_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR convnext_tiny 64 1e-3 5e-4 $NUM_CLASS 0 0.001 0.2 $START_FOLD $CW
+sbatch finetune_Jacqueline_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR convnext_tiny 64 1e-3 5e-4 $NUM_CLASS 0 0.001 0.2 $START_FOLD $CW
 
 #Wisely (resnet18_paper, thickness)
 echo "sbatch finetune_Wisely_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR resnet18_paper 0.01 1e-3 0.01 $NUM_CLASS 0 $START_FOLD $CW"
