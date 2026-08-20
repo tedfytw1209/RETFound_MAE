@@ -1523,7 +1523,7 @@ def main(args, criterion):
     # build_dataset() (see util/datasets.py) uses args.ad_rest to fold mci into control.
     args.ad_rest = 'ad_rest' in args.task
     if args.ad_rest and args.data_path.endswith('.csv'):
-        redirected_path = args.data_path.replace('ad_rest_detect_data', 'ad_control_detect_data')
+        redirected_path = args.data_path.replace('ad_rest_detect_data', 'ad_mci_control_detect_data')
         if redirected_path != args.data_path:
             print(f"[ad_rest] Redirecting data_path {args.data_path} -> {redirected_path} "
                   f"(mci+control treated as negative class)")
