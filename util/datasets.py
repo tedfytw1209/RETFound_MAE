@@ -306,8 +306,11 @@ class CSV_Dataset(Dataset):
                     self.class_to_idx[c] = i
                     i+=1
             if i==0: #not in AD_LIST
-                for c in sorted(self.classes):
-                    self.class_to_idx[c] = int(c)
+                # Assign contiguous indices by sorted numeric code rather than using the raw
+                # code as the index -- after ad_rest's label_remap folds one code into another,
+                # the surviving codes are no longer 0..N-1 contiguous (e.g. {0,2} once 1->0).
+                for idx, c in enumerate(sorted(self.classes, key=int)):
+                    self.class_to_idx[c] = idx
         else:
             self.class_to_idx = class_to_idx
         print('Class to idx: ', self.class_to_idx)
@@ -608,7 +611,10 @@ def build_dataset(is_train, args, k=0, img_dir = '/orange/bianjiang/tienyu/OCT_A
     output_mask = False if not hasattr(args, 'output_mask') else args.output_mask
     # ad_rest task: reuses the ad_control_detect_data.csv rows (see main's redirect of
     # args.data_path) but folds mci into the negative ('control') class -> binary ad-vs-rest.
-    label_remap = {'mci': 'control'} if getattr(args, 'ad_rest', False) else None
+    # The IRB2024 CSVs store 'label' as AD_LIST-ordered integer codes (0=control,1=mci,2=ad),
+    # not the string names, so the remap must key on both forms -- Series.replace() silently
+    # no-ops on keys absent from the column, so including both is safe regardless of encoding.
+    label_remap = {'mci': 'control', AD_LIST.index('mci'): AD_LIST.index('control')} if getattr(args, 'ad_rest', False) else None
     if 'dual_input_cnn'  in args.model: #Dual model special dataset
         img_dir_oct = "/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
         img_dir_cfp = "/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
