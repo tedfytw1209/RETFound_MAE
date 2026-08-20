@@ -38,7 +38,7 @@ case "$TASK" in
     ad_control)     NUM_CLASS=2; SUBDIR=split ;;
     mci_control)    NUM_CLASS=2; SUBDIR=split_mcicon ;;
     ad_mci_control) NUM_CLASS=3; SUBDIR=split_admcicon ;;
-    ad_rest)        NUM_CLASS=2; SUBDIR=split_admcicon ;;
+    ad_rest)        NUM_CLASS=2; SUBDIR=split_adrest ;;
     *) echo "Unknown TASK: $TASK (use ad_control | mci_control | ad_mci_control | ad_rest)"; exit 1 ;;
 esac
 STUDY=${TASK}_detect_data     # CSV base name, e.g. ad_mci_control_detect_data.csv

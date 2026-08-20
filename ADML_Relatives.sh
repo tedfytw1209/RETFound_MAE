@@ -36,13 +36,13 @@ export EXTRA_TAGS="$TAGS"     # inherited by sbatch jobs; merged into WANDB_TAGS
 #   ad_control     -> 2 classes, split
 #   mci_control    -> 2 classes, split_mcicon
 #   ad_mci_control -> 3 classes, split_admcicon
-#   ad_rest        -> 2 classes, split_admcicon (needs mci patients present to relabel as negative)
+#   ad_rest        -> 2 classes, split_adrest (needs mci patients present to relabel as negative)
 # ------------------------------------------------------------------
 case "$TASK" in
     ad_control)     NUM_CLASS=2; SUBDIR=split ;;
     mci_control)    NUM_CLASS=2; SUBDIR=split_mcicon ;;
     ad_mci_control) NUM_CLASS=3; SUBDIR=split_admcicon ;;
-    ad_rest)        NUM_CLASS=2; SUBDIR=split_admcicon ;;
+    ad_rest)        NUM_CLASS=2; SUBDIR=split_adrest ;;
     *) echo "Unknown TASK: $TASK (use ad_control | mci_control | ad_mci_control | ad_rest)"; exit 1 ;;
 esac
 STUDY=${TASK}_detect_data     # CSV base name, e.g. ad_control_detect_data.csv
