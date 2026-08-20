@@ -191,7 +191,7 @@ def train_one_epoch(
                                        [accuracy, f1, roc_auc, kappa, mcc]):
             train_stats[metric_name] = value
     print(f'Accuracy: {accuracy:.4f}, F1 Score: {f1:.4f}')
-    print("confusion_matrix:\n", conf)
+    print("Train confusion_matrix:\n", conf)
     return train_stats
 
 @torch.no_grad()
@@ -267,7 +267,8 @@ def evaluate(data_loader, model, device, args, epoch, mode, num_class, k, log_wr
     print(f'Accuracy: {accuracy:.4f}, F1 Score: {f1:.4f}, ROC AUC: {roc_auc:.4f}, Hamming Loss: {hamming:.4f},\n'
           f' Jaccard Score: {jaccard:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f},\n'
           f' Average Precision: {average_precision:.4f}, Kappa: {kappa:.4f}, MCC: {mcc:.4f}, Score: {score:.4f}')
-    print("confusion_matrix:\n", conf)
+    mode_label = {'train': 'Train', 'val': 'Valid', 'test': 'Test'}.get(mode, mode.capitalize())
+    print(f"{mode_label} confusion_matrix:\n", conf)
     metric_logger.synchronize_between_processes()
     
     results_path = os.path.join(args.output_dir, args.task, f'metrics_{mode}.csv')
@@ -689,7 +690,7 @@ def train_one_epoch_dual(
                                        [accuracy, f1, roc_auc, kappa, mcc]):
             train_stats[metric_name] = value
     print(f'Accuracy: {accuracy:.4f}, F1 Score: {f1:.4f}')
-    print("confusion_matrix:\n", conf)
+    print("Train confusion_matrix:\n", conf)
     return train_stats
 
 
@@ -1084,7 +1085,8 @@ def evaluate_dual(data_loader_oct, data_loader_cfp, model, device, args, epoch, 
     print(f'Accuracy: {accuracy:.4f}, F1 Score: {f1:.4f}, ROC AUC: {roc_auc:.4f}, Hamming Loss: {hamming:.4f},\n'
           f' Jaccard Score: {jaccard:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f},\n'
           f' Average Precision: {average_precision:.4f}, Kappa: {kappa:.4f}, MCC: {mcc:.4f}, Score: {score:.4f}')
-    print("confusion_matrix:\n", conf)
+    mode_label = {'train': 'Train', 'val': 'Valid', 'test': 'Test'}.get(mode, mode.capitalize())
+    print(f"{mode_label} confusion_matrix:\n", conf)
     metric_logger.synchronize_between_processes()
     out_dict = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
     out_dict.update(metric_dict)
@@ -1151,7 +1153,8 @@ def evaluate_dualv2(data_loader, model, device, args, epoch, mode, num_class, k,
     print(f'Accuracy: {accuracy:.4f}, F1 Score: {f1:.4f}, ROC AUC: {roc_auc:.4f}, Hamming Loss: {hamming:.4f},\n'
           f' Jaccard Score: {jaccard:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f},\n'
           f' Average Precision: {average_precision:.4f}, Kappa: {kappa:.4f}, MCC: {mcc:.4f}, Score: {score:.4f}')
-    print("confusion_matrix:\n", conf)
+    mode_label = {'train': 'Train', 'val': 'Valid', 'test': 'Test'}.get(mode, mode.capitalize())
+    print(f"{mode_label} confusion_matrix:\n", conf)
     metric_logger.synchronize_between_processes()
     
     results_path = os.path.join(args.output_dir, args.task, f'metrics_{mode}.csv')
