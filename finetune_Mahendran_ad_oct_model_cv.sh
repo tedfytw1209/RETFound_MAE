@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=4gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
@@ -110,7 +110,7 @@ for fold in ${FOLDS[@]}; do
         --img_dir $IMG_Path \
         --finetune $MODEL \
         --split_dir $SPLIT_DIR \
-        --num_workers 16 \
+        --num_workers 8 \
         --input_size 224 \
         --num_k 0 \
         --optimizer $OPTIMIZER \
