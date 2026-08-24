@@ -62,13 +62,13 @@ echo "EXTRA_TAGS=$EXTRA_TAGS"
 # ------------------------------------------------------------------
 
 #Jacq (convnext_tiny, thickness)
-sbatch finetune_Jacqueline_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR convnext_tiny 64 1e-3 5e-4 $NUM_CLASS 0 0.001 0.2 $START_FOLD $CW
+#sbatch finetune_Jacqueline_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR convnext_tiny 64 1e-3 5e-4 $NUM_CLASS 0 0.001 0.2 $START_FOLD $CW
 
 #Wisely (resnet18_paper, thickness)
 #sbatch finetune_Wisely_adcon_irb2024_v5_cv.sh $STUDY $DATA $SPLIT_DIR resnet18_paper 0.01 1e-3 0.01 $NUM_CLASS 0 9 $CW
 
 #Mahendran (ad_oct_model, OCT)
-#sbatch finetune_Mahendran_ad_oct_model_cv.sh $STUDY $DATA $SPLIT_DIR ad_oct_model 256 3 false 7e-5 1e-2 $NUM_CLASS 2 $CW
+sbatch finetune_Mahendran_ad_oct_model_cv.sh $STUDY $DATA $SPLIT_DIR ad_oct_model 256 3 false 7e-5 1e-2 $NUM_CLASS 2 $CW
 
 #hebei (ducan, dual)
 #sbatch finetune_Hebei_admci_detection_cv.sh $STUDY $DATA $SPLIT_DIR ducan 0.7 0.7 1.0 3e-4 1e-2 $NUM_CLASS $START_FOLD $CW
