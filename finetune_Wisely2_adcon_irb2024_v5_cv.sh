@@ -84,10 +84,12 @@ echo $Num_CLASS
 
 # Usage examples:
 # sbatch finetune_Wisely2_adcon_irb2024_v5_cv.sh mci_control_detect_data IRB2024v5_ADCON_DL_data /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split dual_input_cnn images_only 0.01 1e-4 0.01 2 1.3 10 --use_img_per_patient
+# TMP: --output_dir moved to /blue (was /orange/ruogu.fang/tienyuchang/RETfound_results) - /orange is out of space.
 for fold in ${FOLDS[@]}; do
     [ "$fold" -lt "$START_FOLD" ] && continue
     torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
         --savemodel \
+        --purge_checkpoint \
         --global_pool \
         --batch_size $BS \
         --world_size 1 \
@@ -100,7 +102,7 @@ for fold in ${FOLDS[@]}; do
         --nb_classes $Num_CLASS \
         --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv \
         --task $STUDY-${data_type}-${Relative}-$MODEL-${INPUT_MODE}-${Modality}-${Eval_score}eval-subset${SUBSET_RATIO} \
-        --output_dir /orange/ruogu.fang/tienyuchang/RETfound_results \
+        --output_dir /blue/ruogu.fang/tienyuchang/RETfound_results \
         --eval_score $Eval_score \
         --modality $Modality \
         --img_dir $IMG_Path \

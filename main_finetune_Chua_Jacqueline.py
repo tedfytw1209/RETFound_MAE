@@ -608,6 +608,11 @@ def get_args_parser():
     # fine-tuning parameters
     parser.add_argument('--savemodel', action='store_true', default=True,
                         help='Save model')
+    parser.add_argument('--purge_checkpoint', action='store_true', default=False,
+                        help='Delete checkpoint-best.pth after test/holdout evaluation finishes. '
+                             'The checkpoint must still be written during training (the test and '
+                             'holdout evals reload best weights from disk), so this removes it at '
+                             'the very end instead of skipping the save. Metrics are unaffected.')
     parser.add_argument('--norm', default='IMAGENET', type=str, help='Normalization method')
     parser.add_argument('--enhance', action='store_true', default=False, help='Use enhanced data')
     parser.add_argument('--datasets_seed', default=2026, type=int)
@@ -2170,6 +2175,19 @@ def main(args, criterion):
         holdout_dict.update({f'holdout_{k}': v for k, v in holdout_stats.items()})
         wandb.log(holdout_dict)
         print(f"Holdout score: {holdout_score:.4f}")
+
+    # All evaluation that needs the best weights is done by this point, so the
+    # checkpoint can go. Only the .pth is removed - log.txt and the sample
+    # visualizations in the same task dir are left alone.
+    if args.purge_checkpoint and misc.is_main_process():
+        for ckpt_name in ('checkpoint-best.pth', 'checkpoint-latest.pth'):
+            ckpt_path = os.path.join(args.output_dir, args.task, ckpt_name)
+            if os.path.exists(ckpt_path):
+                try:
+                    os.remove(ckpt_path)
+                    print(f"Purged checkpoint: {ckpt_path}")
+                except OSError as e:
+                    print(f"Warning: could not purge {ckpt_path}: {e}")
 
     if log_writer is not None and misc.is_main_process():
         log_writer.close()
