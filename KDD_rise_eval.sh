@@ -19,7 +19,7 @@ Datasets=(AMD_all_split Glaucoma_binary_all_split ERM_all_split)
 for DATASET in "${Datasets[@]}"
 do
     RESUME=/orange/ruogu.fang/tienyuchang/RETfound_results/${DATASET}-IRB2024_v5_all-all-${SEG_PATH}-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-fuse-smpweighted_sum-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask---smp_learnable_alpha-/checkpoint-best.pth
-    echo "$DATASET"
+    echo $RESUME
     #sbatch finetune_retfound_UFbenchmark_v5_eval_smp_full.sh \
     #    $DATASET SMP $SEG_PATH $RESUME 2 512 \
     #    rise 1024 $Thickness_DIR \
