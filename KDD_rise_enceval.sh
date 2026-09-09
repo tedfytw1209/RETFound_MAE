@@ -20,8 +20,8 @@ for DATASET in "${Datasets[@]}"
 do
     RESUME=/orange/ruogu.fang/tienyuchang/RETfound_results/${DATASET}-IRB2024_v5_all-all-${SEG_PATH}-OCT-bs16ep100lr5e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-pre-0-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth
     echo $RESUME
-    #sbatch finetune_retfound_UFbenchmark_v5_eval_smp_full.sh \
-    #    $DATASET SMP $SEG_PATH $RESUME 2 512 \
-    #    rise 1024 $Thickness_DIR \
-    #    enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 head -1 conv
+    sbatch finetune_retfound_UFbenchmark_v5_eval_smp_full.sh \
+        $DATASET SMP $SEG_PATH $RESUME 2 512 \
+        rise 1024 $Thickness_DIR \
+        enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 head -1 conv
 done
