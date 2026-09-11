@@ -46,12 +46,12 @@ CELLDATA_MASK_DIR=/orange/ruogu.fang/tienyuchang/CellData_masks_multiclass_resne
 
 octdl_eval() {
     # $1=STUDY $2=MODEL $3=FINETUNED_MODEL $4=RESUME $5=INPUT_SIZE
-    bash finetune_retfound_OCTDL_eval.sh "$1" "$2" "$3" "$4" ${NUM_CLASS} "$5" ${XAI_METHOD} "$5" ${OCTDL_MASK_DIR} enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
+    sbatch finetune_retfound_OCTDL_eval.sh "$1" "$2" "$3" "$4" ${NUM_CLASS} "$5" ${XAI_METHOD} "$5" ${OCTDL_MASK_DIR} enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
 }
 
 celldata_eval() {
     # $1=STUDY $2=MODEL $3=FINETUNED_MODEL $4=RESUME $5=INPUT_SIZE
-    bash finetune_retfound_Celldata_eval.sh "$1" "$2" "$3" "$4" ${NUM_CLASS} "$5" ${XAI_METHOD} "$5" ${CELLDATA_MASK_DIR} enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
+    sbatch finetune_retfound_Celldata_eval.sh "$1" "$2" "$3" "$4" ${NUM_CLASS} "$5" ${XAI_METHOD} "$5" ${CELLDATA_MASK_DIR} enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
 }
 
 uf_resume() {

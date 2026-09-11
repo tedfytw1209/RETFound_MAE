@@ -47,12 +47,12 @@ CELLDATA_MASK_DIR=/orange/ruogu.fang/tienyuchang/CellData_masks_multiclass_resne
 
 octdl_eval() {
     # $1=STUDY $2=RESUME $3=SMPMode $4=FUSION_DIM $5=ENC_IDX
-    bash finetune_retfound_OCTDL_eval.sh "$1" SMP ${BASE_CKPT} "$2" ${NUM_CLASS} ${INPUT_SIZE} ${XAI_METHOD} ${STEP_PIXELS} ${OCTDL_MASK_DIR} "$3" weighted_sum 0.5 decoder_to_encoder "$4" pre "$5" -1 head -1 conv "${@:6}"
+    sbatch finetune_retfound_OCTDL_eval.sh "$1" SMP ${BASE_CKPT} "$2" ${NUM_CLASS} ${INPUT_SIZE} ${XAI_METHOD} ${STEP_PIXELS} ${OCTDL_MASK_DIR} "$3" weighted_sum 0.5 decoder_to_encoder "$4" pre "$5" -1 head -1 conv "${@:6}"
 }
 
 celldata_eval() {
     # $1=STUDY $2=RESUME $3=SMPMode $4=FUSION_DIM $5=ENC_IDX
-    bash finetune_retfound_Celldata_eval.sh "$1" SMP ${BASE_CKPT} "$2" ${NUM_CLASS} ${INPUT_SIZE} ${XAI_METHOD} ${STEP_PIXELS} ${CELLDATA_MASK_DIR} "$3" weighted_sum 0.5 decoder_to_encoder "$4" pre "$5" -1 head -1 conv "${@:6}"
+    sbatch finetune_retfound_Celldata_eval.sh "$1" SMP ${BASE_CKPT} "$2" ${NUM_CLASS} ${INPUT_SIZE} ${XAI_METHOD} ${STEP_PIXELS} ${CELLDATA_MASK_DIR} "$3" weighted_sum 0.5 decoder_to_encoder "$4" pre "$5" -1 head -1 conv "${@:6}"
 }
 
 uf_resume() {
