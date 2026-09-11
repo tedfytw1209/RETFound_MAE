@@ -16,6 +16,8 @@ Datasets=(DME_all AMD_all ERM_all)
 
 #sbatch finetune_retfound_OCTDL_smp.sh DME_all SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth 1e-4 2 1e-4 default OCT 0 enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 conv --add_mask --train_no_aug
 
+#/orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-\{0\}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth
+
 for DATASET in "${Datasets[@]}"
 do
     RESUME=/orange/ruogu.fang/tienyuchang/RETfound_results/${DATASET}-OCTDL-all-${SEG_PATH}-OCT-bs16ep50lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-pre-0-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth
