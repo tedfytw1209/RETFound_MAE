@@ -74,7 +74,7 @@ UF_DME=DME_binary_all_split
 OCTDL_STUDY=DME_all
 CELLDATA_STUDY=DME_all
 
-RESUME_OCTDL_ENC=$(octdl_enc_resume ${OCTDL_STUDY})
+RESUME_OCTDL_ENC="/orange/ruogu.fang/tienyuchang/RETfound_results/DME_all-OCTDL-all-/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50.pth-OCT-bs4ep20lr1e-4optadamw-defaulteval-trsub0-enc-smpweighted_sum-\{0\}-fea-1-1-0.5-decoder_to_encoder-conv---/checkpoint-best.pth"
 RESUME_OCTDL_FUSE=$(octdl_smp_resume ${OCTDL_STUDY} "${FUSE_WS_SUFFIX}")
 RESUME_CELL_ENC=$(celldata_smp_resume ${CELLDATA_STUDY} "${ENC_SUFFIX}")
 RESUME_CELL_FUSE=$(celldata_smp_resume ${CELLDATA_STUDY} "${FUSE_WS_SUFFIX}")
