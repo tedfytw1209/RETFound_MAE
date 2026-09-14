@@ -98,9 +98,9 @@ RESUME_Resnet=$(uf_resume ${DATASET} microsoft/resnet-50)
 # RETFound — done
 # octdl_eval ${OCTDL_STUDY} RETFound_mae RETFound_mae_natureOCT "${RESUME_RETFound}" 224
 
-octdl_eval ${OCTDL_STUDY} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_ViT}" 224
-octdl_eval ${OCTDL_STUDY} timm_efficientnet-b4 timm_efficientnet-b4 "${RESUME_EffNet}" 380
-octdl_eval ${OCTDL_STUDY} resnet-50 microsoft/resnet-50 "${RESUME_Resnet}" 224
+#octdl_eval ${OCTDL_STUDY} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_ViT}" 224
+#octdl_eval ${OCTDL_STUDY} timm_efficientnet-b4 timm_efficientnet-b4 "${RESUME_EffNet}" 380
+#octdl_eval ${OCTDL_STUDY} resnet-50 microsoft/resnet-50 "${RESUME_Resnet}" 224
 
 # ════════════════════════════════════════════════════════════════════════════
 # Task: ERM   (Source: UF ERM  ->  Target: OCTDL ERM)
@@ -116,6 +116,6 @@ RESUME_Resnet=$(uf_resume ${DATASET} microsoft/resnet-50)
 # RETFound — done
 # octdl_eval ${OCTDL_STUDY} RETFound_mae RETFound_mae_natureOCT "${RESUME_RETFound}" 224
 
-octdl_eval ${OCTDL_STUDY} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_ViT}" 224
-octdl_eval ${OCTDL_STUDY} timm_efficientnet-b4 timm_efficientnet-b4 "${RESUME_EffNet}" 380
-octdl_eval ${OCTDL_STUDY} resnet-50 microsoft/resnet-50 "${RESUME_Resnet}" 224
+#octdl_eval ${OCTDL_STUDY} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_ViT}" 224
+#octdl_eval ${OCTDL_STUDY} timm_efficientnet-b4 timm_efficientnet-b4 "${RESUME_EffNet}" 380
+#octdl_eval ${OCTDL_STUDY} resnet-50 microsoft/resnet-50 "${RESUME_Resnet}" 224

@@ -42,7 +42,7 @@ uf_eval() {
     # $1=STUDY(UF) $2=MODEL $3=FINETUNED_MODEL $4=RESUME $5=INPUT_SIZE
     for XAI in "${XAI_METHODS[@]}"
     do
-        sbatch finetune_retfound_UFbenchmark_v5_eval_full.sh "$1" "$2" "$3" "$4" ${NUM_CLASS} "$5" ${XAI} "$5"
+        sbatch finetune_retfound_UFbenchmark_v5_eval_full.sh "$1" "$2" "$3" "$4" ${NUM_CLASS} "$5" ${XAI} "$5" --no_save_heatmaps
     done
 }
 
@@ -94,10 +94,10 @@ RESUME_OCTDL_ViT=$(octdl_resume ${OCTDL_STUDY} google/vit-base-patch16-224-in21k
 RESUME_OCTDL_EffNet=$(octdl_resume ${OCTDL_STUDY} timm_efficientnet-b4)
 RESUME_OCTDL_Resnet=$(octdl_resume ${OCTDL_STUDY} microsoft/resnet-50)
 
-uf_eval ${UF_AMD} RETFound_mae RETFound_mae_natureOCT "${RESUME_OCTDL_RETFound}" 224
-uf_eval ${UF_AMD} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_OCTDL_ViT}" 224
-uf_eval ${UF_AMD} timm_efficientnet-b4 timm_efficientnet-b4 "${RESUME_OCTDL_EffNet}" 380
-uf_eval ${UF_AMD} resnet-50 microsoft/resnet-50 "${RESUME_OCTDL_Resnet}" 224
+#uf_eval ${UF_AMD} RETFound_mae RETFound_mae_natureOCT "${RESUME_OCTDL_RETFound}" 224
+#uf_eval ${UF_AMD} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_OCTDL_ViT}" 224
+#uf_eval ${UF_AMD} timm_efficientnet-b4 timm_efficientnet-b4 "${RESUME_OCTDL_EffNet}" 380
+#uf_eval ${UF_AMD} resnet-50 microsoft/resnet-50 "${RESUME_OCTDL_Resnet}" 224
 
 # ════════════════════════════════════════════════════════════════════════════
 # Task: ERM   (Source: OCTDL ERM  ->  Target: UF ERM)
@@ -110,7 +110,7 @@ RESUME_OCTDL_ViT=$(octdl_resume ${OCTDL_STUDY} google/vit-base-patch16-224-in21k
 RESUME_OCTDL_EffNet=$(octdl_resume ${OCTDL_STUDY} timm_efficientnet-b4)
 RESUME_OCTDL_Resnet=$(octdl_resume ${OCTDL_STUDY} microsoft/resnet-50)
 
-uf_eval ${UF_ERM} RETFound_mae RETFound_mae_natureOCT "${RESUME_OCTDL_RETFound}" 224
-uf_eval ${UF_ERM} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_OCTDL_ViT}" 224
-uf_eval ${UF_ERM} timm_efficientnet-b4 timm_efficientnet-b4 "${RESUME_OCTDL_EffNet}" 380
-uf_eval ${UF_ERM} resnet-50 microsoft/resnet-50 "${RESUME_OCTDL_Resnet}" 224
+#uf_eval ${UF_ERM} RETFound_mae RETFound_mae_natureOCT "${RESUME_OCTDL_RETFound}" 224
+#uf_eval ${UF_ERM} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_OCTDL_ViT}" 224
+#uf_eval ${UF_ERM} timm_efficientnet-b4 timm_efficientnet-b4 "${RESUME_OCTDL_EffNet}" 380
+#uf_eval ${UF_ERM} resnet-50 microsoft/resnet-50 "${RESUME_OCTDL_Resnet}" 224

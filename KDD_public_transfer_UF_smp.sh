@@ -43,7 +43,7 @@ uf_smp_eval() {
     # $1=STUDY(UF) $2=RESUME $3=SMPMode $4=FUSION_DIM $5=ENC_IDX
     for XAI in "${XAI_METHODS[@]}"
     do
-        sbatch finetune_retfound_UFbenchmark_v5_eval_smp_full.sh "$1" SMP ${BASE_CKPT} "$2" ${NUM_CLASS} ${INPUT_SIZE} ${XAI} ${STEP_PIXELS} ${UF_THICKNESS_DIR} "$3" weighted_sum 0.5 decoder_to_encoder "$4" pre "$5" -1 head -1 conv "${@:6}"
+        sbatch finetune_retfound_UFbenchmark_v5_eval_smp_full.sh "$1" SMP ${BASE_CKPT} "$2" ${NUM_CLASS} ${INPUT_SIZE} ${XAI} ${STEP_PIXELS} ${UF_THICKNESS_DIR} "$3" weighted_sum 0.5 decoder_to_encoder "$4" pre "$5" -1 head -1 conv "${@:6}" --no_save_heatmaps
     done
 }
 
@@ -87,8 +87,8 @@ OCTDL_STUDY=AMD_all
 RESUME_OCTDL_ENC=$(octdl_smp_resume ${OCTDL_STUDY} "${ENC_SUFFIX}")
 RESUME_OCTDL_FUSE=$(octdl_smp_resume ${OCTDL_STUDY} "${FUSE_WS_SUFFIX}")
 
-uf_smp_eval ${UF_AMD} "${RESUME_OCTDL_ENC}" enc 0 -1
-uf_smp_eval ${UF_AMD} "${RESUME_OCTDL_FUSE}" fuse 9 -2 "--seg_mask" "--smp_learnable_alpha" "--smp_alpha_type ${ALPHA_TYPE}"
+#uf_smp_eval ${UF_AMD} "${RESUME_OCTDL_ENC}" enc 0 -1
+#uf_smp_eval ${UF_AMD} "${RESUME_OCTDL_FUSE}" fuse 9 -2 "--seg_mask" "--smp_learnable_alpha" "--smp_alpha_type ${ALPHA_TYPE}"
 
 # ════════════════════════════════════════════════════════════════════════════
 # Task: ERM   (Source: OCTDL ERM  ->  Target: UF ERM)
@@ -99,5 +99,5 @@ OCTDL_STUDY=ERM_all
 RESUME_OCTDL_ENC=$(octdl_smp_resume ${OCTDL_STUDY} "${ENC_SUFFIX}")
 RESUME_OCTDL_FUSE=$(octdl_smp_resume ${OCTDL_STUDY} "${FUSE_WS_SUFFIX}")
 
-uf_smp_eval ${UF_ERM} "${RESUME_OCTDL_ENC}" enc 0 -1
-uf_smp_eval ${UF_ERM} "${RESUME_OCTDL_FUSE}" fuse 9 -2 "--seg_mask" "--smp_learnable_alpha" "--smp_alpha_type ${ALPHA_TYPE}"
+#uf_smp_eval ${UF_ERM} "${RESUME_OCTDL_ENC}" enc 0 -1
+#uf_smp_eval ${UF_ERM} "${RESUME_OCTDL_FUSE}" fuse 9 -2 "--seg_mask" "--smp_learnable_alpha" "--smp_alpha_type ${ALPHA_TYPE}"
