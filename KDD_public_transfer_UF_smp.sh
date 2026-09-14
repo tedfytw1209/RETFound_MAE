@@ -52,12 +52,19 @@ octdl_smp_resume() {
     echo "${RESULTS_DIR}/$1-OCTDL-all-${BASE_CKPT}-${MODALITY}-bs16ep50lr1e-4optadamw-defaulteval-trsub0-$2/checkpoint-best.pth"
 }
 
+octdl_enc_resume() {
+    # $1=STUDY(OCTDL) — the OCTDL enc checkpoints were trained bs4ep20lr1e-4
+    # (different hyperparams/suffix than fuse, which uses octdl_smp_resume above)
+    echo "${RESULTS_DIR}/$1-OCTDL-all-${BASE_CKPT}-${MODALITY}-bs4ep20lr1e-4optadamw-defaulteval-trsub0-${OCTDL_ENC_SUFFIX}/checkpoint-best.pth"
+}
+
 celldata_smp_resume() {
     # $1=STUDY(CellData) $2=SUFFIX
     echo "${RESULTS_DIR}/$1-CellData-all-${BASE_CKPT}-${MODALITY}-bs16ep5lr1e-4optadamw-defaulteval-trsub0-$2/checkpoint-best.pth"
 }
 
 ENC_SUFFIX="enc-smpweighted_sum-pre-0-fea-1-1-0.5-decoder_to_encoder-conv---"
+OCTDL_ENC_SUFFIX="enc-smpweighted_sum-{0}-fea-1-1-0.5-decoder_to_encoder-conv---"
 FUSE_WS_SUFFIX="fuse-smpweighted_sum-pre-9-fea-2-1-0.5-decoder_to_encoder-conv---seg_mask---smp_learnable_alpha-"
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -67,16 +74,16 @@ UF_DME=DME_binary_all_split
 OCTDL_STUDY=DME_all
 CELLDATA_STUDY=DME_all
 
-RESUME_OCTDL_ENC=$(octdl_smp_resume ${OCTDL_STUDY} "${ENC_SUFFIX}")
+RESUME_OCTDL_ENC=$(octdl_enc_resume ${OCTDL_STUDY})
 RESUME_OCTDL_FUSE=$(octdl_smp_resume ${OCTDL_STUDY} "${FUSE_WS_SUFFIX}")
 RESUME_CELL_ENC=$(celldata_smp_resume ${CELLDATA_STUDY} "${ENC_SUFFIX}")
 RESUME_CELL_FUSE=$(celldata_smp_resume ${CELLDATA_STUDY} "${FUSE_WS_SUFFIX}")
 
 uf_smp_eval ${UF_DME} "${RESUME_OCTDL_ENC}" enc 0 -1
-uf_smp_eval ${UF_DME} "${RESUME_OCTDL_FUSE}" fuse 9 -2 "--seg_mask" "--smp_learnable_alpha" "--smp_alpha_type ${ALPHA_TYPE}"
+#uf_smp_eval ${UF_DME} "${RESUME_OCTDL_FUSE}" fuse 9 -2 "--seg_mask" "--smp_learnable_alpha" "--smp_alpha_type ${ALPHA_TYPE}"
 
 uf_smp_eval ${UF_DME} "${RESUME_CELL_ENC}" enc 0 -1
-uf_smp_eval ${UF_DME} "${RESUME_CELL_FUSE}" fuse 9 -2 "--seg_mask" "--smp_learnable_alpha" "--smp_alpha_type ${ALPHA_TYPE}"
+#uf_smp_eval ${UF_DME} "${RESUME_CELL_FUSE}" fuse 9 -2 "--seg_mask" "--smp_learnable_alpha" "--smp_alpha_type ${ALPHA_TYPE}"
 
 # ════════════════════════════════════════════════════════════════════════════
 # Task: AMD   (Source: OCTDL AMD  ->  Target: UF AMD)
@@ -84,7 +91,7 @@ uf_smp_eval ${UF_DME} "${RESUME_CELL_FUSE}" fuse 9 -2 "--seg_mask" "--smp_learna
 UF_AMD=AMD_all_split
 OCTDL_STUDY=AMD_all
 
-RESUME_OCTDL_ENC=$(octdl_smp_resume ${OCTDL_STUDY} "${ENC_SUFFIX}")
+RESUME_OCTDL_ENC=$(octdl_enc_resume ${OCTDL_STUDY})
 RESUME_OCTDL_FUSE=$(octdl_smp_resume ${OCTDL_STUDY} "${FUSE_WS_SUFFIX}")
 
 #uf_smp_eval ${UF_AMD} "${RESUME_OCTDL_ENC}" enc 0 -1
@@ -96,7 +103,7 @@ RESUME_OCTDL_FUSE=$(octdl_smp_resume ${OCTDL_STUDY} "${FUSE_WS_SUFFIX}")
 UF_ERM=ERM_all_split
 OCTDL_STUDY=ERM_all
 
-RESUME_OCTDL_ENC=$(octdl_smp_resume ${OCTDL_STUDY} "${ENC_SUFFIX}")
+RESUME_OCTDL_ENC=$(octdl_enc_resume ${OCTDL_STUDY})
 RESUME_OCTDL_FUSE=$(octdl_smp_resume ${OCTDL_STUDY} "${FUSE_WS_SUFFIX}")
 
 #uf_smp_eval ${UF_ERM} "${RESUME_OCTDL_ENC}" enc 0 -1
