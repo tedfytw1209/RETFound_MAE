@@ -46,12 +46,12 @@ CELLDATA_MASK_DIR=/orange/ruogu.fang/tienyuchang/CellData_masks_multiclass_resne
 
 octdl_eval() {
     # $1=STUDY $2=MODEL $3=FINETUNED_MODEL $4=RESUME $5=INPUT_SIZE
-    sbatch finetune_retfound_OCTDL_eval.sh "$1" "$2" "$3" "$4" ${NUM_CLASS} "$5" ${XAI_METHOD} "$5" ${OCTDL_MASK_DIR} enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
+    sbatch finetune_retfound_OCTDL_eval.sh "$1" "$2" "$3" "$4" ${NUM_CLASS} "$5" ${XAI_METHOD} "$5" ${OCTDL_MASK_DIR} enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv  --no_save_heatmaps
 }
 
 celldata_eval() {
     # $1=STUDY $2=MODEL $3=FINETUNED_MODEL $4=RESUME $5=INPUT_SIZE
-    sbatch finetune_retfound_Celldata_eval.sh "$1" "$2" "$3" "$4" ${NUM_CLASS} "$5" ${XAI_METHOD} "$5" ${CELLDATA_MASK_DIR} enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv
+    sbatch finetune_retfound_Celldata_eval.sh "$1" "$2" "$3" "$4" ${NUM_CLASS} "$5" ${XAI_METHOD} "$5" ${CELLDATA_MASK_DIR} enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 encoder -1 conv  --no_save_heatmaps
 }
 
 uf_resume() {
@@ -72,8 +72,8 @@ RESUME_EffNet=$(uf_resume ${DATASET} timm_efficientnet-b4)
 RESUME_Resnet=$(uf_resume ${DATASET} microsoft/resnet-50)
 
 # RETFound — done
-# octdl_eval ${OCTDL_STUDY} RETFound_mae RETFound_mae_natureOCT "${RESUME_RETFound}" 224
-# celldata_eval ${CELLDATA_STUDY} RETFound_mae RETFound_mae_natureOCT "${RESUME_RETFound}" 224
+#octdl_eval ${OCTDL_STUDY} RETFound_mae RETFound_mae_natureOCT "${RESUME_RETFound}" 224
+#celldata_eval ${CELLDATA_STUDY} RETFound_mae RETFound_mae_natureOCT "${RESUME_RETFound}" 224
 
 #octdl_eval ${OCTDL_STUDY} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_ViT}" 224
 #celldata_eval ${CELLDATA_STUDY} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_ViT}" 224
@@ -96,7 +96,7 @@ RESUME_EffNet=$(uf_resume ${DATASET} timm_efficientnet-b4)
 RESUME_Resnet=$(uf_resume ${DATASET} microsoft/resnet-50)
 
 # RETFound — done
-# octdl_eval ${OCTDL_STUDY} RETFound_mae RETFound_mae_natureOCT "${RESUME_RETFound}" 224
+octdl_eval ${OCTDL_STUDY} RETFound_mae RETFound_mae_natureOCT "${RESUME_RETFound}" 224
 
 #octdl_eval ${OCTDL_STUDY} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_ViT}" 224
 #octdl_eval ${OCTDL_STUDY} timm_efficientnet-b4 timm_efficientnet-b4 "${RESUME_EffNet}" 380
@@ -114,7 +114,7 @@ RESUME_EffNet=$(uf_resume ${DATASET} timm_efficientnet-b4)
 RESUME_Resnet=$(uf_resume ${DATASET} microsoft/resnet-50)
 
 # RETFound — done
-# octdl_eval ${OCTDL_STUDY} RETFound_mae RETFound_mae_natureOCT "${RESUME_RETFound}" 224
+octdl_eval ${OCTDL_STUDY} RETFound_mae RETFound_mae_natureOCT "${RESUME_RETFound}" 224
 
 #octdl_eval ${OCTDL_STUDY} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_ViT}" 224
 #octdl_eval ${OCTDL_STUDY} timm_efficientnet-b4 timm_efficientnet-b4 "${RESUME_EffNet}" 380
