@@ -73,14 +73,14 @@ RESUME_CELL_ViT=$(celldata_resume ${CELLDATA_STUDY} google/vit-base-patch16-224-
 RESUME_CELL_EffNet=$(celldata_resume ${CELLDATA_STUDY} timm_efficientnet-b4)
 RESUME_CELL_Resnet=$(celldata_resume ${CELLDATA_STUDY} microsoft/resnet-50)
 
-uf_eval ${UF_DME} RETFound_mae RETFound_mae_natureOCT "${RESUME_OCTDL_RETFound}" 224
-uf_eval ${UF_DME} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_OCTDL_ViT}" 224
-uf_eval ${UF_DME} timm_efficientnet-b4 timm_efficientnet-b4 "${RESUME_OCTDL_EffNet}" 380
-uf_eval ${UF_DME} resnet-50 microsoft/resnet-50 "${RESUME_OCTDL_Resnet}" 224
+#uf_eval ${UF_DME} RETFound_mae RETFound_mae_natureOCT "${RESUME_OCTDL_RETFound}" 224
+#uf_eval ${UF_DME} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_OCTDL_ViT}" 224
+#uf_eval ${UF_DME} timm_efficientnet-b4 timm_efficientnet-b4 "${RESUME_OCTDL_EffNet}" 380
+#uf_eval ${UF_DME} resnet-50 microsoft/resnet-50 "${RESUME_OCTDL_Resnet}" 224
 
-uf_eval ${UF_DME} RETFound_mae RETFound_mae_natureOCT "${RESUME_CELL_RETFound}" 224
-uf_eval ${UF_DME} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_CELL_ViT}" 224
-uf_eval ${UF_DME} timm_efficientnet-b4 timm_efficientnet-b4 "${RESUME_CELL_EffNet}" 380
+#uf_eval ${UF_DME} RETFound_mae RETFound_mae_natureOCT "${RESUME_CELL_RETFound}" 224
+#uf_eval ${UF_DME} vit-base-patch16-224 google/vit-base-patch16-224-in21k "${RESUME_CELL_ViT}" 224
+#uf_eval ${UF_DME} timm_efficientnet-b4 timm_efficientnet-b4 "${RESUME_CELL_EffNet}" 380
 uf_eval ${UF_DME} resnet-50 microsoft/resnet-50 "${RESUME_CELL_Resnet}" 224
 
 # ════════════════════════════════════════════════════════════════════════════
