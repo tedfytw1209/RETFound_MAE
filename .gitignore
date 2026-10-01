@@ -147,3 +147,4 @@ wandb/
 /.claude
 /docs/plans
 figure_prompt/figure_prompts.md
+/sail_result_process
