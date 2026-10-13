@@ -3,23 +3,30 @@
 Test A: cascading re-initialization from the output end backwards; each step's Grad-CAM map is compared with
         the trained model's map (Spearman, SSIM on the common 224 grid).
 Test B: Grad-CAM for the disease logit vs the healthy logit on the trained model (Spearman, SSIM).
+Null:   trained map vs the trained map of another scan of the same class; the similarity two maps reach just
+        because OCT scans share a layout (the floor Test A / B values are read against).
+Re-initialization uses each architecture's own initializer (native_initializer).
 
 Modes:
   --mode samples : draw the shared scan list for one dataset (run once, before any model job)
   --mode run     : one model x one dataset -> parts/<task>.csv, configs/<task>.yaml, examples/<task>.png
-  --mode merge   : parts/*.csv -> sanity.csv, configs/*.yaml -> config.yaml
+  --mode merge   : parts/*.csv -> sanity.csv + sanity_summary.csv (mean / median / |Spearman|, SSIM, null floor),
+                   configs/*.yaml -> config.yaml
 See docs/plans/2026-10-13-ncex-e4-e5-design.md.
 """
 import datetime
+import math
 import os
 import time
 
 import numpy as np
 import pandas as pd
 import torch
+import torch.nn as nn
 import wandb
 from scipy.stats import spearmanr
 from skimage.metrics import structural_similarity
+from timm.models.layers import trunc_normal_
 from torch.utils.data import DataLoader, Subset
 
 from NCex_common import (
@@ -30,7 +37,9 @@ from NCex_common import (
 
 EXPERIMENT = 'E4'
 CSV_COLUMNS = ['model', 'dataset', 'image_id', 'test', 'step', 'spearman', 'ssim',
-               'label', 'pred', 'target_class', 'degenerate']
+               'label', 'pred', 'target_class', 'degenerate', 'pair_id']
+# test: A = re-init step vs trained map, B = disease vs healthy logit map,
+#       N = null baseline, trained map vs the trained map of another scan of the same class (pair_id)
 
 
 def get_args_parser():
@@ -128,36 +137,104 @@ def cascade_groups(model, model_name):
     return steps
 
 
-def _init_orphan_(full_name, param):
-    """Parameters whose module has no reset_parameters (cls/pos tokens, SAIL fusion gate)."""
-    with torch.no_grad():
-        if full_name.endswith('alpha_logit'):
-            param.zero_()  # sigmoid(0) = 0.5, the initial alpha
-        else:
-            torch.nn.init.trunc_normal_(param, std=0.02)
+def native_initializer(model, args):
+    """init(module_name, module) re-initializing one module's own parameters (non-recursive) exactly as the
+    architecture does when the model is constructed from scratch. Runs after module.reset_parameters(), which
+    gives PyTorch's construction defaults (and fresh BatchNorm running stats) for the layers an architecture does
+    not re-initialize itself. Returns True if it set parameters that reset_parameters() cannot reach."""
+    name = args.model.lower()
+
+    if name.startswith('smp'):
+        # SAIL: smp Unet (torchvision ResNet encoder + smp initialize_decoder / initialize_head) + GeneralFusionHead
+        alpha_logit = math.log(args.smp_alpha) - math.log(1 - args.smp_alpha)
+
+        def init(mname, m):
+            if mname.startswith('seg_model.encoder.'):  # torchvision.models.resnet.ResNet.__init__
+                if isinstance(m, nn.Conv2d):
+                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+                    nn.init.constant_(m.weight, 1)
+                    nn.init.constant_(m.bias, 0)
+            elif mname.startswith('seg_model.decoder.'):  # smp base.initialization.initialize_decoder
+                if isinstance(m, nn.Conv2d):
+                    nn.init.kaiming_uniform_(m.weight, mode='fan_in', nonlinearity='relu')
+                    if m.bias is not None:
+                        nn.init.constant_(m.bias, 0)
+                elif isinstance(m, (nn.BatchNorm2d, nn.LayerNorm, nn.GroupNorm, nn.InstanceNorm2d)):
+                    nn.init.constant_(m.weight, 1)
+                    nn.init.constant_(m.bias, 0)
+                elif isinstance(m, nn.Linear):
+                    nn.init.xavier_uniform_(m.weight)
+                    if m.bias is not None:
+                        nn.init.constant_(m.bias, 0)
+            elif mname.startswith('seg_model.segmentation_head.'):  # smp initialize_head
+                if isinstance(m, (nn.Linear, nn.Conv2d)):
+                    nn.init.xavier_uniform_(m.weight)
+                    if m.bias is not None:
+                        nn.init.constant_(m.bias, 0)
+            elif mname == 'head' and isinstance(getattr(m, 'alpha_logit', None), nn.Parameter):
+                if m.alpha_logit.numel() == 1:  # GeneralFusionHead scalar gate: logit(alpha_init)
+                    nn.init.constant_(m.alpha_logit, alpha_logit)
+                    return True
+            return False  # fusion-head convs keep the PyTorch default, as in GeneralFusionHead.__init__
+
+    elif hasattr(model, '_init_weights') and ('resnet' in name or 'vit' in name):
+        # HuggingFace ResNetForImageClassification / ViTForImageClassification: PreTrainedModel._init_weights
+        from transformers.models.vit.modeling_vit import ViTEmbeddings
+
+        def init(mname, m):
+            model._init_weights(m)
+            return isinstance(m, ViTEmbeddings)  # cls_token / position_embeddings (mask_token zero)
+
+    elif 'efficientnet' in name:
+        # timm EfficientNet: efficientnet_init_weights -> _init_weight_goog per module
+        from timm.models._efficientnet_builder import _init_weight_goog
+
+        def init(mname, m):
+            _init_weight_goog(m, mname)
+            return False
+
+    elif 'retfound' in name:
+        # timm VisionTransformer.init_weights('') : Linear trunc_normal(.02) + zero bias,
+        # pos_embed trunc_normal(.02), cls_token normal(1e-6); Conv2d / LayerNorm keep PyTorch defaults
+        from timm.models.vision_transformer import init_weights_vit_timm
+
+        def init(mname, m):
+            if isinstance(m, nn.Linear):
+                init_weights_vit_timm(m, mname)
+            elif mname == '':
+                trunc_normal_(m.pos_embed, std=.02)
+                nn.init.normal_(m.cls_token, std=1e-6)
+                return True
+            return False
+    else:
+        raise ValueError(f'No native initializer for model {args.model}')
+
+    def safe_init(mname, m):
+        with torch.no_grad():
+            return init(mname, m)
+    return safe_init
 
 
-def reinit_(model, prefixes, exclude, seed):
-    """Reset every module / parameter matching `prefixes` and not matching `exclude`. Returns reset param names."""
+def reinit_(model, prefixes, exclude, seed, init_fn):
+    """Re-initialize every parameter whose name matches `prefixes` and not `exclude` with the architecture's own
+    initializer (init_fn from native_initializer). Returns the names of the re-initialized parameters."""
     torch.manual_seed(seed)
     touched = set()
     for mname, module in model.named_modules():
-        if not _matches(mname, prefixes) or (mname and _matches(mname, exclude)):
+        own = [f'{mname}.{p}' if mname else p for p, _ in module.named_parameters(recurse=False)]
+        selected = [n for n in own if _matches(n, prefixes) and not _matches(n, exclude)]
+        if not selected:
             continue
+        if len(selected) != len(own):
+            raise RuntimeError(f'Module "{mname}" has parameters split across re-init steps: {own}')
         has_reset = callable(getattr(module, 'reset_parameters', None))
         if has_reset:
-            module.reset_parameters()
-        for pname, param in module.named_parameters(recurse=False):
-            full = f'{mname}.{pname}' if mname else pname
-            if _matches(full, exclude):
-                continue
-            if not has_reset:
-                _init_orphan_(full, param)
-            touched.add(full)
-    for full, param in model.named_parameters():
-        if full not in touched and _matches(full, prefixes) and not _matches(full, exclude):
-            _init_orphan_(full, param)
-            touched.add(full)
+            module.reset_parameters()  # PyTorch construction default (BatchNorm: also running stats)
+        handled = init_fn(mname, module)
+        if not has_reset and not handled:
+            raise RuntimeError(f'No initializer for parameters {own} of {type(module).__name__}')
+        touched.update(selected)
     return touched
 
 
@@ -193,6 +270,39 @@ def similarity(a, b):
     rho = np.nan if degenerate else float(spearmanr(a.ravel(), b.ravel()).correlation)
     ssim = float(structural_similarity(a, b, data_range=1.0))
     return rho, ssim, degenerate
+
+
+def null_partners(labels, seed):
+    """Pair every scan with a different scan of the same class (seeded cyclic shift within each class)."""
+    rng = np.random.RandomState(seed)
+    partner = {}
+    for c in sorted(set(labels)):
+        idx = rng.permutation([i for i, l in enumerate(labels) if l == c])
+        if len(idx) < 2:
+            continue
+        for k, i in enumerate(idx):
+            partner[int(i)] = int(idx[(k + 1) % len(idx)])
+    return partner
+
+
+def summarize(df):
+    """Per model / dataset / test / step: signed and absolute Spearman, SSIM, and the null-baseline floor."""
+    d = df.copy()
+    d['abs_spearman'] = d['spearman'].abs()
+    g = d.groupby(['model', 'dataset', 'test', 'step'], dropna=False)
+    s = pd.DataFrame({
+        'n': g['spearman'].count(),
+        'degenerate': g['degenerate'].sum(),
+        'mean_spearman': g['spearman'].mean(),
+        'median_spearman': g['spearman'].median(),
+        'mean_abs_spearman': g['abs_spearman'].mean(),
+        'frac_abs_spearman_gt_0.5': g['abs_spearman'].apply(lambda x: (x.dropna() > 0.5).mean()),
+        'mean_ssim': g['ssim'].mean(),
+        'median_ssim': g['ssim'].median(),
+    }).reset_index()
+    null = (s[s['test'] == 'N'][['model', 'dataset', 'mean_abs_spearman', 'mean_ssim']]
+            .rename(columns={'mean_abs_spearman': 'null_mean_abs_spearman', 'mean_ssim': 'null_mean_ssim'}))
+    return s.merge(null, on=['model', 'dataset'], how='left')
 
 
 def example_indices(labels, n):
@@ -245,8 +355,22 @@ def run(args):
     for i, image_id in enumerate(image_ids):
         rho, ssim, deg = similarity(base['disease_map'][i], base['healthy_map'][i])
         rows.append([args.model_tag, args.dataset_tag, image_id, 'B', np.nan, rho, ssim,
-                     labels[i], int(base['pred'][i]), args.disease_class, deg])
+                     labels[i], int(base['pred'][i]), args.disease_class, deg, None])
     test_b = pd.DataFrame(rows, columns=CSV_COLUMNS)
+    null_rows = []
+    for i, j in sorted(null_partners(labels, args.sample_seed).items()):
+        rho, ssim, deg = similarity(base['label_map'][i], base['label_map'][j])
+        null_rows.append([args.model_tag, args.dataset_tag, image_ids[i], 'N', np.nan, rho, ssim,
+                          labels[i], int(base['pred'][i]), labels[i], deg, image_ids[j]])
+    null = pd.DataFrame(null_rows, columns=CSV_COLUMNS)
+    rows += null_rows
+    print(f'Null (different scan, same class): mean Spearman = {null["spearman"].mean():.4f}, '
+          f'mean |Spearman| = {null["spearman"].abs().mean():.4f}, mean SSIM = {null["ssim"].mean():.4f}, '
+          f'degenerate = {null["degenerate"].sum()}')
+    wandb.run.summary['null/spearman_mean'] = float(null['spearman'].mean())
+    wandb.run.summary['null/abs_spearman_mean'] = float(null['spearman'].abs().mean())
+    wandb.run.summary['null/ssim_mean'] = float(null['ssim'].mean())
+    wandb.run.summary['testB/abs_spearman_mean'] = float(test_b['spearman'].abs().mean())
     print(f'Test B: mean Spearman(disease, healthy) = {test_b["spearman"].mean():.4f}, '
           f'mean SSIM = {test_b["ssim"].mean():.4f}, degenerate = {test_b["degenerate"].sum()}')
     wandb.log({'testA/spearman_mean': 1.0, 'testA/ssim_mean': 1.0, 'testA/params_changed_frac': 0.0}, step=0)
@@ -259,8 +383,9 @@ def run(args):
 
     step_means = {}
     done, reset_so_far = [], set()
+    init_fn = native_initializer(model, args)
     for step, prefixes in enumerate(groups, start=1):
-        touched = reinit_(model, prefixes, exclude=done, seed=args.reinit_seed + step)
+        touched = reinit_(model, prefixes, exclude=done, seed=args.reinit_seed + step, init_fn=init_fn)
         if touched & reset_so_far:
             raise RuntimeError(f'Step {step} re-reset parameters of earlier steps: {sorted(touched & reset_so_far)[:5]}')
         reset_so_far |= touched
@@ -271,16 +396,17 @@ def run(args):
         for i, image_id in enumerate(image_ids):
             rho, ssim, deg = similarity(base['label_map'][i], cur['label_map'][i])
             step_rows.append([args.model_tag, args.dataset_tag, image_id, 'A', step, rho, ssim,
-                              labels[i], int(cur['pred'][i]), labels[i], deg])
+                              labels[i], int(cur['pred'][i]), labels[i], deg, None])
             if i in example_maps:
                 example_maps[i].append(cur['label_map'][i])
         step_df = pd.DataFrame(step_rows, columns=CSV_COLUMNS)
         rows += step_rows
         step_means[step] = float(step_df['spearman'].mean())
         print(f'Test A step {step}: reset {len(touched)} params ({frac:.1%} of tensors now differ), '
-              f'mean Spearman = {step_df["spearman"].mean():.4f}, mean SSIM = {step_df["ssim"].mean():.4f}, '
-              f'degenerate = {step_df["degenerate"].sum()}')
+              f'mean Spearman = {step_df["spearman"].mean():.4f}, mean |Spearman| = {step_df["spearman"].abs().mean():.4f}, '
+              f'mean SSIM = {step_df["ssim"].mean():.4f}, degenerate = {step_df["degenerate"].sum()}')
         wandb.log({'testA/spearman_mean': step_df['spearman'].mean(),
+                   'testA/abs_spearman_mean': step_df['spearman'].abs().mean(),
                    'testA/ssim_mean': step_df['ssim'].mean(),
                    'testA/degenerate': int(step_df['degenerate'].sum()),
                    'testA/params_changed_frac': frac}, step=step)
@@ -289,7 +415,7 @@ def run(args):
         raise RuntimeError(f'{len(never_reset)} parameters were never re-initialized, e.g. {never_reset[:5]}')
 
     df = pd.DataFrame(rows, columns=CSV_COLUMNS)
-    df['step'] = df['step'].astype('Int64')  # empty for Test B rows
+    df['step'] = df['step'].astype('Int64')  # empty for Test B and null rows
     os.makedirs(os.path.join(out_dir, 'parts'), exist_ok=True)
     df.to_csv(os.path.join(out_dir, 'parts', f'{args.task}.csv'), index=False)
     wandb.log({'sanity_table': wandb.Table(dataframe=df.astype({'step': 'float'}))})
@@ -318,9 +444,11 @@ def merge(args):
     out_dir = run_dir(args, EXPERIMENT)
     df = merge_parts(out_dir, 'sanity.csv')
     merge_configs(out_dir)
-    summary = (df.groupby(['model', 'dataset', 'test', 'step'], dropna=False)[['spearman', 'ssim', 'degenerate']]
-               .agg({'spearman': 'mean', 'ssim': 'mean', 'degenerate': 'sum'}))
-    print(summary.to_string())
+    summary = summarize(df)
+    summary.to_csv(os.path.join(out_dir, 'sanity_summary.csv'), index=False)
+    with pd.option_context('display.width', 250, 'display.max_columns', 30):
+        print(summary.round(3).to_string(index=False))
+    print(f'Summary saved to {os.path.join(out_dir, "sanity_summary.csv")}')
 
 
 if __name__ == '__main__':
