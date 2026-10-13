@@ -130,6 +130,7 @@ def run(args):
         y_true = (labels == args.disease_class).astype(int)
         auroc = float(roc_auc_score(y_true, probs))
         summary[f'{test_set}/auroc'] = auroc
+        wandb.log({f'{test_set}/auroc': auroc, f'{test_set}/n': len(ids)})
         print(f'{test_set}: AUROC = {auroc:.4f} (n={len(ids)})')
         if test_set != 'T2':
             for image_id, label, prob in zip(ids, labels, probs):
@@ -138,6 +139,8 @@ def run(args):
         else:
             t2_probs = dict(zip(ids, probs))
     summary['cheat_reliance'] = summary['T1/auroc'] - summary['T3/auroc']
+    wandb.log({'cheat_reliance': summary['cheat_reliance']})
+    wandb.run.summary.update(summary)  # keep the AUROCs even if the heatmap stage fails
     print(f'cheat_reliance = AUROC(T1) - AUROC(T3) = {summary["cheat_reliance"]:.4f}')
 
     # T2 heatmaps
@@ -176,6 +179,7 @@ def run(args):
         summary[f'T2/{explainer}/pointing_hit_rate'] = float(np.nanmean(hits)) if hits else np.nan
         summary[f'T2/{explainer}/degenerate'] = int(np.isnan(masses).sum()) if masses else 0
         summary[f'T2/{explainer}/chance'] = float(np.mean(chances)) if chances else np.nan
+        wandb.log({k: v for k, v in summary.items() if k.startswith(f'T2/{explainer}/')})
         print(f'T2 {explainer}: marker_mass = {summary[f"T2/{explainer}/marker_mass_mean"]:.4f} '
               f'(chance {summary[f"T2/{explainer}/chance"]:.4f}), '
               f'pointing_hit_rate = {summary[f"T2/{explainer}/pointing_hit_rate"]:.4f}')
@@ -183,7 +187,6 @@ def run(args):
     df = pd.DataFrame(rows, columns=CSV_COLUMNS)
     os.makedirs(os.path.join(out_dir, 'parts'), exist_ok=True)
     df.to_csv(os.path.join(out_dir, 'parts', f'{args.task}.csv'), index=False)
-    wandb.log(summary)
     wandb.run.summary.update(summary)
     wandb.log({'shortcut_table': wandb.Table(dataframe=df)})
 
@@ -221,17 +224,31 @@ def pick_examples(markers, args):
 
 def merge(args):
     out_dir = run_dir(args, EXPERIMENT)
+    args.task = 'NCex_E5-merge'
+    init_wandb(args, EXPERIMENT)
     df = merge_parts(out_dir, 'shortcut.csv')
     merge_configs(out_dir)
     t2 = df[df['test_set'] == 'T2']
-    print(t2.groupby(['model', 'explainer'])[['marker_mass', 'pointing_hit', 'chance']].mean().to_string())
+    t2_means = t2.groupby(['model', 'explainer'])[['marker_mass', 'pointing_hit', 'chance']].mean()
+    print(t2_means.to_string())
+    auc_rows = []
     for model, g in df.groupby('model'):
         aucs = {}
         for ts in ['T1', 'T2', 'T3']:
             s = g[g['test_set'] == ts].drop_duplicates(subset='image_id')  # T2 has one row per explainer
             aucs[ts] = roc_auc_score((s['label'] == args.disease_class).astype(int), s['prob'])
+        auc_rows.append([model, aucs['T1'], aucs['T2'], aucs['T3'], aucs['T1'] - aucs['T3']])
         print(f'{model}: AUROC T1={aucs["T1"]:.4f} T2={aucs["T2"]:.4f} T3={aucs["T3"]:.4f} '
               f'cheat_reliance={aucs["T1"] - aucs["T3"]:.4f}')
+    auc_df = pd.DataFrame(auc_rows, columns=['model', 'auroc_T1', 'auroc_T2', 'auroc_T3', 'cheat_reliance'])
+    summary = {f'{r.model}/{k}': getattr(r, k) for r in auc_df.itertuples()
+               for k in ['auroc_T1', 'auroc_T2', 'auroc_T3', 'cheat_reliance']}
+    summary.update({f'{model}/T2/{explainer}/{k}': v for (model, explainer), row in t2_means.iterrows()
+                    for k, v in row.items()})
+    wandb.run.summary.update(summary)
+    wandb.log({'auroc_table': wandb.Table(dataframe=auc_df),
+               't2_marker_table': wandb.Table(dataframe=t2_means.reset_index())})
+    wandb.finish()
 
 
 if __name__ == '__main__':
