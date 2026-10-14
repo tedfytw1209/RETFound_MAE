@@ -39,6 +39,7 @@ from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapp
 from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.losses import FocalLoss, compute_alpha_from_labels
+from util.multiseed import seed_suffix
 from util.evaluation import (
     InsertionMetric,
     DeletionMetric,
@@ -142,6 +143,8 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=0, type=int)
+    parser.add_argument('--split_seed', default=42, type=int,
+                        help='seed of the patient split in --data_path (split/tune8-eval2-s<k>); run naming + wandb config only')
     parser.add_argument('--resume', default='0',
                         help='resume from checkpoint')
     parser.add_argument('--eval', action='store_true',
@@ -1283,6 +1286,8 @@ if __name__ == '__main__':
         args.task += '-skipMD'
     if args.skip_xai:
         args.task += '-skipXAI'
+    # task already carries -seed{args.seed}; mark non-original splits too (wandb name + output dir)
+    args.task += seed_suffix(args.split_seed, args.seed, default_seed=args.seed)
 
     main(args, criterion)
 

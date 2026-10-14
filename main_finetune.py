@@ -36,6 +36,7 @@ from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapp
 from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.losses import FocalLoss, compute_alpha_from_labels
+from util.multiseed import apply_seed_suffix
 from huggingface_hub import hf_hub_download, login
 from engine_finetune import evaluate_half3D, train_one_epoch, evaluate, reinit_model_weights_
 import wandb
@@ -159,6 +160,8 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=0, type=int)
+    parser.add_argument('--split_seed', default=42, type=int,
+                        help='seed of the patient split in --data_path (split/tune8-eval2-s<k>); run naming + wandb config only')
     parser.add_argument('--resume', default='',
                         help='resume from checkpoint')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
@@ -1016,8 +1019,10 @@ def main(args, criterion):
         wandb.finish()
 
 if __name__ == '__main__':
-    args = get_args_parser()
-    args = args.parse_args()
+    parser = get_args_parser()
+    args = parser.parse_args()
+    # non-original seeds get a -s<k> / -seed<k> suffix: output dir and wandb run name both follow args.task
+    args.task = apply_seed_suffix(args.task, args.split_seed, args.seed, parser.get_default('seed'))
 
     criterion = torch.nn.CrossEntropyLoss()
 
