@@ -23,6 +23,7 @@ SUBSETNUM=0 # 0, 500, 1000
 ADDCMD=${10:-""} #
 ADDCMD2=${11:-""} #
 ADDCMD3=${12:-""} #
+source ./multiseed_env.sh
 
 #sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_UFbenchmark_irb2024v5_full.sh DME_binary_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
 #sbatch baseline_multirun_XAI_model_train.sh finetune_retfound_UFbenchmark_irb2024v5_init.sh DME_binary_all_split RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 default OCT
@@ -44,7 +45,7 @@ do
     #ADDCMD="${ADDCMDS1[$j]}"
     #ADDCMD2="${ADDCMDS2[$j]}"
     # Submit the job to Slurm
-    echo "sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2 $ADDCMD3"
-    sbatch $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2 $ADDCMD3
+    echo "sbatch --export=ALL,SEED=$SEED,SEED_MODE=$SEED_MODE $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2 $ADDCMD3"
+    sbatch --export=ALL,SEED=$SEED,SEED_MODE=$SEED_MODE $SCRIPT $DATASET $MODEL $FINETUNED_MODEL $LR $NUM_CLASS $weight_decay $Eval_score $Modality $SUBSETNUM $ADDCMD $ADDCMD2 $ADDCMD3
     #done
 done

@@ -14,6 +14,8 @@ date;hostname;pwd
 
 module load conda
 conda activate retfound_new
+SEED_MODE=train # split is fixed: only the training seed varies
+source ./multiseed_env.sh
 # Go to home directory
 #cd $HOME
 STUDY=$1 #AMD_all 2, DME_all 2
@@ -43,4 +45,4 @@ echo $Num_CLASS
 # Modify the path to your singularity container 
 # bash finetune_retfound_OCTDL.sh AMD_all vit-base-patch16-224 google/vit-base-patch16-224-in21k 5e-4 2 0.05 roc_auc OCT
 # bash finetune_retfound_OCTDL.sh DME_all RETFound_mae RETFound_mae_natureOCT 5e-4 2 0.05 roc_auc OCT
-torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune.py --savemodel --global_pool --batch_size $BATCH_SIZE --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --optimizer $OPTIMIZER --layer_decay 0.65 --weight_decay $weight_decay --drop_path 0.0 --nb_classes $Num_CLASS --data_path /orange/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv --task $STUDY-${data_type}-all-$FINETUNED_MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}opt${OPTIMIZER}-${Eval_score}eval-$ADDCMD-$ADDCMD2/ --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k $NUM_K --eval_score $Eval_score --modality $Modality --new_subset_num $SUBSETNUM $ADDCMD $ADDCMD2
+torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune.py --savemodel --global_pool --batch_size $BATCH_SIZE --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --optimizer $OPTIMIZER --layer_decay 0.65 --weight_decay $weight_decay --drop_path 0.0 --nb_classes $Num_CLASS --data_path /orange/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv --task $STUDY-${data_type}-all-$FINETUNED_MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}opt${OPTIMIZER}-${Eval_score}eval-$ADDCMD-$ADDCMD2/ --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers 8 --input_size 224 --num_k $NUM_K --eval_score $Eval_score --modality $Modality --new_subset_num $SUBSETNUM $SEED_ARGS $ADDCMD $ADDCMD2
