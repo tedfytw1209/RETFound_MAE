@@ -168,10 +168,10 @@ def run_all(*args, **extra):
 def test_run_all_train_submits_every_job_with_the_seed():
     res = run_all('1952', 'train')
     cmds = [l[4:] for l in res.stdout.splitlines() if l.startswith('CMD ')]
-    assert res.returncode == 0 and len(cmds) == 4 * 2 + 2  # 4 UF datasets x (4 baselines + SMP) + OCTDL + CellData
+    assert res.returncode == 0 and len(cmds) == 4 * 3 + 2  # 4 UF datasets x (4 baselines + SMP + sail-enc) + OCTDL + CellData
     assert all(c.startswith('sbatch [SEED=1952 MODE=split] ') for c in cmds)
     assert sum('baseline_multirun_XAI_model_train.sh' in c for c in cmds) == 4 + 2
-    assert sum('irb2024v5_smp_full.sh' in c for c in cmds) == 4
+    assert sum('irb2024v5_smp_full.sh' in c for c in cmds) == 4 + 4  # SAIL + sail-enc per UF dataset
     assert any('finetune_retfound_OCTDL.sh DME_all' in c for c in cmds)
 
 
@@ -190,13 +190,13 @@ def test_run_all_refuses_original_seed_and_bad_args(args, mode):
 def test_run_all_eval_skips_runs_without_checkpoints():
     res = run_all('1952', 'eval', DATASETS='NOPE_all_split')
     assert res.returncode == 0 and 'CMD ' not in res.stdout
-    assert res.stderr.count('[skip] no checkpoint yet') == 5  # 4 baselines + SMP
+    assert res.stderr.count('[skip] no checkpoint yet') == 6  # 4 baselines + SMP + sail-enc
 
 
 def test_run_all_eval_submits_baselines_and_smp_resume_matches_training_run():
     cmds = [l[4:] for l in run_all('1952', 'eval', CHECK_CKPT='0', DATASETS='DME_binary_all_split').stdout.splitlines()
             if l.startswith('CMD ')]
-    assert len(cmds) == 5
+    assert len(cmds) == 6
     assert all(c.startswith('sbatch [SEED=1952 MODE=split] ') for c in cmds)
     assert sum('baseline_multirun_XAI_eval_full.sh' in c for c in cmds) == 4
     assert any(c.endswith('DME_binary_all_split 2 timm_efficientnet-b4 timm_efficientnet-b4 380') for c in cmds)
@@ -216,4 +216,57 @@ def test_run_all_dry_run_lists_driver_fanout_and_submits_nothing():
     assert len(jobs) == (4 + 2) * 4  # 6 train drivers x 4 baselines (4 UF datasets + OCTDL + CellData)
     for model in ('timm_efficientnet-b4', 'resnet-50', 'vit-base-patch16-224', 'RETFound_mae'):
         assert sum(f' {model} ' in j for j in jobs) == 6
-    assert '(dry run): 10 sbatch calls + 24 jobs spawned by train drivers' in res.stdout
+    assert '(dry run): 14 sbatch calls + 24 jobs spawned by train drivers' in res.stdout
+
+
+ENC_ARGS = ('enc', 'weighted_sum', '0.5', 'decoder_to_encoder', '0', 'pre', '-1', '-1', 'conv', 'scalar')
+
+
+def run_tmp(*args, **extra):
+    return subprocess.run(['bash', '-c', ENV_STUBS + 'bash "$@"', 'tmp', 'multiseed_sail_enc_tmp.sh', *args],
+                          cwd=REPO, env=_env(**extra), capture_output=True, text=True)
+
+
+def _cmds(res):
+    return [l[4:] for l in res.stdout.splitlines() if l.startswith('CMD ')]
+
+
+def test_sail_enc_tmp_train_submits_only_sail_enc():
+    res = run_tmp('1952', 'train')
+    cmds = _cmds(res)
+    assert res.returncode == 0 and len(cmds) == 4  # one training job per UF dataset, nothing else
+    assert all(c.startswith('sbatch [SEED=1952 MODE=split] finetune_retfound_UFbenchmark_irb2024v5_smp_full.sh ')
+               and f' {SEG_CKPT} 5e-4 2 1e-4 default OCT 0 ' + ' '.join(ENC_ARGS) in c and 'baseline_multirun' not in c
+               for c in cmds)
+    assert [c.split()[4] for c in cmds] == ['DME_binary_all_split', 'AMD_all_split', 'Glaucoma_binary_all_split', 'ERM_all_split']
+
+
+def test_run_all_only_sail_enc_matches_tmp_script():
+    assert _cmds(run_all('1952', 'train', ONLY='sail-enc')) == _cmds(run_tmp('1952', 'train'))
+    assert len(_cmds(run_all('1952', 'train'))) == 14  # default still runs everything
+
+
+def test_sail_enc_eval_resumes_the_training_run_dir_and_uses_rise():
+    cmds = _cmds(run_tmp('1952', 'eval', CHECK_CKPT='0', DATASETS='DME_binary_all_split'))
+    [cmd] = cmds
+    assert cmd.startswith('sbatch [SEED=1952 MODE=split] finetune_retfound_UFbenchmark_v5_eval_smp_full.sh DME_binary_all_split SMP ')
+    [train] = dry_run('finetune_retfound_UFbenchmark_irb2024v5_smp_full.sh', 'DME_binary_all_split', 'SMP', SEG_CKPT,
+                      '5e-4', '2', '1e-4', 'default', 'OCT', '0', *ENC_ARGS, seed=1952)
+    tokens = train.split()
+    # main_finetune_smp.py appends the seed suffix to --task (util.multiseed), which names the output dir
+    resume = f'{tokens[tokens.index("--output_dir") + 1]}/{tokens[tokens.index("--task") + 1].rstrip("/")}{seed_suffix(1952, 0, 0)}'
+    # KDD_rise_enceval.sh argument order: RESUME 2 512 rise 1024 <thickness dir> enc ... head -1 conv
+    assert f' {resume}/checkpoint-best.pth 2 512 rise 1024 /orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/ '            'enc weighted_sum 0.5 decoder_to_encoder 0 pre -1 -1 head -1 conv' in cmd
+    assert cmd.endswith('head -1 conv')  # no extra flags: the training run carries none
+
+
+def test_sail_enc_eval_one_job_per_xai_method_and_skips_missing_checkpoint():
+    cmds = _cmds(run_tmp('1952', 'eval', CHECK_CKPT='0', DATASETS='DME_binary_all_split', SAIL_ENC_XAI='rise hirescam'))
+    assert [c.split(' 2 512 ')[1].split()[0] for c in cmds] == ['rise', 'hirescam']
+    res = run_tmp('1952', 'eval', DATASETS='NOPE_all_split')
+    assert res.returncode == 0 and 'CMD ' not in res.stdout and res.stderr.count('[skip] no checkpoint yet') == 1
+
+
+def test_run_all_rejects_unknown_only():
+    res = run_all('1952', 'train', ONLY='bogus')
+    assert res.returncode != 0 and 'CMD ' not in res.stdout
