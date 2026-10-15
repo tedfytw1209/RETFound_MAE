@@ -112,3 +112,42 @@ def test_train_driver_exports_seed_and_mode():
     assert len(cmds) == 4
     assert all(c.startswith('sbatch --export=ALL,SEED=1952,SEED_MODE=train finetune_retfound_UFbenchmark_irb2024v5_full2.sh')
                for c in cmds)
+
+
+MODEL_DIR = '/orange/ruogu.fang/tienyuchang/RETfound_results'
+EVAL_FULL = ('baseline_multirun_XAI_eval_full.sh', 'finetune_retfound_UFbenchmark_v5_eval_full2.sh',
+             'DME_binary_all_split', '2', 'RETFound_mae', 'RETFound_mae_natureOCT', '224')
+SMP_RESUME = '/orange/x/ERM_all_split-IRB2024_v5_all-all-/blue/y.pth-OCT-conv---/checkpoint-best.pth'
+EVAL_SMP = ('baseline_multirun_XAI_eval_smp.sh', 'finetune_retfound_UFbenchmark_v5_eval_smp_full.sh',
+            'ERM_all_split', '2', 'SMP', '/blue/y.pth', SMP_RESUME, '512', 'enc', 'weighted_sum', '0.5',
+            'decoder_to_encoder', '0', 'pre', '-1', '-1', 'encoder', '-1', 'conv')
+
+
+def test_eval_full_driver_original_uses_full2_checkpoint():
+    cmds = dry_run(*EVAL_FULL)
+    assert len(cmds) == 3  # hirescam, gradcam++, gradcamv2
+    for cmd in cmds:
+        assert f'--resume {MODEL_DIR}/{TASK}/checkpoint-best.pth' in cmd
+        assert 'split/tune8-eval2/' in cmd and '--seed' not in cmd and '--split_seed' not in cmd
+
+
+def test_eval_full_driver_split_mode():
+    for cmd in dry_run(*EVAL_FULL, seed=1952):
+        assert f'--resume {MODEL_DIR}/{TASK}-s1952/checkpoint-best.pth' in cmd
+        assert 'split/tune8-eval2-s1952/' in cmd and '--split_seed 1952' in cmd
+
+
+def test_eval_full_driver_train_mode():
+    for cmd in dry_run(*EVAL_FULL, seed=1952, mode='train'):
+        assert f'--resume {MODEL_DIR}/{TASK}-seed1952/checkpoint-best.pth' in cmd
+        assert 'split/tune8-eval2/' in cmd and '--seed 1952' in cmd
+
+
+@pytest.mark.parametrize('mode,suffix,split', [('split', '-s1952', 'tune8-eval2-s1952'),
+                                               ('train', '-seed1952', 'tune8-eval2')])
+def test_eval_smp_driver_rewrites_resume(mode, suffix, split):
+    cmds = dry_run(*EVAL_SMP, seed=1952, mode=mode)
+    assert len(cmds) == 3
+    for cmd in cmds:
+        assert f'--resume {SMP_RESUME[:-len("/checkpoint-best.pth")]}{suffix}/checkpoint-best.pth' in cmd
+        assert f'split/{split}/' in cmd

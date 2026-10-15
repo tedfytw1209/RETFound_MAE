@@ -32,6 +32,9 @@ ADDCMD=${19:-""}
 ADDCMD2=${20:-""}
 ADDCMD3=${21:-""}
 ADDCMD4=${22:-""}
+source ./multiseed_env.sh
+# RESUME is the original-run checkpoint; point it at this seed's run dir
+RESUME=${RESUME%/checkpoint-best.pth}${RUN_SUFFIX}/checkpoint-best.pth
 
 NUM_K=0
 MODEL_DIR="/orange/ruogu.fang/tienyuchang/RETfound_results"
