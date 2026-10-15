@@ -151,3 +151,59 @@ def test_eval_smp_driver_rewrites_resume(mode, suffix, split):
     for cmd in cmds:
         assert f'--resume {SMP_RESUME[:-len("/checkpoint-best.pth")]}{suffix}/checkpoint-best.pth' in cmd
         assert f'split/{split}/' in cmd
+
+
+SEG_CKPT = '/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth'
+SMP_ARGS = ('fuse', 'weighted_sum', '0.5', 'decoder_to_encoder', '9', 'pre', '-2', '-1', 'conv', 'scalar',
+            '--seg_mask', '--smp_learnable_alpha')
+ENV_STUBS = STUBS.replace('sbatch(){ echo "CMD sbatch $*"; }',
+                          'sbatch(){ echo "CMD sbatch [SEED=$SEED MODE=$SEED_MODE] $*"; }')
+
+
+def run_all(*args, **extra):
+    return subprocess.run(['bash', '-c', ENV_STUBS + 'bash "$@"', 'run_all', 'multiseed_run_all.sh', *args],
+                          cwd=REPO, env=_env(**extra), capture_output=True, text=True)
+
+
+def test_run_all_train_submits_every_job_with_the_seed():
+    res = run_all('1952', 'train')
+    cmds = [l[4:] for l in res.stdout.splitlines() if l.startswith('CMD ')]
+    assert res.returncode == 0 and len(cmds) == 4 * 2 + 2  # 4 UF datasets x (4 baselines + SMP) + OCTDL + CellData
+    assert all(c.startswith('sbatch [SEED=1952 MODE=split] ') for c in cmds)
+    assert sum('baseline_multirun_XAI_model_train.sh' in c for c in cmds) == 4 + 2
+    assert sum('irb2024v5_smp_full.sh' in c for c in cmds) == 4
+    assert any('finetune_retfound_OCTDL.sh DME_all' in c for c in cmds)
+
+
+def test_run_all_passes_seed_mode_through():
+    cmds = [l for l in run_all('1952', 'train', SEED_MODE='train').stdout.splitlines() if l.startswith('CMD ')]
+    assert cmds and all('[SEED=1952 MODE=train]' in c for c in cmds)
+
+
+@pytest.mark.parametrize('args,mode', [(('42', 'train'), 'split'), (('0', 'train'), 'train'), (('42', 'eval'), 'split'),
+                                       ((), 'split'), (('1952', 'bogus'), 'split')])
+def test_run_all_refuses_original_seed_and_bad_args(args, mode):
+    res = run_all(*args, SEED_MODE=mode)
+    assert res.returncode != 0 and 'CMD ' not in res.stdout
+
+
+def test_run_all_eval_skips_runs_without_checkpoints():
+    res = run_all('1952', 'eval', DATASETS='NOPE_all_split')
+    assert res.returncode == 0 and 'CMD ' not in res.stdout
+    assert res.stderr.count('[skip] no checkpoint yet') == 5  # 4 baselines + SMP
+
+
+def test_run_all_eval_submits_baselines_and_smp_resume_matches_training_run():
+    cmds = [l[4:] for l in run_all('1952', 'eval', CHECK_CKPT='0', DATASETS='DME_binary_all_split').stdout.splitlines()
+            if l.startswith('CMD ')]
+    assert len(cmds) == 5
+    assert all(c.startswith('sbatch [SEED=1952 MODE=split] ') for c in cmds)
+    assert sum('baseline_multirun_XAI_eval_full.sh' in c for c in cmds) == 4
+    assert any(c.endswith('DME_binary_all_split 2 timm_efficientnet-b4 timm_efficientnet-b4 380') for c in cmds)
+    [smp] = [c for c in cmds if 'baseline_multirun_XAI_eval_smp.sh' in c]
+    # the training run (SEED unset) writes <output_dir>/<task>checkpoint-best.pth: that is what the eval driver must be given
+    [train] = dry_run('finetune_retfound_UFbenchmark_irb2024v5_smp_full.sh', 'DME_binary_all_split', 'SMP', SEG_CKPT,
+                      '5e-4', '2', '1e-4', 'default', 'OCT', '0', *SMP_ARGS)
+    tokens = train.split()
+    resume = f'{tokens[tokens.index("--output_dir") + 1]}/{tokens[tokens.index("--task") + 1]}checkpoint-best.pth'
+    assert f' {resume} 512 fuse weighted_sum 0.5 decoder_to_encoder 9 pre -2 -1 head -1 conv ' in smp
