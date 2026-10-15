@@ -40,10 +40,28 @@ BASELINES=("RETFound_mae RETFound_mae_natureOCT 224" "resnet-50 microsoft/resnet
 
 SUBMITTED=0
 SKIPPED=0
+SPAWNED=0
+# dry run only: run the train driver with sbatch stubbed out, to list the jobs it would submit
+preview_driver() {
+    local jobs
+    jobs=$(
+        sbatch() { shift; echo "    -> job: $*"; }
+        export -f sbatch
+        SEED=$SEED SEED_MODE=$SEED_MODE bash "$@" 2>/dev/null | grep '^    -> job: '
+    )
+    if [ -z "$jobs" ]; then
+        echo "    -> (could not preview the jobs of $1)"
+        return
+    fi
+    echo "$jobs"
+    SPAWNED=$((SPAWNED + $(echo "$jobs" | wc -l)))
+}
 submit() {
     echo "SEED=$SEED SEED_MODE=$SEED_MODE $*"
     if [ "$DRY_RUN" != "1" ]; then
         SEED=$SEED SEED_MODE=$SEED_MODE "$@"
+    elif [ "$2" = "baseline_multirun_XAI_model_train.sh" ]; then
+        preview_driver "${@:2}"
     fi
     SUBMITTED=$((SUBMITTED + 1))
 }
@@ -93,4 +111,8 @@ case "$STAGE" in
     eval) eval_stage ;;
     *) echo "unknown stage '$STAGE' (train|eval)" >&2; exit 1 ;;
 esac
-echo "[multiseed_run_all] SEED=$SEED stage=$STAGE: $SUBMITTED submitted$([ "$DRY_RUN" = "1" ] && echo ' (dry run)'), $SKIPPED skipped"
+if [ "$DRY_RUN" = "1" ]; then
+    echo "[multiseed_run_all] SEED=$SEED stage=$STAGE (dry run): $SUBMITTED sbatch calls + $SPAWNED jobs spawned by train drivers, $SKIPPED skipped"
+else
+    echo "[multiseed_run_all] SEED=$SEED stage=$STAGE: $SUBMITTED submitted, $SKIPPED skipped"
+fi

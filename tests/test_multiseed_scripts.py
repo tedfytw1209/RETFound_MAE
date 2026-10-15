@@ -207,3 +207,13 @@ def test_run_all_eval_submits_baselines_and_smp_resume_matches_training_run():
     tokens = train.split()
     resume = f'{tokens[tokens.index("--output_dir") + 1]}/{tokens[tokens.index("--task") + 1]}checkpoint-best.pth'
     assert f' {resume} 512 fuse weighted_sum 0.5 decoder_to_encoder 9 pre -2 -1 head -1 conv ' in smp
+
+
+def test_run_all_dry_run_lists_driver_fanout_and_submits_nothing():
+    res = run_all('1952', 'train', DRY_RUN='1')
+    jobs = [l for l in res.stdout.splitlines() if l.startswith('    -> job: ')]
+    assert res.returncode == 0 and 'CMD ' not in res.stdout  # nothing was handed to sbatch
+    assert len(jobs) == (4 + 2) * 4  # 6 train drivers x 4 baselines (4 UF datasets + OCTDL + CellData)
+    for model in ('timm_efficientnet-b4', 'resnet-50', 'vit-base-patch16-224', 'RETFound_mae'):
+        assert sum(f' {model} ' in j for j in jobs) == 6
+    assert '(dry run): 10 sbatch calls + 24 jobs spawned by train drivers' in res.stdout
