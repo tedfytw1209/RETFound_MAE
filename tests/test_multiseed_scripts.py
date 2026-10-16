@@ -1,6 +1,7 @@
 # tests/test_multiseed_scripts.py
 """Dry-run the sbatch scripts with torchrun/python/sbatch stubbed out and check the seed wiring."""
 import os
+import re
 import shutil
 import subprocess
 
@@ -157,27 +158,61 @@ SEG_CKPT = '/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model
 SMP_ARGS = ('fuse', 'weighted_sum', '0.5', 'decoder_to_encoder', '9', 'pre', '-2', '-1', 'conv', 'scalar',
             '--seg_mask', '--smp_learnable_alpha')
 ENV_STUBS = STUBS.replace('sbatch(){ echo "CMD sbatch $*"; }',
-                          'sbatch(){ echo "CMD sbatch [SEED=$SEED MODE=$SEED_MODE] $*"; }')
+                          r'sbatch(){ echo "CMD sbatch [SEED=$SEED MODE=$SEED_MODE] $*"; '
+                          r'for a in "$@"; do case "$a" in --job-name=*) [ -n "$FAKE_STATE" ] && echo "${a#--job-name=}" >> "$FAKE_STATE";; esac; done; }')
+# fake SLURM queue: squeue = $FAKE_SQUEUE + every job sbatch accepted (recorded in $FAKE_STATE); sacct = $FAKE_SACCT (COMPLETED)
+SLURM_STUBS = (r'squeue(){ { printf "%s\n" "$FAKE_SQUEUE"; [ -f "$FAKE_STATE" ] && cat "$FAKE_STATE"; } | grep -v "^$"; return 0; }; '
+               r'sacct(){ printf "%s\n" "$FAKE_SACCT" | grep -v "^$"; return 0; }; export -f squeue sacct; ')
 
 
-def run_all(*args, **extra):
-    return subprocess.run(['bash', '-c', ENV_STUBS + 'bash "$@"', 'run_all', 'multiseed_run_all.sh', *args],
+def run_all(*args, slurm=False, **extra):
+    return subprocess.run(['bash', '-c', ENV_STUBS + (SLURM_STUBS if slurm else '') + 'bash "$@"', 'run_all',
+                           'multiseed_run_all.sh', *args],
                           cwd=REPO, env=_env(**extra), capture_output=True, text=True)
+
+
+def _cmds(res):
+    """sbatch calls the stub saw, without the --job-name option (see _names for that)"""
+    return [re.sub(r' --job-name=\S+', '', l[4:]) for l in res.stdout.splitlines() if l.startswith('CMD ')]
+
+
+def _names(res):
+    return [m.group(1) for l in res.stdout.splitlines() if l.startswith('CMD ') for m in [re.search(r'--job-name=(\S+)', l)]]
 
 
 def test_run_all_train_submits_every_job_with_the_seed():
     res = run_all('1952', 'train')
-    cmds = [l[4:] for l in res.stdout.splitlines() if l.startswith('CMD ')]
-    assert res.returncode == 0 and len(cmds) == 4 * 3 + 2  # 4 UF datasets x (4 baselines + SMP + sail-enc) + OCTDL + CellData
+    cmds = _cmds(res)
+    # 4 UF datasets x (4 baselines + SAIL + sail-enc) + OCTDL and CellData x 4 baselines
+    assert res.returncode == 0 and len(cmds) == 4 * 6 + 2 * 4
     assert all(c.startswith('sbatch [SEED=1952 MODE=split] ') for c in cmds)
-    assert sum('baseline_multirun_XAI_model_train.sh' in c for c in cmds) == 4 + 2
+    assert not any('baseline_multirun_XAI_model_train.sh' in c for c in cmds)  # one job per model, no driver
+    assert sum('irb2024v5_full2.sh' in c for c in cmds) == 4 * 4
     assert sum('irb2024v5_smp_full.sh' in c for c in cmds) == 4 + 4  # SAIL + sail-enc per UF dataset
-    assert any('finetune_retfound_OCTDL.sh DME_all' in c for c in cmds)
+    assert sum('finetune_retfound_OCTDL.sh DME_all' in c for c in cmds) == 4
+    assert sum('finetune_retfound_Celldata.sh DME_all' in c for c in cmds) == 4
+    for model in ('timm_efficientnet-b4', 'resnet-50', 'vit-base-patch16-224', 'RETFound_mae'):
+        assert sum(f' DME_binary_all_split {model} ' in c for c in cmds) == 1  # the models the driver would have submitted
+    assert any(c.endswith('DME_binary_all_split timm_efficientnet-b4 timm_efficientnet-b4 5e-4 2 0.05 default OCT 0') for c in cmds)
 
 
 def test_run_all_passes_seed_mode_through():
     cmds = [l for l in run_all('1952', 'train', SEED_MODE='train').stdout.splitlines() if l.startswith('CMD ')]
     assert cmds and all('[SEED=1952 MODE=train]' in c for c in cmds)
+
+
+def test_run_all_job_names_are_unique_and_encode_mode_seed_and_kind():
+    names = _names(run_all('1952', 'train'))
+    assert len(names) == len(set(names)) == 32
+    assert 'ms-split-1952-tr-base-DME_binary_all_split-resnet-50' in names
+    assert 'ms-split-1952-tr-sail-AMD_all_split' in names and 'ms-split-1952-tr-enc-ERM_all_split' in names
+    assert 'ms-train-1952-tr-OCTDL-DME_all-vit-base-patch16-224' in names  # public data always varies the training seed
+    # a UF split-mode run and a UF train-mode run of the same seed must not be mistaken for each other
+    def uf(ns):
+        return {n for n in ns if '-OCTDL-' not in n and '-Celldata-' not in n}
+    train_mode = _names(run_all('1952', 'train', SEED_MODE='train'))
+    assert uf(train_mode) and not uf(names) & uf(train_mode)
+    assert all(n.startswith('ms-train-1952-') for n in train_mode if '-OCTDL-' in n or '-Celldata-' in n)
 
 
 @pytest.mark.parametrize('args,mode', [(('42', 'train'), 'split'), (('0', 'train'), 'train'), (('42', 'eval'), 'split'),
@@ -194,8 +229,7 @@ def test_run_all_eval_skips_runs_without_checkpoints():
 
 
 def test_run_all_eval_submits_baselines_and_smp_resume_matches_training_run():
-    cmds = [l[4:] for l in run_all('1952', 'eval', CHECK_CKPT='0', DATASETS='DME_binary_all_split').stdout.splitlines()
-            if l.startswith('CMD ')]
+    cmds = _cmds(run_all('1952', 'eval', CHECK_CKPT='0', DATASETS='DME_binary_all_split'))
     assert len(cmds) == 6
     assert all(c.startswith('sbatch [SEED=1952 MODE=split] ') for c in cmds)
     assert sum('baseline_multirun_XAI_eval_full.sh' in c for c in cmds) == 4
@@ -209,26 +243,21 @@ def test_run_all_eval_submits_baselines_and_smp_resume_matches_training_run():
     assert f' {resume} 512 fuse weighted_sum 0.5 decoder_to_encoder 9 pre -2 -1 head -1 conv ' in smp
 
 
-def test_run_all_dry_run_lists_driver_fanout_and_submits_nothing():
+def test_run_all_dry_run_lists_every_job_and_submits_nothing():
     res = run_all('1952', 'train', DRY_RUN='1')
-    jobs = [l for l in res.stdout.splitlines() if l.startswith('    -> job: ')]
+    jobs = [l for l in res.stdout.splitlines() if l.startswith('SEED=1952 SEED_MODE=split sbatch --job-name=ms-')]
     assert res.returncode == 0 and 'CMD ' not in res.stdout  # nothing was handed to sbatch
-    assert len(jobs) == (4 + 2) * 4  # 6 train drivers x 4 baselines (4 UF datasets + OCTDL + CellData)
-    for model in ('timm_efficientnet-b4', 'resnet-50', 'vit-base-patch16-224', 'RETFound_mae'):
-        assert sum(f' {model} ' in j for j in jobs) == 6
-    assert '(dry run): 14 sbatch calls + 24 jobs spawned by train drivers' in res.stdout
+    assert len(jobs) == 32
+    assert '32 submitted (dry run), 0 already done, 0 already queued, 0 not ready' in res.stdout
 
 
 ENC_ARGS = ('enc', 'weighted_sum', '0.5', 'decoder_to_encoder', '0', 'pre', '-1', '-1', 'conv', 'scalar')
 
 
-def run_tmp(*args, **extra):
-    return subprocess.run(['bash', '-c', ENV_STUBS + 'bash "$@"', 'tmp', 'multiseed_sail_enc_tmp.sh', *args],
+def run_tmp(*args, slurm=False, **extra):
+    return subprocess.run(['bash', '-c', ENV_STUBS + (SLURM_STUBS if slurm else '') + 'bash "$@"', 'tmp',
+                           'multiseed_sail_enc_tmp.sh', *args],
                           cwd=REPO, env=_env(**extra), capture_output=True, text=True)
-
-
-def _cmds(res):
-    return [l[4:] for l in res.stdout.splitlines() if l.startswith('CMD ')]
 
 
 def test_sail_enc_tmp_train_submits_only_sail_enc():
@@ -243,7 +272,7 @@ def test_sail_enc_tmp_train_submits_only_sail_enc():
 
 def test_run_all_only_sail_enc_matches_tmp_script():
     assert _cmds(run_all('1952', 'train', ONLY='sail-enc')) == _cmds(run_tmp('1952', 'train'))
-    assert len(_cmds(run_all('1952', 'train'))) == 14  # default still runs everything
+    assert len(_cmds(run_all('1952', 'train'))) == 32  # default still runs everything
 
 
 def test_sail_enc_eval_resumes_the_training_run_dir_and_uses_rise():
@@ -270,3 +299,93 @@ def test_sail_enc_eval_one_job_per_xai_method_and_skips_missing_checkpoint():
 def test_run_all_rejects_unknown_only():
     res = run_all('1952', 'train', ONLY='bogus')
     assert res.returncode != 0 and 'CMD ' not in res.stdout
+
+
+UF1 = dict(DATASETS='DME_binary_all_split', PUBLIC_DATASETS=' ')  # one UF dataset, no public data: 6 train jobs
+TR = [f'ms-split-1952-tr-base-DME_binary_all_split-{m}' for m in
+      ('RETFound_mae', 'resnet-50', 'vit-base-patch16-224', 'timm_efficientnet-b4')]
+TR += ['ms-split-1952-tr-sail-DME_binary_all_split', 'ms-split-1952-tr-enc-DME_binary_all_split']
+
+
+def slurm_env(tmp_path, squeue=(), sacct=()):
+    return dict(FAKE_SQUEUE='\n'.join(squeue), FAKE_SACCT='\n'.join(sacct), FAKE_STATE=str(tmp_path / 'queue.txt'))
+
+
+def test_run_all_resume_skips_completed_and_queued_jobs(tmp_path):
+    env = slurm_env(tmp_path, squeue=[TR[5]], sacct=[TR[1], TR[4]])
+    res = run_all('1952', 'train', slurm=True, **env, **UF1)
+    assert res.returncode == 0 and _names(res) == [TR[0], TR[2], TR[3]]
+    assert res.stderr.count('[skip] already done') == 2 and res.stderr.count('[skip] already queued/running') == 1
+    assert '3 submitted, 2 already done, 1 already queued' in res.stdout
+    # RERUN_DONE=1 resubmits the completed ones, but never what is still queued/running
+    (tmp_path / 'again').mkdir()
+    env = slurm_env(tmp_path / 'again', squeue=[TR[5]], sacct=[TR[1], TR[4]])
+    res = run_all('1952', 'train', slurm=True, RERUN_DONE='1', **env, **UF1)
+    assert _names(res) == TR[:5]
+
+
+def test_run_all_resume_ignores_jobs_of_other_seeds_and_modes(tmp_path):
+    other = [n.replace('1952', '5235') for n in TR] + [n.replace('split', 'train') for n in TR]
+    res = run_all('1952', 'train', slurm=True, **slurm_env(tmp_path, squeue=other, sacct=other), **UF1)
+    assert _names(res) == TR and 'already' not in res.stderr
+
+
+def test_run_all_max_slurm_stops_then_a_rerun_finishes_without_duplicates(tmp_path):
+    first = run_all('1952', 'train', slurm=True, MAX_SLURM='5', **slurm_env(tmp_path, squeue=['x1', 'x2', 'x3']), **UF1)
+    assert _names(first) == TR[:2]  # 3 jobs already queued + 2 submitted = 5
+    assert '[limit] 5 jobs in the queue >= MAX_SLURM=5' in first.stderr
+    assert '2 submitted' in first.stdout and '4 left: MAX_SLURM=5 reached, rerun to continue' in first.stdout
+    # later: the other jobs finished, the two submitted ones COMPLETED -> the rerun submits only the remaining four
+    (tmp_path / 'second').mkdir()
+    second = run_all('1952', 'train', slurm=True, MAX_SLURM='5', **slurm_env(tmp_path / 'second', sacct=TR[:2]), **UF1)
+    assert _names(second) == TR[2:] and 'left' not in second.stdout
+    assert sorted(_names(first) + _names(second)) == sorted(TR)
+
+
+def test_run_all_max_slurm_counts_what_a_dry_run_would_submit(tmp_path):
+    res = run_all('1952', 'train', slurm=True, DRY_RUN='1', MAX_SLURM='2', **slurm_env(tmp_path), **UF1)
+    jobs = [l for l in res.stdout.splitlines() if l.startswith('SEED=1952 SEED_MODE=split sbatch --job-name=')]
+    assert len(jobs) == 2 and '2 submitted (dry run)' in res.stdout and '4 left' in res.stdout
+    assert not (tmp_path / 'queue.txt').exists()  # nothing really submitted
+    unlimited = run_all('1952', 'train', slurm=True, DRY_RUN='1', **slurm_env(tmp_path, squeue=['x'] * 50), **UF1)
+    assert '6 submitted (dry run)' in unlimited.stdout  # MAX_SLURM unset = no limit
+
+
+def test_run_all_rejects_a_bad_max_slurm_and_warns_without_slurm():
+    res = run_all('1952', 'train', MAX_SLURM='many')
+    assert res.returncode != 0 and 'CMD ' not in res.stdout
+    res = run_all('1952', 'train', MAX_SLURM='3', **UF1)  # no squeue/sacct on this machine: warn, do not guess
+    assert res.returncode == 0 and 'squeue/sacct not found' in res.stderr and len(_cmds(res)) == 6
+
+
+def _enc_checkpoint(root):
+    """where the training run of sail-enc (seed 1952, split mode) leaves its checkpoint, under a fake results root"""
+    [train] = dry_run('finetune_retfound_UFbenchmark_irb2024v5_smp_full.sh', 'DME_binary_all_split', 'SMP', SEG_CKPT,
+                      '5e-4', '2', '1e-4', 'default', 'OCT', '0', *ENC_ARGS, seed=1952)
+    tokens = train.split()
+    run_dir = tokens[tokens.index('--task') + 1].rstrip('/') + seed_suffix(1952, 0, 0)
+    path = os.path.join(root, run_dir, 'checkpoint-best.pth')
+    os.makedirs(os.path.dirname(path))
+    open(path, 'w').close()
+
+
+def test_run_all_eval_waits_while_the_training_job_is_running(tmp_path):
+    results = tmp_path / 'results'
+    _enc_checkpoint(str(results))
+    env = dict(MODEL_DIR=str(results), **UF1)
+    running = run_tmp('1952', 'eval', slurm=True, **env, **slurm_env(tmp_path, squeue=[TR[5]]))
+    assert not _cmds(running) and '[skip] training still queued/running: ' + TR[5] in running.stderr
+    # checkpoint-best.pth exists after the first epoch, so the checkpoint alone must not be enough
+    (tmp_path / 'idle').mkdir()
+    finished = run_tmp('1952', 'eval', slurm=True, **env, **slurm_env(tmp_path / 'idle'))
+    assert _names(finished) == ['ms-split-1952-ev-enc-DME_binary_all_split-rise']
+    (tmp_path / 'forced').mkdir()
+    forced = run_tmp('1952', 'eval', slurm=True, CHECK_CKPT='0', **env, **slurm_env(tmp_path / 'forced', squeue=[TR[5]]))
+    assert _names(forced) == ['ms-split-1952-ev-enc-DME_binary_all_split-rise']
+
+
+def test_run_all_eval_resume_skips_completed_eval_jobs(tmp_path):
+    env = slurm_env(tmp_path, sacct=['ms-split-1952-ev-base-DME_binary_all_split-resnet-50'])
+    res = run_all('1952', 'eval', slurm=True, CHECK_CKPT='0', **env, **UF1)
+    assert len(_names(res)) == 5 and 'ms-split-1952-ev-base-DME_binary_all_split-resnet-50' not in _names(res)
+    assert '[skip] already done: ms-split-1952-ev-base-DME_binary_all_split-resnet-50' in res.stderr
