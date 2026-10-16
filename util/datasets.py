@@ -3,7 +3,9 @@
 # Partly revised by YZ @UCL&Moorfields
 # --------------------------------------------------------
 
+import errno
 import os
+import time
 
 import torch
 from torchvision import datasets, transforms
@@ -20,6 +22,30 @@ from pathlib import Path
 import math
 
 AD_LIST = ['control','mci','ad']
+
+# errno values that a shared filesystem (/orange, /blue) can return transiently under load
+TRANSIENT_IO_ERRNOS = {errno.EIO, errno.ESTALE, errno.EAGAIN, errno.ETIMEDOUT}
+
+def retry_io(fn, *args, retries=5, base_delay=2.0, what='', **kwargs):
+    """Call fn, retrying with exponential backoff on transient filesystem errors (EIO/ESTALE/...).
+    Other errors (missing file, corrupt image) are raised at once. The final error names the path."""
+    for attempt in range(1, retries + 1):
+        try:
+            return fn(*args, **kwargs)
+        except OSError as e:
+            if e.errno not in TRANSIENT_IO_ERRNOS:
+                raise
+            if attempt >= retries:
+                raise OSError(e.errno, f'{e.strerror} (after {retries} attempts): {what}') from e
+            delay = base_delay * (2 ** (attempt - 1))
+            print(f'[io-retry] {what}: {type(e).__name__} [Errno {e.errno}] {e.strerror}; '
+                  f'attempt {attempt}/{retries}, retrying in {delay:.0f}s', flush=True)
+            time.sleep(delay)
+
+def retry_loader(path):
+    """torchvision default_loader (PIL, RGB) with retries on transient filesystem errors."""
+    return retry_io(datasets.folder.default_loader, path, what=path)
+
 def process_dcm(dicom_root,sample_name,k=0):
     sample_path = os.path.join(dicom_root,sample_name)
     #print(sample_path)
@@ -241,7 +267,7 @@ class CSV_Dataset(Dataset):
         #common args
         self.transfroms = transfroms
         self.root_dir = img_dir
-        self.loader = datasets.folder.default_loader
+        self.loader = retry_loader
         self.use_ducan_preprocessing = use_ducan_preprocessing
         self.modality = modality
         self.pid_key = pid_key

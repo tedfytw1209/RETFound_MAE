@@ -23,7 +23,7 @@
 # wandb: project RETFound_MAE (hardcoded in the training mains), run name NCex_E5-<MODEL_TAG>
 # ─────────────────────────────────────────────────────────────────────────────
 
-RUN_ID=${1:-E5_v1}
+RUN_ID=${1:-E5_v2}
 MODEL_TAG=$2
 RESULTS_ROOT=/orange/ruogu.fang/tienyuchang/RETfound_XAI_results
 SEG_CKPT=/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth

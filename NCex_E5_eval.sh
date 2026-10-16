@@ -12,15 +12,16 @@
 
 # ─────────────────────────────────────────────────────────────────────────────
 # NCex E5 step 3/3: evaluate the E5-trained models on T1 (clean), T2 (all marked), T3 (healthy marked).
-# cheat_reliance = AUROC(T1) - AUROC(T3); on T2: marker_mass and pointing_hit for Grad-CAM, Grad-CAM++, HiResCAM.
+# cheat_reliance = AUROC(T1) - AUROC(T3); on T2 (and on T1 as the clean control at the same box):
+# marker_mass, pointing_hit, marker_pct (vs other retina locations) for Grad-CAM, Grad-CAM++, HiResCAM.
 #
 #   bash NCex_E5_eval.sh <RUN_ID>                 # five model jobs -> merge (afterok)
 #   sbatch NCex_E5_eval.sh <RUN_ID> <MODEL_TAG>   # one model: SAIL|ResNet-50|RETFound|EffNet-B4|ViT-B16
 #   sbatch NCex_E5_eval.sh <RUN_ID> merge
-# Results: ${RESULTS_ROOT}/NCex/E5/<RUN_ID>/{shortcut.csv,config.yaml,examples/,parts/,configs/}
+# Results: ${RESULTS_ROOT}/NCex/E5/<RUN_ID>/{shortcut.csv,shortcut_summary.csv,SAIL_vs_baselines.csv,config.yaml,examples/,parts/,configs/}
 # ─────────────────────────────────────────────────────────────────────────────
 
-RUN_ID=${1:-E5_v1}
+RUN_ID=${1:-E5_v2}
 MODEL_TAG=$2
 RESULTS_ROOT=/orange/ruogu.fang/tienyuchang/RETfound_XAI_results
 SEG_CKPT=/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth
