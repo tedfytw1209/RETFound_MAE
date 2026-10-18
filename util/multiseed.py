@@ -78,3 +78,31 @@ def summarize(rows, expect=0):
             if n < expect:
                 print(f'[multiseed] {group}: {n}/{expect} seeds')
     return summary.reset_index()
+
+
+def is_finished(run):
+    """A wandb run counts when it ended normally AND logged numeric test_* metrics (what aggregate_multiseed.py reads)."""
+    summary = getattr(run.summary, '_json_dict', run.summary)
+    has_test = any(k.startswith('test_') and isinstance(v, (int, float)) and not isinstance(v, bool)
+                   for k, v in summary.items())
+    return run.state == 'finished' and has_test
+
+
+def status_rows(runs, kind):
+    """key -> 'finished' | state of the newest run, for multiseed_run_all.sh's resume check.
+
+    kind='train': key is the run name (= args.task, which names the output dir too)
+    kind='eval':  key is '<resume checkpoint>|<xai method>': the eval run names are rebuilt from many arguments, but the
+                  checkpoint and the method are recorded in the config exactly as they were passed
+    A run that finished once stays finished; one that reached state 'finished' without any test_* metric is reported
+    as 'no_test_metrics', because there is nothing in it to aggregate.
+    """
+    newest, finished = {}, set()
+    for run in runs:
+        key = run.name if kind == 'train' else f"{run.config.get('resume', '')}|{run.config.get('xai', '')}"
+        if is_finished(run):
+            finished.add(key)
+        if key not in newest or run.created_at > newest[key].created_at:
+            newest[key] = run
+    return {key: 'finished' if key in finished else ('no_test_metrics' if run.state == 'finished' else run.state)
+            for key, run in newest.items()}

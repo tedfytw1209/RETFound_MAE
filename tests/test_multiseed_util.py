@@ -64,3 +64,42 @@ def test_summarize_mean_std():
     row = summary.iloc[0]
     assert row['n_seeds'] == 2 and row['replicates'] == '42 1952'
     assert row['test_roc_auc_mean'] == pytest.approx(0.85)
+
+
+from util.multiseed import is_finished, status_rows
+
+
+def _wb(name, state='finished', created='2026-10-01', test_auc=0.9, resume=None, xai=None, **summary):
+    config = {} if resume is None else {'resume': resume, 'xai': xai}
+    summary = ({'test_roc_auc': test_auc} if test_auc is not None else {}) | summary
+    return SimpleNamespace(name=name, state=state, created_at=created, config=config, summary=summary)
+
+
+def test_is_finished_needs_the_finished_state_and_test_metrics():
+    assert is_finished(_wb('a'))
+    assert not is_finished(_wb('a', state='crashed'))
+    assert not is_finished(_wb('a', state='running'))
+    assert not is_finished(_wb('a', test_auc=None, val_acc=0.5))  # finished without ever logging test_* metrics
+    assert not is_finished(_wb('a', test_auc=None, test_note='x'))  # only non-numeric test_* values
+
+
+def test_status_rows_train_keys_by_run_name():
+    rows = status_rows([_wb('A---s1952/', 'crashed', '2026-10-01'), _wb('A---s1952/', 'finished', '2026-10-02'),
+                        _wb('B---s1952/', 'crashed', '2026-10-01'), _wb('B---s1952/', 'killed', '2026-10-02'),
+                        _wb('C---s1952/', 'finished', test_auc=None)], 'train')
+    assert rows == {'A---s1952/': 'finished',  # a later rerun finished
+                    'B---s1952/': 'killed',  # nothing finished: the newest state
+                    'C---s1952/': 'no_test_metrics'}  # state finished, but nothing to aggregate
+
+
+def test_status_rows_a_later_crash_does_not_undo_a_finished_run():
+    rows = status_rows([_wb('A---s1952/', 'finished', '2026-10-01'), _wb('A---s1952/', 'crashed', '2026-10-02')], 'train')
+    assert rows == {'A---s1952/': 'finished'}
+
+
+def test_status_rows_eval_keys_by_checkpoint_and_xai_method():
+    ckpt = '/r/DME-s1952/checkpoint-best.pth'
+    rows = status_rows([_wb('n1', resume=ckpt, xai='hirescam'), _wb('n2', 'crashed', resume=ckpt, xai='gradcamv2'),
+                        _wb('n3', resume='/r/DME-s5235/checkpoint-best.pth', xai='hirescam')], 'eval')
+    assert rows == {f'{ckpt}|hirescam': 'finished', f'{ckpt}|gradcamv2': 'crashed',
+                    '/r/DME-s5235/checkpoint-best.pth|hirescam': 'finished'}
