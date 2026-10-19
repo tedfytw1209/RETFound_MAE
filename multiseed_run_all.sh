@@ -16,9 +16,12 @@
 # because that is what aggregate_multiseed.py aggregates, and it also recognizes runs submitted before the ms-... job
 # names existed (the run names are deterministic; eval runs are matched by checkpoint + XAI method):
 #   - every wandb run of the job FINISHED with test_* metrics  -> skipped
-#   - a wandb run exists but did not finish (crashed/killed/failed/running, or only some XAI methods) -> rerun, whatever
+#   - a wandb run is still RUNNING (any of the job's runs)      -> skipped, with a "[skip] already running" note
+#   - a wandb run exists but did not finish (crashed/failed/killed, or only some XAI methods) -> rerun, whatever
 #     SLURM says, with a "[resume] <job>: wandb run(s) not finished (...)" note
-#   - no wandb run, or wandb not readable (then a note says so) -> the SLURM rules below decide
+#   - no wandb run (not run yet), or wandb not readable (then a note says so) -> the SLURM rules below decide
+#     (never submitted -> submitted; a job queued in squeue is skipped)
+# (a run whose job died is shown as running until wandb notices the lost heartbeat and marks it crashed: rerun later)
 # SLURM: every job is named ms-<mode>-<seed>-<kind>-...:
 #   - already in squeue (queued/running)            -> skipped
 #   - COMPLETED in sacct (last SACCT_DAYS days)     -> skipped, but an eval job must also have logged every XAI
@@ -194,12 +197,13 @@ wb_load() {
         printf -v "$var" '%s' "$out"
     fi
 }
-# wb_verdict <project> <newline-separated keys>: WB_VERDICT = done (every key finished) | partial (some run exists but not
-# every key finished) | none (no run at all) | off (wandb unavailable); WB_NOTE says which key is in which state
+# wb_verdict <project> <newline-separated keys>: WB_VERDICT = done (every key finished) | running (not done, and some key is
+# still running: the job is in flight) | partial (some run exists, none running, but not every key finished: crashed/failed/
+# killed/...) | none (no run at all) | off (wandb unavailable); WB_NOTE says which key is in which state
 WB_VERDICT=off
 WB_NOTE=""
 wb_verdict() {
-    local project=$1 var="WBT_$1" key st label total=0 finished=0 existing=0
+    local project=$1 var="WBT_$1" key st label total=0 finished=0 existing=0 running=0
     WB_VERDICT=off
     WB_NOTE=""
     wb_load "$project" || return 0
@@ -217,9 +221,15 @@ wb_verdict() {
         if [ -n "$st" ]; then
             existing=$((existing + 1))
         fi
+        if [ "$st" = "running" ]; then
+            running=$((running + 1))
+        fi
     done <<< "$2"
     if [ "$total" -gt 0 ] && [ "$finished" -eq "$total" ]; then
         WB_VERDICT=done
+    elif [ "$running" -gt 0 ]; then
+        WB_VERDICT=running
+        WB_NOTE="run(s) still running ($WB_NOTE)"
     elif [ "$finished" -eq 0 ] && [ "$existing" -eq 0 ]; then
         WB_VERDICT=none
     else
@@ -256,8 +266,13 @@ submit() {
         SKIP_DONE=$((SKIP_DONE + 1))
         return
     fi
+    if [ "$WB_VERDICT" = "running" ]; then
+        echo "[skip] already running (wandb: $WB_NOTE): $name" >&2
+        SKIP_QUEUED=$((SKIP_QUEUED + 1))
+        return
+    fi
     if [ "$WB_VERDICT" = "partial" ]; then
-        # wandb is what gets aggregated: a run that did not finish there must be redone whatever SLURM says
+        # wandb is what gets aggregated: a run that crashed/failed there must be redone whatever SLURM says
         resume_msg="[resume] $name: wandb $WB_NOTE"
         if [ "$state" != "none" ]; then
             resume_msg="$resume_msg, SLURM job $state"
@@ -329,6 +344,11 @@ train_finished() { # <train job name> <run dir> <epochs> <wandb project> <wandb 
     wb_verdict "$4" "$5"
     case "$WB_VERDICT" in
         done) return 0 ;;
+        running)
+            echo "[skip] training still running: wandb $WB_NOTE for $1" >&2
+            SKIPPED=$((SKIPPED + 1))
+            return 1
+            ;;
         partial)
             echo "[skip] training not finished: wandb $WB_NOTE for $1 (rerun the train stage)" >&2
             SKIPPED=$((SKIPPED + 1))
@@ -432,7 +452,7 @@ case "$STAGE" in
     eval) eval_stage ;;
     *) echo "unknown stage '$STAGE' (train|eval)" >&2; exit 1 ;;
 esac
-SUMMARY="$SUBMITTED submitted$([ "$DRY_RUN" = "1" ] && echo ' (dry run)') ($RESUMED of them rerun after a failed/cancelled/incomplete attempt), $SKIP_DONE already done, $SKIP_QUEUED already queued, $SKIPPED not ready"
+SUMMARY="$SUBMITTED submitted$([ "$DRY_RUN" = "1" ] && echo ' (dry run)') ($RESUMED of them rerun after a failed/cancelled/incomplete attempt), $SKIP_DONE already done, $SKIP_QUEUED already queued/running, $SKIPPED not ready"
 if [ "$LIMIT_HIT" = "1" ]; then
     SUMMARY="$SUMMARY, $LEFT left: MAX_SLURM=$MAX_SLURM reached, rerun to continue"
 fi
