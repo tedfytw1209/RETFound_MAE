@@ -1,5 +1,6 @@
 #!/bin/bash
 # multiseed_run_all.sh — submit every multi-seed experiment for ONE seed.
+#   baseline seeds: 1952 5235 8234 8386
 #   bash multiseed_run_all.sh 1952 train   # UF baselines + UF SMP + UF sail-enc + OCTDL/CellData baselines
 #   bash multiseed_run_all.sh 1952 eval    # UF XAI eval (after the train jobs finish: it skips runs that are not ready yet)
 #   DRY_RUN=1 bash multiseed_run_all.sh 1952 train   # print the commands, submit nothing
