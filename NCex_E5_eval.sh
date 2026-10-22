@@ -21,7 +21,7 @@
 # Results: ${RESULTS_ROOT}/NCex/E5/<RUN_ID>/{shortcut.csv,shortcut_summary.csv,SAIL_vs_baselines.csv,config.yaml,examples/,parts/,configs/}
 # ─────────────────────────────────────────────────────────────────────────────
 
-RUN_ID=${1:-E5_v2}
+RUN_ID=${1:-E5_v3}
 MODEL_TAG=$2
 RESULTS_ROOT=/orange/ruogu.fang/tienyuchang/RETfound_XAI_results
 SEG_CKPT=/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth

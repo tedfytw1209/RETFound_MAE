@@ -20,6 +20,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import wandb
 from pytorch_grad_cam import GradCAM as GradCAMv2, GradCAMPlusPlus, HiResCAM
+from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+from torchvision import transforms
 
 from main_XAI_evaluation import get_args_parser as get_xai_args_parser, get_model
 from baselines.GradCAM_v2 import PytorchCAM
@@ -63,16 +65,37 @@ def git_commit():
         return 'unknown'
 
 
+def git_dirty_files():
+    """Tracked files that differ from HEAD (what makes git_commit() '-dirty'), as 'git diff --stat' lines."""
+    try:
+        out = subprocess.check_output(['git', 'diff', 'HEAD', '--stat=200'], cwd=REPO_DIR, text=True)
+        return [line.strip() for line in out.splitlines() if line.strip()]
+    except Exception:
+        return []
+
+
 def set_seed(seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
 
 
 def write_config(args, out_dir, name, extra=None):
-    """Write one YAML record (args, seed, git commit, checkpoint) for this call to <out_dir>/configs/<name>.yaml."""
+    """Write one YAML record (args, seed, git commit, checkpoint) for this call to <out_dir>/configs/<name>.yaml.
+
+    A '-dirty' commit also lists the changed files in the record and saves the full diff to configs/<name>.patch,
+    so the exact code of the run can be recovered."""
     os.makedirs(os.path.join(out_dir, 'configs'), exist_ok=True)
-    record = {'name': name, 'git_commit': git_commit(), 'seed': args.seed,
+    commit = git_commit()
+    record = {'name': name, 'git_commit': commit, 'seed': args.seed,
               'checkpoint': getattr(args, 'resume', None), 'args': vars(args)}
+    if commit.endswith('-dirty'):
+        record['git_dirty_files'] = git_dirty_files()
+        try:
+            patch = subprocess.check_output(['git', 'diff', 'HEAD'], cwd=REPO_DIR, text=True)
+            with open(os.path.join(out_dir, 'configs', f'{name}.patch'), 'w') as f:
+                f.write(patch)
+        except Exception as e:
+            print(f'[write_config] could not save git diff: {e}')
     if extra:
         record.update(extra)
     path = os.path.join(out_dir, 'configs', f'{name}.yaml')
@@ -128,10 +151,22 @@ def build_model(args):
     # eval=True skips the RETFound pre-trained download; the fine-tuned checkpoint holds every weight.
     args.eval = True
     model, processor, patch_size = get_model(args)
+    if 'efficientnet-b4' in args.model and args.model.startswith('timm'):
+        # main_XAI_evaluation hardcodes Resize((380, 380)); main_finetune.py resizes to --input_size.
+        # Honour --input_size so a model can be evaluated at the size it was trained at.
+        processor = transforms.Compose([
+            transforms.Resize((args.input_size, args.input_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
+        ])
     if not args.resume or args.resume == '0':
         raise ValueError('Please provide the fine-tuned checkpoint with --resume')
     # our own fine-tuned checkpoints (they pickle the argparse.Namespace of the training run)
     checkpoint = torch.load(args.resume, map_location='cpu', weights_only=False)
+    train_size = getattr(checkpoint.get('args'), 'input_size', None) if isinstance(checkpoint, dict) else None
+    if train_size is not None and train_size != args.input_size:
+        print(f'[build_model] WARNING: {args.resume} was trained at input_size {train_size} '
+              f'but is evaluated at {args.input_size}')
     state_dict = checkpoint['model'] if 'model' in checkpoint else checkpoint
     msg = model.load_state_dict(state_dict, strict=False)
     if msg.missing_keys:

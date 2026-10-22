@@ -51,8 +51,11 @@ CSV_COLUMNS = ['model', 'test_set', 'image_id', 'label', 'prob', 'explainer'] + 
 def get_args_parser():
     parser = get_ncex_parser('NCex E5 planted-cheat evaluation')
     parser.add_argument('--mode', default='run', choices=['run', 'merge'])
-    parser.add_argument('--explainers', default=['gradcamv2', 'gradcam++', 'hirescam'], nargs='+',
+    parser.add_argument('--explainers', default=['hirescam', 'gradcamv2', 'gradcam++'], nargs='+',
                         choices=list(CAM_METHODS.keys()))
+    parser.add_argument('--primary_explainer', default='hirescam', choices=list(CAM_METHODS.keys()),
+                        help='Headline explainer. HiResCAM is the default because it gives a non-blank map for every '
+                             'image of every model; Grad-CAM/Grad-CAM++ go blank on many ResNet-50/ViT-B16 images')
     parser.add_argument('--widen_px', default=2, type=float,
                         help='Pointing-game tolerance around the box, in 224-equivalent pixels')
     parser.add_argument('--n_examples', default=10, type=int, help='Example heatmaps (half disease, half healthy)')
@@ -344,6 +347,12 @@ def identification_summary(df, disease_class):
             row['chance_retina'] = t2['chance_retina'].mean()
             row['chance_region'] = t2['chance_region'].mean()
             row['T2_mass_over_chance_region'] = row['T2_marker_mass'] / row['chance_region']
+            # all-zero maps are NaN above (excluded); report how many, and versions that keep them in:
+            # a blank map has no preference for the marker (pct 0.5) and does not point at it (hit 0)
+            for ts, t in (('T2', t2), ('T1', t1)):
+                row[f'{ts}_degenerate'] = t['marker_mass'].isna().mean()
+                row[f'{ts}_marker_pct_blank_half'] = t['marker_pct'].fillna(0.5).mean()
+                row[f'{ts}_pointing_hit_blank_miss'] = t['pointing_hit'].fillna(0).mean()
             for key in ['marker_mass', 'marker_pct']:
                 _, _, p = paired_test(t2[key], t1[key], alternative='greater')
                 row[f'p_T2_gt_T1_{key}'] = p
@@ -398,15 +407,33 @@ def merge(args):
     auc_df = pd.DataFrame(auc_rows, columns=['model', 'auroc_T1', 'auroc_T2', 'auroc_T3', 'cheat_reliance'])
 
     ident = identification_summary(df, args.disease_class).merge(auc_df[['model', 'cheat_reliance']], on='model')
+    ident.insert(2, 'primary', ident['explainer'] == args.primary_explainer)
+    ident = ident.sort_values(['primary', 'model', 'explainer', 'group'], ascending=[False, True, True, True])
     ident.to_csv(os.path.join(out_dir, 'shortcut_summary.csv'), index=False)
-    with pd.option_context('display.width', 200, 'display.max_columns', 30):
-        print(ident[ident['group'] == 'all'][['model', 'explainer', 'n', 'T2_marker_mass', 'T1_marker_mass',
-                                              'chance_region', 'T2_pointing_hit', 'T1_pointing_hit',
-                                              'T2_marker_pct', 'T1_marker_pct', 'p_T2_gt_T1_marker_pct',
-                                              'cheat_reliance']].to_string(index=False))
+
+    # headline: one row per model, primary explainer, all images
+    head = ident[ident['primary'] & (ident['group'] == 'all')]
+    head = auc_df.merge(head[['model', 'n', 'T2_marker_pct', 'T1_marker_pct', 'delta_marker_pct',
+                              'T2_mass_over_chance_region', 'T2_pointing_hit', 'T1_pointing_hit',
+                              'T2_degenerate', 'p_T2_gt_T1_marker_pct']], on='model', how='left')
+    head.insert(1, 'explainer', args.primary_explainer)
+    head.to_csv(os.path.join(out_dir, 'shortcut_primary.csv'), index=False)
+    with pd.option_context('display.width', 250, 'display.max_columns', 30):
+        print(f'\n=== Headline ({args.primary_explainer}, all placed test images) ===')
+        print(head.round(4).to_string(index=False))
+        print('\n=== All explainers (blank maps excluded from the means; see *_degenerate and *_blank_* columns) ===')
+        print(ident[ident['group'] == 'all'][['model', 'explainer', 'n', 'T2_degenerate', 'T2_marker_pct',
+                                              'T2_marker_pct_blank_half', 'T1_marker_pct',
+                                              'T2_mass_over_chance_region', 'T2_pointing_hit',
+                                              'T2_pointing_hit_blank_miss',
+                                              'p_T2_gt_T1_marker_pct']].round(4).to_string(index=False))
     ref = reference_comparison(df, args.reference_model)
     if len(ref):
+        ref.insert(1, 'primary', ref['explainer'] == args.primary_explainer)
+        ref = ref.sort_values(['primary', 'explainer', 'other', 'metric'], ascending=[False, True, True, True])
         ref.to_csv(os.path.join(out_dir, f'{args.reference_model}_vs_baselines.csv'), index=False)
+        print(f'\n=== {args.reference_model} vs baselines (paired by image; positive median favours '
+              f'{args.reference_model}) ===')
         print(ref.to_string(index=False))
 
     summary = {f'{r.model}/{k}': getattr(r, k) for r in auc_df.itertuples()
@@ -414,8 +441,13 @@ def merge(args):
     for r in ident[ident['group'] == 'all'].itertuples():
         for k in ['T2_marker_mass', 'T2_pointing_hit', 'T2_marker_pct', 'delta_marker_mass', 'delta_marker_pct']:
             summary[f'{r.model}/{r.explainer}/{k}'] = getattr(r, k)
+    for r in head.itertuples():
+        for k in ['T2_marker_pct', 'delta_marker_pct', 'T2_mass_over_chance_region', 'T2_pointing_hit',
+                  'T2_degenerate']:
+            summary[f'primary/{r.model}/{k}'] = getattr(r, k)
     wandb.run.summary.update(summary)
-    tables = {'auroc_table': wandb.Table(dataframe=auc_df), 'identification_table': wandb.Table(dataframe=ident)}
+    tables = {'auroc_table': wandb.Table(dataframe=auc_df), 'primary_table': wandb.Table(dataframe=head),
+              'identification_table': wandb.Table(dataframe=ident)}
     if len(ref):
         tables['reference_table'] = wandb.Table(dataframe=ref)
     wandb.log(tables)

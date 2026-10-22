@@ -15,15 +15,15 @@
 # -> PNG trees + e5_data.csv + markers.csv + test layer labels and marker regions.
 #
 #   sbatch NCex_E5_make_data.sh <RUN_ID> [retina|background]
-#   e.g. sbatch NCex_E5_make_data.sh E5_v2              # marker inside the retina
-#        sbatch NCex_E5_make_data.sh E5_v2_bg background # marker in the vitreous
+#   e.g. sbatch NCex_E5_make_data.sh E5_v3              # marker inside the retina
+#        sbatch NCex_E5_make_data.sh E5_v3_bg background # marker in the vitreous
 # Use one RUN_ID per region: train and eval read the region from <RUN_ID>/markers.csv.
 # Output: ${RESULTS_ROOT}/NCex/E5/<RUN_ID>/{data/{trainval,T2_all,T3_healthy,retina_labels,marker_region},e5_data.csv,markers.csv,examples/}
 # E5_v1 used the earlier vitreous placement (Stage-I mask); do not reuse its RUN_ID.
 # Then:   bash NCex_E5_train.sh <RUN_ID>   and afterwards   bash NCex_E5_eval.sh <RUN_ID>
 # ─────────────────────────────────────────────────────────────────────────────
 
-RUN_ID=${1:-E5_v2}
+RUN_ID=${1:-E5_v3}
 MARKER_REGION=${2:-retina}   # retina | background
 case "${MARKER_REGION}" in
     retina)     MARGIN_PX=2 ;;

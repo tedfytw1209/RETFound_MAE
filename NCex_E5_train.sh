@@ -23,7 +23,7 @@
 # wandb: project RETFound_MAE (hardcoded in the training mains), run name NCex_E5-<MODEL_TAG>
 # ─────────────────────────────────────────────────────────────────────────────
 
-RUN_ID=${1:-E5_v2}
+RUN_ID=${1:-E5_v3}
 MODEL_TAG=$2
 RESULTS_ROOT=/orange/ruogu.fang/tienyuchang/RETfound_XAI_results
 SEG_CKPT=/blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth
@@ -57,14 +57,15 @@ case "${MODEL_TAG}" in
         ;;
     ResNet-50|RETFound|EffNet-B4|ViT-B16)
         case "${MODEL_TAG}" in
-            ResNet-50) MODEL=resnet-50;             FINETUNED_MODEL=microsoft/resnet-50 ;;
-            RETFound)  MODEL=RETFound_mae;          FINETUNED_MODEL=RETFound_mae_natureOCT ;;
-            EffNet-B4) MODEL=timm_efficientnet-b4;  FINETUNED_MODEL=timm_efficientnet-b4 ;;
-            ViT-B16)   MODEL=vit-base-patch16-224;  FINETUNED_MODEL=google/vit-base-patch16-224-in21k ;;
+            ResNet-50) MODEL=resnet-50;             FINETUNED_MODEL=microsoft/resnet-50;              INPUT_SIZE=224 ;;
+            RETFound)  MODEL=RETFound_mae;          FINETUNED_MODEL=RETFound_mae_natureOCT;           INPUT_SIZE=224 ;;
+            # EffNet-B4 trains at its native 380, the size NCex_E5_eval.sh evaluates it at (E5_v2 trained at 224)
+            EffNet-B4) MODEL=timm_efficientnet-b4;  FINETUNED_MODEL=timm_efficientnet-b4;             INPUT_SIZE=380 ;;
+            ViT-B16)   MODEL=vit-base-patch16-224;  FINETUNED_MODEL=google/vit-base-patch16-224-in21k; INPUT_SIZE=224 ;;
         esac
         torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune.py --savemodel --global_pool \
             --batch_size 16 --world_size 1 --model ${MODEL} --epochs 50 --lr 5e-4 --optimizer adamw --layer_decay 0.65 \
-            --weight_decay 0.05 --drop_path 0.2 --finetune ${FINETUNED_MODEL} --num_workers 16 --input_size 224 \
+            --weight_decay 0.05 --drop_path 0.2 --finetune ${FINETUNED_MODEL} --num_workers 16 --input_size ${INPUT_SIZE} \
             ${DATA_FLAGS} ${OUT_FLAGS}
         ;;
     *) echo "Unknown model ${MODEL_TAG}"; exit 1 ;;
