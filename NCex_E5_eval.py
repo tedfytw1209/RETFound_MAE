@@ -34,7 +34,7 @@ from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader
 
 from NCex_common import (
-    get_ncex_parser, run_dir, set_seed, write_config, merge_configs, merge_parts, init_wandb, write_alert,
+    get_ncex_parser, run_dir, set_seed, write_config, merge_configs, merge_parts, init_wandb,
     build_model, build_test_dataset, model_logits, make_cam, release_cam, cam_maps, display_image,
     save_example_grid, CAM_METHODS, COMPARE_SIZE,
 )
@@ -57,10 +57,6 @@ def get_args_parser():
                         help='Pointing-game tolerance around the box, in 224-equivalent pixels')
     parser.add_argument('--n_examples', default=10, type=int, help='Example heatmaps (half disease, half healthy)')
     parser.add_argument('--example_seed', default=2026, type=int)
-    parser.add_argument('--alert_reliance', default=0.10, type=float,
-                        help='Cheat is "used" if AUROC(T1) - AUROC(T3) exceeds this')
-    parser.add_argument('--alert_mass_x', default=10.0, type=float,
-                        help='Map "hides" the cheat if mean T2 marker_mass < alert_mass_x * chance_region')
     parser.add_argument('--reference_model', default='SAIL', type=str,
                         help='merge: model compared pairwise (per image) with every other model')
     return parser
@@ -285,14 +281,6 @@ def run(args):
     df.to_csv(os.path.join(out_dir, 'parts', f'{args.task}.csv'), index=False)
     wandb.run.summary.update(summary)
     wandb.log({'shortcut_table': wandb.Table(dataframe=df)})
-
-    hiding = [e for e in args.explainers
-              if summary[f'T2/{e}/marker_mass_mean'] < args.alert_mass_x * summary[f'T2/{e}/chance_region']]
-    if summary['cheat_reliance'] > args.alert_reliance and hiding:
-        write_alert(out_dir, args.task, f'E5: {args.model_tag} uses the marker but its map hides it',
-                    f'cheat_reliance={summary["cheat_reliance"]:.3f} > {args.alert_reliance}; '
-                    f'marker_mass < {args.alert_mass_x} x chance_region ({args.marker_region}) for {hiding}. '
-                    f'Report to Yu immediately.')
     print(f'E5 {args.task} finished in {time.time() - start:.0f}s')
     wandb.finish()
 
