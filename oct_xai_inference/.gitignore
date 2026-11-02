@@ -1,0 +1,8 @@
+# trained weights (fit on IRB patient data) and inference outputs never go to git
+weights/*/
+*.pth
+predictions*.csv
+*_saliency/
+out/
+__pycache__/
+.pytest_cache/

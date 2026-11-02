@@ -1,0 +1,13 @@
+# Inference only. Tested with torch 2.13 (CPU) and timm 0.9.12 / 1.0.28; the training environments
+# (requirements_retfound.txt / requirements_octxai.txt) also work.
+torch>=2.4
+torchvision
+timm>=0.9.12
+segmentation-models-pytorch==0.5.0
+grad-cam==1.5.5
+numpy
+pandas
+Pillow
+matplotlib
+# tests only
+pytest
