@@ -16,7 +16,7 @@ module load conda
 conda activate retfound_new
 # SMP training on the AD/MCI/control data (IRB2024v5_ADCON_DL_data), the SMP counterpart of
 # finetune_retfound_adcon_irb2024_v5.sh. Same arguments as finetune_retfound_UFbenchmark_irb2024v5_smp_full.sh;
-# only the data (and data_type in the run name) differ.
+# only the data (DATA_DIR, and its folder name in the run name) differ.
 STUDY=$1 # ad_control_detect_data 2, ad_mci_detect_data 2, mci_control_detect_data 2, ad_mci_control_detect_data 3
 MODEL=${2:-"SMP"}
 FINETUNED_MODEL=${3:-"SMP"}
@@ -42,7 +42,8 @@ ADDCMD3=${22:-""}
 
 
 NUM_K=0
-data_type="IRB2024v5_ADCON_DL_data"
+DATA_DIR=${DATA_DIR:-"/blue/ruogu.fang/tienyuchang/IRB2024v5_ADCON_DL_data_retinaf_diseaseclean/"} # folder holding ${STUDY}.csv (env DATA_DIR)
+data_type=$(basename "$DATA_DIR") # used in the run name
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"
 Epochs=100
 OPTIMIZER="adamw" # "adamw" or "sgd"
@@ -55,4 +56,4 @@ echo $Num_CLASS
 
 # SMP-fuse (the UF configuration of multiseed_run_all.sh) on ad_control:
 # sbatch finetune_retfound_adcon_irb2024_v5_smp.sh ad_control_detect_data SMP /blue/ruogu.fang/tienyuchang/RETFound_MAE/Seg_checkpoints/best_model_multiclass_resnet50_new.pth 5e-4 2 1e-4 default OCT 0 fuse weighted_sum 0.5 decoder_to_encoder 9 pre -2 -1 conv scalar --seg_mask --smp_learnable_alpha --bal_sampler
-torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_smp.py --savemodel --global_pool --batch_size $BATCH_SIZE --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --optimizer $OPTIMIZER --layer_decay 0.65 --weight_decay $weight_decay --drop_path 0.0 --nb_classes $Num_CLASS --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv --task $STUDY-${data_type}-all-$FINETUNED_MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}opt${OPTIMIZER}-${Eval_score}eval-trsub${SUBSETNUM}-${SMPMode}-smp${SMPFuseMode}-$ALIGN-$FUSION_DIM-fea${ENC_IDX}${DEC_IDX}-${SMPAlpha}-${SMPSizeMatch}-${SMPClassifier}-alpha${ALPHA_TYPE}-$ADDCMD-$ADDCMD2-$ADDCMD3/ --img_dir $IMG_Path --log_dir /orange/ruogu.fang/tienyuchang/RETfound_results --output_dir /orange/ruogu.fang/tienyuchang/RETfound_results --finetune $FINETUNED_MODEL --num_workers 8 --input_size 512 --num_k $NUM_K --eval_score $Eval_score --modality $Modality --visualize_samples --new_subset_num $SUBSETNUM --SMPMode $SMPMode --smp_fuse_mode $SMPFuseMode --fusion_dim $FUSION_DIM --align $ALIGN --smp_alpha $SMPAlpha --smp_size_match $SMPSizeMatch --enc_idx $ENC_IDX --dec_idx $DEC_IDX --smp_classifier $SMPClassifier --smp_alpha_type $ALPHA_TYPE $ADDCMD $ADDCMD2 $ADDCMD3
+torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_smp.py --savemodel --global_pool --batch_size $BATCH_SIZE --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --optimizer $OPTIMIZER --layer_decay 0.65 --weight_decay $weight_decay --drop_path 0.0 --nb_classes $Num_CLASS --data_path ${DATA_DIR%/}/${STUDY}.csv --task $STUDY-${data_type}-all-$FINETUNED_MODEL-${Modality}-bs${BATCH_SIZE}ep${Epochs}lr${LR}opt${OPTIMIZER}-${Eval_score}eval-trsub${SUBSETNUM}-${SMPMode}-smp${SMPFuseMode}-$ALIGN-$FUSION_DIM-fea${ENC_IDX}${DEC_IDX}-${SMPAlpha}-${SMPSizeMatch}-${SMPClassifier}-alpha${ALPHA_TYPE}-$ADDCMD-$ADDCMD2-$ADDCMD3/ --img_dir $IMG_Path --log_dir /orange/ruogu.fang/tienyuchang/RETfound_results --output_dir /orange/ruogu.fang/tienyuchang/RETfound_results --finetune $FINETUNED_MODEL --num_workers 8 --input_size 512 --num_k $NUM_K --eval_score $Eval_score --modality $Modality --visualize_samples --new_subset_num $SUBSETNUM --SMPMode $SMPMode --smp_fuse_mode $SMPFuseMode --fusion_dim $FUSION_DIM --align $ALIGN --smp_alpha $SMPAlpha --smp_size_match $SMPSizeMatch --enc_idx $ENC_IDX --dec_idx $DEC_IDX --smp_classifier $SMPClassifier --smp_alpha_type $ALPHA_TYPE $ADDCMD $ADDCMD2 $ADDCMD3
