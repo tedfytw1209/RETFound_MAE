@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem-per-cpu=4gb
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=8gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
 #SBATCH --time=144:00:00
@@ -95,6 +95,7 @@ OCT_LOSS_WEIGHT=$OCT_WEIGHT
 MULTIMODAL_LOSS_WEIGHT=$MULTIMODAL_WEIGHT
 
 MASTER_PORT=$(expr 10000 + $(echo -n "${SLURM_JOBID:-0}" | tail -c 4))
+NUM_WORKERS=$(( ${SLURM_CPUS_PER_TASK:-8} > 1 ? ${SLURM_CPUS_PER_TASK:-8} - 1 : 1 )) # dataloader workers: the CPUs of the job, one left for the main process
 
 # Usage: sbatch finetune_Hebei_admci_detection_cv.sh STUDY data_type SPLIT_DIR MODEL FUNDUS_WEIGHT OCT_WEIGHT MULTIMODAL_WEIGHT LR WD Num_CLASS START_FOLD [ADDCMD...]
 # Note: START_FOLD is positional arg 11; any extra flags (ADDCMD) must come AFTER it.
@@ -120,7 +121,7 @@ for fold in ${FOLDS[@]}; do
         --modality $Modality \
         --img_dir $IMG_Path \
         --finetune $MODEL \
-        --num_workers 16 \
+        --num_workers $NUM_WORKERS \
         --input_size 224 \
         --num_k 0 \
         --optimizer $OPTIMIZER \

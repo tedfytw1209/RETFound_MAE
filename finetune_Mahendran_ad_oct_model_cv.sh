@@ -2,7 +2,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem-per-cpu=4gb
+#SBATCH --mem=8gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
 #SBATCH --time=96:00:00
@@ -78,6 +78,7 @@ Scheduler_step=20
 Scheduler_gamma=0.5
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
+NUM_WORKERS=$(( ${SLURM_CPUS_PER_TASK:-8} > 1 ? ${SLURM_CPUS_PER_TASK:-8} - 1 : 1 )) # dataloader workers: the CPUs of the job, one left for the main process
 
 # Construct localization flag
 LOCALIZATION_FLAG=""
@@ -112,7 +113,7 @@ for fold in ${FOLDS[@]}; do
         --img_dir $IMG_Path \
         --finetune $MODEL \
         --split_dir $SPLIT_DIR \
-        --num_workers 8 \
+        --num_workers $NUM_WORKERS \
         --input_size 224 \
         --num_k 0 \
         --optimizer $OPTIMIZER \

@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem-per-cpu=4gb
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=8gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
 #SBATCH --time=288:00:00
@@ -68,6 +68,7 @@ FOLDS=(${CV_FOLDS_ONLY:-0 1 2 3 4 5 6 7 8 9}) # CV folds for training (env CV_FO
 #data_type="IRB2024v5_ADCON_DL_data"
 
 MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
+NUM_WORKERS=$(( ${SLURM_CPUS_PER_TASK:-8} > 1 ? ${SLURM_CPUS_PER_TASK:-8} - 1 : 1 )) # dataloader workers: the CPUs of the job, one left for the main process
 #MASTER_PORT=29501
 
 echo $SUBSTUDY
@@ -78,5 +79,5 @@ echo $Num_CLASS
 # TMP: --output_dir moved to /blue (was /orange/ruogu.fang/tienyuchang/RETfound_results) - /orange is out of space.
 for fold in ${FOLDS[@]}; do
     [ "$fold" -lt "$START_FOLD" ] && continue
-    torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py --savemodel --purge_checkpoint --global_pool --batch_size $BS --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --weight_decay $wd --nb_classes $Num_CLASS --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv --task $STUDY-${data_type}-${Relative}-$MODEL-${Modality}-${Eval_score}eval-subset${SUBSET_RATIO} --output_dir /blue/ruogu.fang/tienyuchang/RETfound_results --eval_score $Eval_score --modality $Modality --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers 16 --input_size 128 --num_k 0 --optimizer adamw --momentum 0.9 --lr_scheduler step --schedule_step $Scheduler_step --schedule_gamma $Scheduler_gamma --subset_ratio $SUBSET_RATIO --l1_reg $Regularization --l2_reg $Regularization --transform 2 --split_dir $SPLIT_DIR --cv_folds $NFOLDS --cv_fold $fold --wandb_tags "$WANDB_TAGS" $ADDCMD
+    torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py --savemodel --purge_checkpoint --global_pool --batch_size $BS --world_size 1 --model $MODEL --epochs $Epochs --lr $LR --weight_decay $wd --nb_classes $Num_CLASS --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv --task $STUDY-${data_type}-${Relative}-$MODEL-${Modality}-${Eval_score}eval-subset${SUBSET_RATIO} --output_dir /blue/ruogu.fang/tienyuchang/RETfound_results --eval_score $Eval_score --modality $Modality --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers $NUM_WORKERS --input_size 128 --num_k 0 --optimizer adamw --momentum 0.9 --lr_scheduler step --schedule_step $Scheduler_step --schedule_gamma $Scheduler_gamma --subset_ratio $SUBSET_RATIO --l1_reg $Regularization --l2_reg $Regularization --transform 2 --split_dir $SPLIT_DIR --cv_folds $NFOLDS --cv_fold $fold --wandb_tags "$WANDB_TAGS" $ADDCMD
 done
