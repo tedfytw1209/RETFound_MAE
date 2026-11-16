@@ -4,34 +4,36 @@
 # resume each one at the folds that did not finish. Same arguments as ADML_Relatives.sh (study2) / ADML_Relatives2.sh
 # (study3); the job loop follows multiple_study2_multiimg_eval.sh (study2: all) / multiple_study3_multiimg_eval.sh
 # (study3: 1 3 5 10 years).
-#   DRY_RUN=1 bash adml_dl_run_all.sh          # per-fold status + the commands, nothing submitted: run this first
-#   bash adml_dl_run_all.sh                    # submit the gaps of the sheet (SCOPE=todo, TODO_JOBS below)
+#   DRY_RUN=1 bash adml_dl_run_all.sh          # per-fold wandb status + the commands, nothing submitted: run this first
+#   bash adml_dl_run_all.sh                    # submit what OCT_ADML_experiment (1).xlsx lacks (JOBS below)
 #   MAX_SLURM=4 bash adml_dl_run_all.sh        # keep at most 4 of your jobs in the queue; rerun later for the rest
-#   SCOPE=all bash adml_dl_run_all.sh          # audit every DL cell of Study2/Study2-disease/Study3/Study3-disease
-#                                              # (dry run unless DRY_RUN=0 is given)
-# env: SCOPE=todo|all     todo (default): what the sheet lacks; all: the whole study2/study3 grid (ALL_JOBS)
-#      MODELS="..."       subset of: Jacqueline Wisely Wisely2 Mahendran Hebei   (default: as listed per job line)
+# env: MODELS="..."       subset of: Jacqueline Wisely Wisely2 Mahendran Hebei   (default: as listed per job line)
 #      TASKS="..."        subset of: ad_control mci_control ad_mci_control ad_rest
 #      VARIANTS="..."     subset of: clean raw (study2) 1yr 3yr 5yr 10yr (study3)
 #      MAX_SLURM=N        never let your queue (squeue, pending + running) go above N jobs (default 10; 0 = no limit)
 #      MAX_SUBMIT=N       submit at most N jobs in this call (default 0 = no limit)
 #      RERUN_DONE=1       resubmit all 10 folds even when they finished
-#      WANDB_CHECK=0      do not read wandb (default: read it; WANDB_ENTITY=<team> if the project is not yours)
+#      WANDB_ENTITY=team  wandb entity of the OCTAD_Relatives project (default: the logged-in user)
 #      CHECK_DATA=0       submit even if the data CSV / split folder is not found
 #      REF_FILE=path      rerun reference rewritten by every call (default adml_dl_rerun_ref.sh; REF_FILE= for none)
+#      WANDB_CHECK=0      only when wandb cannot be read: decide from the result folders instead (see below)
 #
-# What the sheet lacks for the DL rows (checked 2026-11-14):
-#   Study3-disease MCI_Control, 1/3/5/10yr: all five models empty (marked "w")                    -> 20 jobs
-#   Study2-disease AD_REST: Jacqueline "no matching rerun", Wisely "rerun incomplete (8/10)",
-#                           Wisely2 "rerun incomplete (2/10)"                                    -> 3 jobs
-#   Everything else (Study2 ad_control raw/clean x CW/no CW, Study2-disease MCI_Control / AD_MCI_Control, Study3
-#   ad_control, Study3-disease AD_MCI_Control / AD_REST) has 10-fold DL means. Use SCOPE=all to check them anyway.
+# The jobs come only from OCT_ADML_experiment (1).xlsx, its DL rows (checked 2026-11-14):
+#   Study3-disease MCI_Control, year1/3/5/10 (H8:K12, H33:K37, H59:K63, H84:K88): empty, marked "w"  -> 20 jobs
+#   Study2-disease AD_REST (L58, L59, L61): Jacqueline "no matching rerun", Wisely "rerun incomplete
+#                           (8/10)", Wisely2 "rerun incomplete (2/10)"                                    -> 3 jobs
+#   Every other DL cell has its 10-fold result, so nothing else is submitted.
 #
-# Resume, per job (= study, variant, task, class weighting, model):
-#   a fold is done when wandb (project OCTAD_Relatives) has a run of that name and config.cv_fold that FINISHED with
-#   test_* metrics, or, on disk (/blue or /orange RETfound_results/<run>_cv10fold<k>/), metrics_test.csv exists or
-#   log.txt exists and the checkpoint was purged (--purge_checkpoint removes it only after the test/holdout eval;
-#   Hebei's evaluate_ducan writes no metrics_test.csv)
+# Wandb run names are never changed: each job's name is the one its *_cv.sh script gives the run (--task, + _CW from
+# the trainer for --class_weight), the same pattern as the names in the sheet (Study3-disease N8:N12, e.g.
+# ad_mci_control_detect_data-IRB2024v5_ADCON_DL_study3_retinaf_1yr-Jacqueline-convnext_tiny-Thickness-bs64ep100lr1e-3wd5e-4-
+# roc_auceval-subset0_CW; tests/test_adml_dl_run_all.py checks them). All folds of a job share that name.
+#
+# Resume, per job, by that wandb name (project OCTAD_Relatives; the fold is the run's config.cv_fold):
+#   a fold exists when a run with this name and fold FINISHED with test_* metrics; crashed / failed / killed runs, or
+#   no run, mean the fold is redone. Each job prints the name and which folds wandb has.
+#   If wandb cannot be read the script stops; WANDB_CHECK=0 then decides from the result folders instead
+#   (/blue or /orange RETfound_results/<name>_cv10fold<k>/ with metrics_test.csv, or log.txt with the checkpoint purged).
 #   - all 10 folds done                         -> skipped
 #   - job adml-... queued/running in squeue     -> skipped
 #   - a fold still running in wandb             -> skipped (it may come from an ADML_Relatives*.sh job, whose SLURM
@@ -40,18 +42,14 @@
 #   - otherwise                                 -> submitted for the missing folds only (CV_FOLDS_ONLY="..." is read
 #                                                  by the *_cv.sh scripts; START_FOLD = the first missing fold), with
 #                                                  the last SLURM state and error line of the previous attempt
-# wandb tags: study2|study3, DL, year1|year3|year5|year10 (study3), task: main_finetune_Chua_Jacqueline.py derives them from
-# the split/data paths (util/adml_tags.py). Existing runs (DL, ML, our_proposed): python adml_wandb_retag.py --project ...
+# wandb tags follow the existing runs: the *_cv.sh scripts tag "<study>,<task>[,<period>]" (study from the split path,
+# e.g. study3,mci_control,1yr / study2,ad_rest) and the trainer adds class_weight. PERIOD is set on every submission:
+# the study3 period, and empty for study2, so a PERIOD left in your shell never tags a study2 run.
 # A fold cannot continue mid-run (only checkpoint-best is kept), so a missing fold restarts from epoch 0.
 # Rerunning the same command submits only what is still missing. REF_FILE lists the command of every job that is
 # not done, with why, for rerunning by hand.
 
-SCOPE=${SCOPE:-todo}
-case "$SCOPE" in
-    todo) DRY_RUN=${DRY_RUN:-0} ;;
-    all) DRY_RUN=${DRY_RUN:-1} ;; # an audit unless asked: a CW / batch-size mismatch with old runs would resubmit them
-    *) echo "unknown SCOPE='$SCOPE' (todo|all)" >&2; exit 1 ;;
-esac
+DRY_RUN=${DRY_RUN:-0}
 MAX_SLURM=${MAX_SLURM:-10}
 MAX_SUBMIT=${MAX_SUBMIT:-0}
 RERUN_DONE=${RERUN_DONE:-0}
@@ -73,28 +71,17 @@ SPLIT_ROOT=$DATA_ROOT/OCTAD_ML_pipeline/psrs_oct
 # the *_cv.sh scripts write to /blue now (/orange was full); earlier folds are under /orange
 RESULT_DIRS=${RESULT_DIRS:-"/blue/ruogu.fang/tienyuchang/RETfound_results /orange/ruogu.fang/tienyuchang/RETfound_results"}
 
-# job lines: "<study> <variant> <task> <cw|none> [models...]" (no models = all five)
-TODO_JOBS=(
-    "study2 clean ad_rest cw Jacqueline Wisely Wisely2"
-    "study3 1yr mci_control cw"
-    "study3 3yr mci_control cw"
-    "study3 5yr mci_control cw"
-    "study3 10yr mci_control cw"
+# job lines, from the sheet only: "<study> <variant> <task> <cw|none> [models...]" (no models = all five)
+JOBS=(
+    "study2 clean ad_rest cw Jacqueline Wisely Wisely2"   # Study2-disease AD_REST, L58 L59 L61
+    "study3 1yr mci_control cw"                           # Study3-disease MCI_Control year1  (rows 8-12)
+    "study3 3yr mci_control cw"                           #                            year3  (rows 33-37)
+    "study3 5yr mci_control cw"                           #                            year5  (rows 59-63)
+    "study3 10yr mci_control cw"                          #                            year10 (rows 84-88)
 )
-# The class weighting of the cells is not written in the sheet except where it says so (Study2 has a no-CW and a
-# "Class Weight Version" block; the Study3-disease run names end in _CW): cw is assumed elsewhere. If a cell the sheet
-# shows as done comes out "no run" in the audit, its line here (or its batch size: old study2 ad_control Jacqueline runs
-# used bs128, the launchers now bs64) does not match the run that produced it.
-ALL_JOBS=(
-    "study2 raw ad_control none" "study2 raw ad_control cw"
-    "study2 clean ad_control none" "study2 clean ad_control cw"
-    "study2 clean mci_control cw" "study2 clean ad_mci_control cw" "study2 clean ad_rest cw"
-)
-for P in 1yr 3yr 5yr 10yr; do
-    for T in ad_control mci_control ad_mci_control ad_rest; do
-        ALL_JOBS+=("study3 $P $T cw")
-    done
-done
+# cw: the sheet's study3/study2-disease DL names end in _CW. The AD_REST rerun names are not in the sheet: if the dry run
+# shows Wisely / Wisely2 with no wandb folds although the sheet says 8/10 and 2/10, those runs were not class-weighted:
+# change cw to none on the first line.
 
 # --- the five models: run name (= --task of the *_cv.sh script, the wandb run name) and sbatch arguments -----------------
 # Arguments as in ADML_Relatives.sh / ADML_Relatives2.sh; tests/test_adml_dl_run_all.py checks the names against the scripts.
@@ -152,14 +139,20 @@ if [ "$WANDB_CHECK" = "1" ]; then
             ${WANDB_ENTITY:+--entity "$WANDB_ENTITY"} 2>"$WB_ERR"); then
         WB_OK=1
     else
-        echo "[adml_dl_run_all] wandb status unavailable ($(head -n 1 "$WB_ERR")): using the result folders only" >&2
-        WB_ROWS=""
+        echo "[adml_dl_run_all] wandb ($WANDB_PROJECT) cannot be read: $(head -n 1 "$WB_ERR")" >&2
+        echo "  the runs are checked by their wandb name: fix it (wandb login, WANDB_ENTITY=...), or WANDB_CHECK=0 to" \
+             "decide from the result folders instead" >&2
+        rm -f "$WB_ERR"
+        exit 1
     fi
     rm -f "$WB_ERR"
+else
+    echo "[adml_dl_run_all] WANDB_CHECK=0: folds are checked in the result folders ($RESULT_DIRS), not by wandb name" >&2
 fi
 
-disk_done() { # <run name> <fold>
+disk_done() { # <run name> <fold>: only used with WANDB_CHECK=0
     local d dir
+    [ "$WB_OK" = "1" ] && return 1
     for d in $RESULT_DIRS; do
         dir="$d/${1}_cv${NFOLDS}fold$2"
         if [ -f "$dir/metrics_test.csv" ] || { [ -f "$dir/log.txt" ] && [ ! -f "$dir/checkpoint-best.pth" ]; }; then
@@ -209,10 +202,10 @@ REF_TMP=""
 if [ -n "$REF_FILE" ]; then
     REF_TMP=$(mktemp)
     {
-        echo "# adml_dl_run_all.sh rerun reference, $(date '+%F %T'), SCOPE=$SCOPE$([ "$DRY_RUN" = "1" ] && echo ' (dry run)')"
+        echo "# adml_dl_run_all.sh rerun reference, $(date '+%F %T')$([ "$DRY_RUN" = "1" ] && echo ' (dry run)')"
         echo "# One command per job that is not done. 'bash adml_dl_run_all.sh' resubmits all of them by itself (it skips"
         echo "# what is queued/running/done); copy a line to run one by hand. CV_FOLDS_ONLY = the folds still missing."
-        echo "# wandb: $([ "$WB_OK" = "1" ] && echo "read ($WANDB_PROJECT)" || echo 'not read: status from the result folders only')"
+        echo "# folds checked by: $([ "$WB_OK" = "1" ] && echo "wandb run name ($WANDB_PROJECT)" || echo 'result folders (WANDB_CHECK=0)')"
     } > "$REF_TMP"
 fi
 ref() { [ -n "$REF_TMP" ] && printf '%s\n' "$@" >> "$REF_TMP"; return 0; }
@@ -250,6 +243,13 @@ process() { # <study> <variant> <task> <cw> <model>
         return
     fi
     fold_status "$name"
+    if [ "$WB_OK" = "1" ]; then # what wandb has under this exact name, for every job
+        if [ -z "$FOLDS_DONE$FOLDS_RUNNING$FOLD_NOTE" ]; then
+            echo "[wandb] $job: no run named $name" >&2
+        else
+            echo "[wandb] $job: $name: finished folds ${FOLDS_DONE:-none}${FOLDS_RUNNING:+, running $FOLDS_RUNNING}${FOLD_NOTE:+, not finished: $FOLD_NOTE}" >&2
+        fi
+    fi
     if [ "$RERUN_DONE" = "1" ]; then
         FOLDS_MISSING=$(seq -s ' ' 0 $((NFOLDS - 1))); FOLDS_DONE=""; FOLDS_RUNNING=""
     fi
@@ -325,11 +325,6 @@ process() { # <study> <variant> <task> <cw> <model>
     SUBMITTED=$((SUBMITTED + 1))
 }
 
-if [ "$SCOPE" = "all" ]; then
-    JOBS=("${ALL_JOBS[@]}")
-else
-    JOBS=("${TODO_JOBS[@]}")
-fi
 for line in "${JOBS[@]}"; do
     read -r study variant task cw models <<< "$line"
     [ -n "$models" ] || models=$ALL_MODELS
@@ -351,4 +346,4 @@ if [ -n "$REF_TMP" ]; then
         SUMMARY="$SUMMARY; rerun reference: $REF_FILE"
     fi
 fi
-echo "[adml_dl_run_all] SCOPE=$SCOPE: $SUMMARY"
+echo "[adml_dl_run_all] $SUMMARY"

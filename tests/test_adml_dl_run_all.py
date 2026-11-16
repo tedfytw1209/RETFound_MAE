@@ -75,6 +75,78 @@ def test_todo_jobs_and_run_names_match_the_scripts(tmp_path):
         assert {t + ('_CW' if '--class_weight' in cmd else '') for t in tasks} == {name}
 
 
+# the DL wandb names written in OCT_ADML_experiment (1).xlsx (Study3-disease N8:N12, without "  [10 fold runs]")
+SHEET_NAMES = {
+    'Jacqueline': 'ad_mci_control_detect_data-IRB2024v5_ADCON_DL_study3_retinaf_1yr-Jacqueline-convnext_tiny-Thickness-'
+                  'bs64ep100lr1e-3wd5e-4-roc_auceval-subset0_CW',
+    'Wisely': 'ad_mci_control_detect_data-IRB2024v5_ADCON_DL_study3_retinaf_1yr-Wisely-resnet18_paper-Thickness-'
+              'roc_auceval-subset0_CW',
+    'Mahendran': 'ad_mci_control_detect_data-IRB2024v5_ADCON_DL_study3_retinaf_1yr-Mahendran-ad_oct_model-OCT-'
+                 'bs18ep100lr7e-5wd1e-2-roc_auceval-subset0_CW',
+    'Wisely2': 'ad_mci_control_detect_data-IRB2024v5_ADCON_DL_study3_retinaf_1yr-Wisely2-dual_input_cnn-images_only-'
+               'Thickness-roc_auceval-subset0_CW',
+    'Hebei': 'ad_mci_control_detect_data-IRB2024v5_ADCON_DL_study3_retinaf_1yr-Hebei-ducan-dual-bs8ep400lr3e-4wd1e-2-'
+             'accuracyeval-subset0_CW',
+}
+
+
+@needs_bash
+@pytest.mark.parametrize('model', sorted(SHEET_NAMES))
+def test_run_names_are_the_sheet_names(model):
+    """The driver checks wandb by the names the runs already have: same pattern as the sheet, unchanged."""
+    out = subprocess.run(['bash', '-c', 'eval "$(sed -n "/^run_name() {/,/^}/p" adml_dl_run_all.sh)"; '
+                          f'run_name {model} ad_mci_control_detect_data IRB2024v5_ADCON_DL_study3_retinaf_1yr'],
+                         cwd=REPO, capture_output=True, text=True, check=True).stdout.strip()
+    assert out + '_CW' == SHEET_NAMES[model]
+
+
+def _wandb_rows(tmp_path, text):
+    rows = tmp_path / 'wb.tsv'
+    rows.write_text(text)
+    status = tmp_path / 'status.sh'
+    status.write_text(f'cat {rows.as_posix()}\n')
+    return f'bash {status.as_posix()}'
+
+
+@needs_bash
+def test_wandb_unreadable_stops(tmp_path):
+    proc = subprocess.run(['bash', '-c', STUBS + 'bash adml_dl_run_all.sh'], cwd=REPO,
+                          env=_env(tmp_path, WANDB_CHECK='1', WANDB_STATUS_CMD='false'), capture_output=True, text=True)
+    assert proc.returncode == 1 and 'cannot be read' in proc.stderr and 'sbatch' not in proc.stdout
+
+
+@needs_bash
+def test_wandb_name_decides_not_the_result_folders(tmp_path):
+    name = ('ad_rest_detect_data-IRB2024v5_ADCON_DL_data_retinaf_diseaseclean-Wisely-resnet18_paper-Thickness-'
+            'roc_auceval-subset0_CW')
+    for k in range(10):  # folders say all done, wandb has folds 0-7 only
+        d = tmp_path / 'results' / f'{name}_cv10fold{k}'
+        d.mkdir(parents=True)
+        (d / 'metrics_test.csv').write_text('x\n')
+    cmd = _wandb_rows(tmp_path, ''.join(f'{name}\t{k}\tfinished\n' for k in range(8)) + f'{name}\t9\tfailed\n')
+    cmds, err = driver(tmp_path, MODELS='Wisely', TASKS='ad_rest', WANDB_CHECK='1', WANDB_STATUS_CMD=cmd)
+    assert len(cmds) == 1 and 'CV_FOLDS_ONLY="8 9"' in cmds[0]
+    assert f'{name}: finished folds 0 1 2 3 4 5 6 7, not finished: 9=failed' in err
+    cmds, err = driver(tmp_path, MODELS='Jacqueline', TASKS='ad_rest', WANDB_CHECK='1', WANDB_STATUS_CMD=cmd)
+    assert len(cmds) == 1 and 'no run named ad_rest_detect_data-' in err
+
+
+@needs_bash
+def test_wandb_tags_follow_the_existing_runs(tmp_path, monkeypatch):
+    """'<study>,<task>[,<period>]' as the earlier runs (e.g. study3,ad_mci_control,10yr); class_weight is the trainer's."""
+    monkeypatch.setenv('PERIOD', '3yr')  # left in the shell: must not reach a study2 run
+    cmds, _ = driver(tmp_path, MAX_SLURM='0')
+    tags = {}
+    for cmd in cmds:
+        job = re.search(r'--job-name=(\S+)', cmd).group(1)
+        _, _, out = task_of(cmd)
+        tags[job] = set(re.findall(r'--wandb_tags (\S+)', out))
+    assert tags['adml-s2-clean-ad_rest-Wisely-cw'] == {'study2,ad_rest'}
+    assert tags['adml-s3-1yr-mci_control-Jacqueline-cw'] == {'study3,mci_control,1yr'}
+    assert tags['adml-s3-10yr-mci_control-Hebei-cw'] == {'study3,mci_control,10yr'}
+    assert all(len(t) == 1 for t in tags.values())
+
+
 @needs_bash
 def test_resume_runs_only_missing_folds(tmp_path):
     name = ('ad_rest_detect_data-IRB2024v5_ADCON_DL_data_retinaf_diseaseclean-Wisely-resnet18_paper-Thickness-'

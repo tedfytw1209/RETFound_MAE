@@ -31,7 +31,6 @@ import models_vit as models
 import models_ducan
 import util.lr_decay as lrd
 import util.misc as misc
-import util.adml_tags as adml_tags
 from util.datasets import build_dataset,DistributedSamplerWrapper,TransformWrapper
 from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
@@ -553,9 +552,7 @@ def get_args_parser():
                         help='finetune from checkpoint')
     parser.add_argument('--wandb_tags', type=str, default=None,
                         help="Comma-separated wandb tags (e.g. 'study3,ad_mci_control'). "
-                             "Merged with auto tags: 'class_weight', and for the OCT AD data study2|study3, DL, "
-                             "year<N> (study3) and the task, derived from --split_dir/--data_path/--task "
-                             "(util/adml_tags.py; they replace a conflicting tag given here).")
+                             "Merged with auto tags such as 'class_weight'.")
     parser.add_argument('--global_pool', action='store_true')
     parser.set_defaults(global_pool=True)
     parser.add_argument('--cls_token', action='store_false', dest='global_pool',
@@ -1545,12 +1542,6 @@ def main(args, criterion):
     # wandb tags: user-supplied (comma-separated, e.g. "study3,ad_mci_control") merged
     # with auto tags below.
     wandb_tags = [t.strip() for t in args.wandb_tags.split(",") if t.strip()] if args.wandb_tags else []
-    # OCT AD runs: study2|study3, DL, year<N> (study3), task, derived from the split/data paths and the task name
-    # (util/adml_tags.py), whatever the launcher passed. args.task names the task: for ad_rest the data_path was
-    # redirected to the ad_mci_control CSV above.
-    adml_text = f'{args.split_dir or ""} {args.data_path} {args.task}'
-    if adml_tags.study_of(adml_text):
-        wandb_tags = adml_tags.tags_for(adml_text, wandb_tags, method='DL', task=adml_tags.task_of(args.task))
     # Tag class-weighted runs in the task name (so output dirs / wandb name carry _CW)
     if args.class_weight:
         args.task = f"{args.task}_CW"
