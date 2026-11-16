@@ -61,7 +61,7 @@ IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_OCT_thickness/Data/"
 Patience="10"
 Relative="Jacqueline"
 NFOLDS=10
-FOLDS=(0 1 2 3 4 5 6 7 8 9) # CV folds for training
+FOLDS=(${CV_FOLDS_ONLY:-0 1 2 3 4 5 6 7 8 9}) # CV folds for training (env CV_FOLDS_ONLY="8 9": only those folds; set by adml_dl_run_all.sh on a rerun)
 #FOLDS=(1 2 3 4 5 6 7 8 9) # CV folds for training
 #FOLDS=(0) # CV folds for training
 

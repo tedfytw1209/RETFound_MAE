@@ -51,7 +51,7 @@ OCT_WEIGHT=${6:-"0.7"}         # β weight for OCT loss (paper specifies 0.7)
 MULTIMODAL_WEIGHT=${7:-"1.0"}  # Weight for fusion loss (normalized to 1.0)
 Relative="Hebei"
 NFOLDS=10
-FOLDS=(0 1 2 3 4 5 6 7 8 9) # CV folds for training
+FOLDS=(${CV_FOLDS_ONLY:-0 1 2 3 4 5 6 7 8 9}) # CV folds for training (env CV_FOLDS_ONLY="8 9": only those folds; set by adml_dl_run_all.sh on a rerun)
 
 # Training hyperparameters based on research paper specifications
 BS=8                           # Batch size: 8 as specified in paper

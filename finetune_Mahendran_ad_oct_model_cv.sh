@@ -66,7 +66,7 @@ TRANSFORM="3"                # AD-OCT specific data augmentation
 SUBSET_RATIO=0
 Relative="Mahendran"
 NFOLDS=10
-FOLDS=(0 1 2 3 4 5 6 7 8 9) # CV folds for training
+FOLDS=(${CV_FOLDS_ONLY:-0 1 2 3 4 5 6 7 8 9}) # CV folds for training (env CV_FOLDS_ONLY="8 9": only those folds; set by adml_dl_run_all.sh on a rerun)
 
 # Data paths
 IMG_Path="/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/"

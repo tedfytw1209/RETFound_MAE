@@ -62,7 +62,7 @@ Scheduler_step=10
 Scheduler_gamma=0.5
 Relative="Wisely"
 NFOLDS=10
-FOLDS=(0 1 2 3 4 5 6 7 8 9) # CV folds for training
+FOLDS=(${CV_FOLDS_ONLY:-0 1 2 3 4 5 6 7 8 9}) # CV folds for training (env CV_FOLDS_ONLY="8 9": only those folds; set by adml_dl_run_all.sh on a rerun)
 
 #data_type="IRB2024v5_Wisely_ADCON_DL_data"
 #data_type="IRB2024v5_ADCON_DL_data"
