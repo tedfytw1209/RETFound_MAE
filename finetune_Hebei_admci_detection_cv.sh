@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=8gb
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=64gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
 #SBATCH --time=144:00:00
@@ -101,8 +101,13 @@ NUM_WORKERS=$(( ${SLURM_CPUS_PER_TASK:-8} > 1 ? ${SLURM_CPUS_PER_TASK:-8} - 1 : 
 # Note: START_FOLD is positional arg 11; any extra flags (ADDCMD) must come AFTER it.
 # Example: sbatch finetune_Hebei_admci_detection_cv.sh ad_mci_control_detect_data IRB2024v5_ADCON_DL_data /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split ducan 0.7 0.7 1.0 3e-4 1e-2 3 0 --use_img_per_patient
 # TMP: --output_dir moved to /blue (was /orange/ruogu.fang/tienyuchang/RETfound_results) - /orange is out of space.
+RUN_TASK=$STUDY-${data_type}-${Relative}-$MODEL-${Modality}-bs${BS}ep${EPOCHS}lr${LR}wd${WD}-${Eval_score}eval-subset${SUBSET_RATIO} # the --task = output dir and wandb run name (+ _CW from the trainer); do not change
+# skip the folds whose wandb run already finished (adml_cv_resume.sh; CV_RESUME=0 runs all requested folds)
+if ! source ./adml_cv_resume.sh; then cv_resume_init() { :; }; cv_fold_done() { return 1; }; fi
+cv_resume_init "$RUN_TASK" $ADDCMD
 for fold in ${FOLDS[@]}; do
     [ "$fold" -lt "$START_FOLD" ] && continue
+    cv_fold_done "$fold" && continue
     torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py \
         --savemodel \
         --purge_checkpoint \
@@ -115,7 +120,7 @@ for fold in ${FOLDS[@]}; do
         --weight_decay $WD \
         --nb_classes $Num_CLASS \
         --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv \
-        --task $STUDY-${data_type}-${Relative}-$MODEL-${Modality}-bs${BS}ep${EPOCHS}lr${LR}wd${WD}-${Eval_score}eval-subset${SUBSET_RATIO} \
+        --task $RUN_TASK \
         --output_dir /blue/ruogu.fang/tienyuchang/RETfound_results \
         --eval_score $Eval_score \
         --modality $Modality \

@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=8gb
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=64gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
 #SBATCH --time=144:00:00
@@ -77,7 +77,12 @@ echo $Num_CLASS
 # Usage: sbatch finetune_Jacqueline_adcon_irb2024_v5_cv.sh STUDY data_type SPLIT_DIR MODEL BS LR wd Num_CLASS SUBSET_RATIO Regularization DROP_PATH [ADDCMD...]
 # Example: sbatch finetune_Jacqueline_adcon_irb2024_v5_cv.sh ad_control_detect_data IRB2024v5_ADCON_DL_data /blue/ruogu.fang/tienyuchang/OCTAD_ML_pipeline/psrs_oct/IRB2024_prev_combined_study2_retinaf/split convnext_tiny 128 1e-3 5e-4 2 0 0.001 0.2 --use_img_per_patient
 # TMP: --output_dir moved to /blue (was /orange/ruogu.fang/tienyuchang/RETfound_results) - /orange is out of space.
+RUN_TASK=$STUDY-${data_type}-${Relative}-$MODEL-${Modality}-bs${BS}ep${Epochs}lr${LR}wd${wd}-${Eval_score}eval-subset${SUBSET_RATIO} # the --task = output dir and wandb run name (+ _CW from the trainer); do not change
+# skip the folds whose wandb run already finished (adml_cv_resume.sh; CV_RESUME=0 runs all requested folds)
+if ! source ./adml_cv_resume.sh; then cv_resume_init() { :; }; cv_fold_done() { return 1; }; fi
+cv_resume_init "$RUN_TASK" $ADDCMD
 for fold in ${FOLDS[@]}; do
     [ "$fold" -lt "$START_FOLD" ] && continue
-    torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py --savemodel --purge_checkpoint --global_pool --batch_size $BS --world_size 1 --model $MODEL --drop_path $DROP_PATH --epochs $Epochs --lr $LR --weight_decay $wd --nb_classes $Num_CLASS --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv --task $STUDY-${data_type}-${Relative}-$MODEL-${Modality}-bs${BS}ep${Epochs}lr${LR}wd${wd}-${Eval_score}eval-subset${SUBSET_RATIO} --output_dir /blue/ruogu.fang/tienyuchang/RETfound_results --eval_score $Eval_score --modality $Modality --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers $NUM_WORKERS --input_size 224 --num_k 0 --optimizer sgd --momentum 0.9 --lr_scheduler false --early_stopping --patience $Patience --subset_ratio $SUBSET_RATIO --visualize_samples --transform 1 --l1_reg $Regularization --l2_reg $Regularization --cv_folds $NFOLDS --cv_fold $fold --split_dir $SPLIT_DIR --wandb_tags "$WANDB_TAGS" $ADDCMD
+    cv_fold_done "$fold" && continue
+    torchrun --nproc_per_node=1 --master_port=$MASTER_PORT main_finetune_Chua_Jacqueline.py --savemodel --purge_checkpoint --global_pool --batch_size $BS --world_size 1 --model $MODEL --drop_path $DROP_PATH --epochs $Epochs --lr $LR --weight_decay $wd --nb_classes $Num_CLASS --data_path /blue/ruogu.fang/tienyuchang/${data_type}/${STUDY}.csv --task $RUN_TASK --output_dir /blue/ruogu.fang/tienyuchang/RETfound_results --eval_score $Eval_score --modality $Modality --img_dir $IMG_Path --finetune $FINETUNED_MODEL --num_workers $NUM_WORKERS --input_size 224 --num_k 0 --optimizer sgd --momentum 0.9 --lr_scheduler false --early_stopping --patience $Patience --subset_ratio $SUBSET_RATIO --visualize_samples --transform 1 --l1_reg $Regularization --l2_reg $Regularization --cv_folds $NFOLDS --cv_fold $fold --split_dir $SPLIT_DIR --wandb_tags "$WANDB_TAGS" $ADDCMD
 done

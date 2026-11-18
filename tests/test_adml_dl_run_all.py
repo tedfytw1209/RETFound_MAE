@@ -53,7 +53,8 @@ def task_of(cmd_line, **env):
     """Run one printed sbatch line's training script with torchrun stubbed: the --task values and the env it got."""
     words = shlex.split(cmd_line)
     assigns = dict(w.split('=', 1) for w in words[:words.index('sbatch')])
-    script_args = words[words.index('sbatch') + 2:]
+    after = words[words.index('sbatch') + 1:]
+    script_args = after[next(i for i, w in enumerate(after) if not w.startswith('--')):]  # skip --job-name, --mem
     out = subprocess.run(['bash', '-c', STUBS + 'bash "$@"', 'x', *script_args], cwd=REPO,
                          env={**os.environ, 'SLURM_JOBID': '1234', **assigns, **env},
                          capture_output=True, text=True, check=True).stdout
@@ -199,6 +200,99 @@ def test_limits(tmp_path):
     squeue = 'squeue(){ printf "a\\nb\\nc\\n"; }; sacct(){ :; }; export -f squeue sacct; '
     cmds, _ = driver(tmp_path, stubs=squeue, MAX_SLURM='5')
     assert len(cmds) == 2  # 3 jobs already queued + 2 = 5
+
+
+def _slurm_stub(row):
+    """squeue empty; sacct reports one attempt: name|state|jobid|workdir|ReqMem|AllocCPUS."""
+    return f'squeue(){{ :; }}; sacct(){{ printf "%s\\n" "{row}"; }}; export -f squeue sacct; '
+
+
+@needs_bash
+@pytest.mark.parametrize('state, log, reqmem, expected', [
+    ('OUT_OF_MEMORY', '', '8G', 32),       # 2 x 8 is below the default: MEM
+    ('OUT_OF_MEMORY', '', '32G', 64),      # doubled
+    ('OUT_OF_MEMORY', '', '4Gc', 64),      # per-CPU request: 4 x 8 CPUs = 32 -> 64
+    ('OUT_OF_MEMORY', '', '128G', 128),    # capped at MEM_MAX
+    ('COMPLETED', 'error: Detected 15 oom_kill events in StepId=1.batch.', '32G', 64),  # a fold killed, job went on
+    ('FAILED', 'RuntimeError: other', '32G', 32),  # not memory: default
+])
+def test_memory_after_a_failed_attempt(tmp_path, state, log, reqmem, expected):
+    job = 'adml-s3-5yr-mci_control-Mahendran-cw'  # 8 CPUs: 32 GB by default
+    wd = tmp_path / 'wd'
+    wd.mkdir()
+    (wd / f'{job}.51831981.out').write_text(log + '\n')
+    stub = _slurm_stub(f'{job}|{state}|51831981|{wd.as_posix()}|{reqmem}|8')
+    cmds, err = driver(tmp_path, stubs=stub, MODELS='Mahendran', VARIANTS='5yr', MAX_SLURM='0')
+    assert len(cmds) == 1 and f'--mem={expected}gb' in cmds[0]
+    assert f'last attempt {state}' in err
+    assert ('ran out of memory' in err) == (state == 'OUT_OF_MEMORY' or 'oom_kill' in log)
+
+
+@needs_bash
+def test_cpus_and_memory_per_model(tmp_path):
+    cmds, _ = driver(tmp_path, MAX_SLURM='0')
+    for cmd in cmds:
+        if '-Mahendran-' in cmd:
+            assert '--cpus-per-task=8 --mem=32gb' in cmd
+        else:  # Jacqueline, Wisely, Wisely2, Hebei: data loading is the bottleneck
+            assert '--cpus-per-task=16 --mem=64gb' in cmd
+    cmds, _ = driver(tmp_path, MAX_SLURM='0', MEM='48', MODELS='Hebei', VARIANTS='1yr')
+    assert len(cmds) == 1 and '--cpus-per-task=16 --mem=48gb' in cmds[0]
+    _, _, out = task_of(cmds[0], SLURM_CPUS_PER_TASK='16')
+    assert '--num_workers 15' in out
+
+
+WISELY2 = ('finetune_Wisely2_adcon_irb2024_v5_cv.sh', 'mci_control_detect_data', 'IRB2024v5_ADCON_DL_study3_retinaf_3yr',
+           '/x/IRB2024_combined_study3_retinaf_diseaseclean_3yr/split_mcicon', 'dual_input_cnn', 'images_only', '0.01',
+           '1e-4', '0.01', '2', '0', '10', '0')
+WISELY2_NAME = ('mci_control_detect_data-IRB2024v5_ADCON_DL_study3_retinaf_3yr-Wisely2-dual_input_cnn-images_only-'
+                'Thickness-roc_auceval-subset0_CW')
+
+
+def script_folds(tmp_path, args, status_rows=None, **env):
+    """Folds a *_cv.sh script trains, with wandb answering status_rows (None: wandb not readable)."""
+    status = tmp_path / 'status.sh'
+    if status_rows is None:
+        status.write_text('echo "no network" >&2; exit 2\n')
+    else:
+        (tmp_path / 'rows.tsv').write_text(status_rows)
+        status.write_text(f'cat {(tmp_path / "rows.tsv").as_posix()}\n')
+    proc = subprocess.run(['bash', '-c', STUBS + 'bash "$@"', 'x', *args], cwd=REPO, capture_output=True, text=True,
+                          env={**os.environ, 'SLURM_JOBID': '1234', 'CV_STATUS_CMD': f'bash {status.as_posix()}', **env},
+                          check=True)
+    return [int(f) for f in re.findall(r'--cv_fold (\d+)', proc.stdout)], proc.stdout + proc.stderr
+
+
+@needs_bash
+def test_cv_script_resumes_at_unfinished_folds(tmp_path):
+    rows = ''.join(f'{WISELY2_NAME}\t{k}\tfinished\n' for k in range(8)) + f'{WISELY2_NAME}\t8\tcrashed\n'
+    folds, out = script_folds(tmp_path, (*WISELY2, '--class_weight'), rows)
+    assert folds == [8, 9] and 'fold 0 already finished in wandb: skipped' in out
+    # the same rows do not match the run without class weighting (no _CW in its name): all folds run
+    folds, _ = script_folds(tmp_path, WISELY2, rows)
+    assert folds == list(range(10))
+    # CV_RESUME=0, or wandb not readable: every requested fold runs
+    folds, _ = script_folds(tmp_path, (*WISELY2, '--class_weight'), rows, CV_RESUME='0')
+    assert folds == list(range(10))
+    folds, out = script_folds(tmp_path, (*WISELY2, '--class_weight'), None)
+    assert folds == list(range(10)) and 'wandb not readable' in out
+
+
+@needs_bash
+@pytest.mark.parametrize('script', ['finetune_Jacqueline_adcon_irb2024_v5_cv.sh', 'finetune_Wisely_adcon_irb2024_v5_cv.sh',
+                                    'finetune_Mahendran_ad_oct_model_cv.sh', 'finetune_Hebei_admci_detection_cv.sh'])
+def test_every_cv_script_resumes(tmp_path, script):
+    cmds, _ = driver(tmp_path, MAX_SLURM='0', MODELS=re.search(r'finetune_([A-Za-z0-9]+)_', script).group(1),
+                     VARIANTS='1yr')
+    [cmd] = cmds
+    tasks, _, _ = task_of(cmd)
+    name = tasks[0] + '_CW'
+    rows = ''.join(f'{name}\t{k}\tfinished\n' for k in (0, 1, 2, 5))
+    words = shlex.split(cmd)
+    after = words[words.index('sbatch') + 1:]
+    args = after[next(i for i, w in enumerate(after) if not w.startswith('--')):]
+    folds, _ = script_folds(tmp_path, args, rows)
+    assert folds == [3, 4, 6, 7, 8, 9]
 
 
 @needs_bash

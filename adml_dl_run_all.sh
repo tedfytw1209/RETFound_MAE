@@ -12,6 +12,12 @@
 #      VARIANTS="..."     subset of: clean raw (study2) 1yr 3yr 5yr 10yr (study3)
 #      MAX_SLURM=N        never let your queue (squeue, pending + running) go above N jobs (default 10; 0 = no limit)
 #      MAX_SUBMIT=N       submit at most N jobs in this call (default 0 = no limit)
+#      HEAVY_MODELS="..." models whose data loading is the bottleneck: CPUS_HEAVY CPUs (default: Jacqueline Wisely
+#                         Wisely2 Hebei); the others get CPUS_LIGHT. Workers = CPUs - 1 (the *_cv.sh scripts)
+#      CPUS_HEAVY=N CPUS_LIGHT=N   CPUs per job (default 16 / 8; sbatch --cpus-per-task)
+#      MEM=N              memory per job in GB (default 4 per CPU: 64 / 32; sbatch --mem)
+#      MEM_MAX=N          a job whose last attempt ran out of memory gets twice that attempt's memory, up to this
+#                         (default 128 GB); out of memory = SLURM state OUT_OF_MEMORY or oom_kill in its log
 #      RERUN_DONE=1       resubmit all 10 folds even when they finished
 #      WANDB_ENTITY=team  wandb entity of the OCTAD_Relatives project (default: the logged-in user)
 #      CHECK_DATA=0       submit even if the data CSV / split folder is not found
@@ -45,6 +51,8 @@
 # wandb tags follow the existing runs: the *_cv.sh scripts tag "<study>,<task>[,<period>]" (study from the split path,
 # e.g. study3,mci_control,1yr / study2,ad_rest) and the trainer adds class_weight. PERIOD is set on every submission:
 # the study3 period, and empty for study2, so a PERIOD left in your shell never tags a study2 run.
+# The *_cv.sh scripts also resume by themselves (adml_cv_resume.sh): when a job starts it skips the folds whose wandb run
+# already finished, so a job submitted by hand or by ADML_Relatives*.sh runs only the unfinished folds too.
 # A fold cannot continue mid-run (only checkpoint-best is kept), so a missing fold restarts from epoch 0.
 # Rerunning the same command submits only what is still missing. REF_FILE lists the command of every job that is
 # not done, with why, for rerunning by hand.
@@ -52,6 +60,11 @@
 DRY_RUN=${DRY_RUN:-0}
 MAX_SLURM=${MAX_SLURM:-10}
 MAX_SUBMIT=${MAX_SUBMIT:-0}
+MEM=${MEM:-}
+MEM_MAX=${MEM_MAX:-128}
+HEAVY_MODELS=${HEAVY_MODELS-"Jacqueline Wisely Wisely2 Hebei"}
+CPUS_HEAVY=${CPUS_HEAVY:-16}
+CPUS_LIGHT=${CPUS_LIGHT:-8}
 RERUN_DONE=${RERUN_DONE:-0}
 WANDB_CHECK=${WANDB_CHECK:-1}
 WANDB_ENTITY=${WANDB_ENTITY:-}
@@ -60,7 +73,7 @@ WANDB_STATUS_CMD=${WANDB_STATUS_CMD:-"python adml_dl_wandb_status.py"}
 CHECK_DATA=${CHECK_DATA:-1}
 SACCT_DAYS=${SACCT_DAYS:-120}
 REF_FILE=${REF_FILE-adml_dl_rerun_ref.sh}
-for v in MAX_SLURM MAX_SUBMIT; do
+for v in MAX_SLURM MAX_SUBMIT MEM_MAX CPUS_HEAVY CPUS_LIGHT ${MEM:+MEM}; do
     case "${!v}" in ''|*[!0-9]*) echo "$v must be a non-negative integer (0 = no limit), got '${!v}'" >&2; exit 1 ;; esac
 done
 
@@ -118,11 +131,22 @@ fi
 queued_now() { if [ "$HAVE_SLURM" = "1" ]; then squeue -u "$SLURM_USER" -h -o %j 2>/dev/null; fi; return 0; }
 SACCT_ROWS=""
 if [ "$HAVE_SLURM" = "1" ]; then # every attempt of our jobs: name|state|jobid|workdir
-    SACCT_ROWS=$(sacct -u "$SLURM_USER" -X -n -P -S "now-${SACCT_DAYS}days" --format=JobName,State,JobID,WorkDir 2>/dev/null | grep '^adml-')
+    SACCT_ROWS=$(sacct -u "$SLURM_USER" -X -n -P -S "now-${SACCT_DAYS}days" --format=JobName,State,JobID,WorkDir,ReqMem,AllocCPUS 2>/dev/null | grep '^adml-')
 fi
-last_attempt() { # <job name>: "STATE|jobid|workdir" of the newest attempt, or nothing
-    printf '%s\n' "$SACCT_ROWS" | awk -F'|' -v n="$1" '$1 == n && $3 + 0 >= last { last = $3 + 0; split($2, s, " "); row = s[1] "|" $3 "|" $4 }
+last_attempt() { # <job name>: "STATE|jobid|workdir|ReqMem|AllocCPUS" of the newest attempt, or nothing
+    printf '%s\n' "$SACCT_ROWS" | awk -F'|' -v n="$1" '$1 == n && $3 + 0 >= last { last = $3 + 0; split($2, s, " "); row = s[1] "|" $3 "|" $4 "|" $5 "|" $6 }
         END { if (row != "") print row }'
+}
+req_gb() { # <ReqMem> <AllocCPUS>: an attempt's memory in GB (sacct prints 8G, 8Gn, 4Gc = per CPU, 8000M), or nothing
+    awk -v r="$1" -v c="${2:-1}" 'BEGIN { if (match(r, /^[0-9.]+/)) { n = substr(r, 1, RLENGTH); u = substr(r, RLENGTH + 1, 1)
+        s = substr(r, RLENGTH + 2, 1); f = (u == "T") ? 1024 : (u == "M") ? 1 / 1024 : (u == "K") ? 1 / 1048576 : 1
+        if (s == "c") n *= c; printf "%d\n", n * f + 0.5 } }'
+}
+ran_out_of_memory() { # <state> <job name> <jobid> <workdir>: SLURM says OUT_OF_MEMORY, or the log has oom_kill events
+    # (a fold killed for memory does not end the job: the *_cv.sh loop goes on to the next fold, so check the log too)
+    local out="$4/$2.$3.out"
+    [ "$1" = "OUT_OF_MEMORY" ] && return 0
+    [ -n "$3" ] && [ -f "$out" ] && grep -aqE 'oom_kill|oom-kill|OOM Killed' "$out"
 }
 last_error() { # <job name> <jobid> <workdir>: the last error-looking line of that attempt's log (%x.%j.out)
     local out="$3/$1.$2.out"
@@ -272,14 +296,31 @@ process() { # <study> <variant> <task> <cw> <model>
         folds_env=$FOLDS_MISSING
     fi
     note="folds done: ${FOLDS_DONE:-none}; to run: $FOLDS_MISSING${FOLD_NOTE:+ (wandb: $FOLD_NOTE)}"
-    IFS='|' read -r state jobid wd <<< "$(last_attempt "$job")"
+    local reqmem alloc last_gb cpus=$CPUS_LIGHT base_mem mem
+    if in_words "$HEAVY_MODELS" "$model"; then
+        cpus=$CPUS_HEAVY
+    fi
+    base_mem=${MEM:-$((cpus * 4))}
+    mem=$base_mem
+    IFS='|' read -r state jobid wd reqmem alloc <<< "$(last_attempt "$job")"
     if [ -n "$state" ]; then
         note="$note; last attempt $state (job $jobid)"
         err=$(last_error "$job" "$jobid" "$wd")
         if [ -n "$err" ]; then
             note="$note; last error: $err"
         fi
+        if ran_out_of_memory "$state" "$job" "$jobid" "$wd"; then
+            last_gb=$(req_gb "$reqmem" "$alloc")
+            mem=$(( ${last_gb:-$base_mem} * 2 ))
+            [ "$mem" -lt "$base_mem" ] && mem=$base_mem
+            [ "$mem" -gt "$MEM_MAX" ] && mem=$MEM_MAX
+            note="$note; ran out of memory at ${last_gb:-?} GB -> ${mem} GB"
+            if [ "${last_gb:-0}" -ge "$MEM_MAX" ]; then
+                note="$note (already at MEM_MAX=$MEM_MAX: raise MEM_MAX or lower the batch size / num_workers)"
+            fi
+        fi
     fi
+    cmd="--cpus-per-task=$cpus --mem=${mem}gb $cmd"
     ref "# $job [$name]: $note" \
         "PERIOD=$period CV_FOLDS_ONLY=\"$folds_env\" sbatch --job-name=$job $cmd"
 
