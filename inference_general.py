@@ -165,6 +165,11 @@ def parse_args() -> argparse.Namespace:
         help="Stop after processing this many images (useful for smoke tests).",
     )
     parser.add_argument(
+        "--middle-slice",
+        action="store_true",
+        help="Treat the images (input dir sorted by filename, or CSV row order) as slices of one volume and segment only the middle slice.",
+    )
+    parser.add_argument(
         "--save-composite",
         action="store_true",
         help="If set, save a side-by-side original+overlay visualization for each mask.",
@@ -237,7 +242,7 @@ class CSVImageDataset(Dataset):
         return label, img_path
 
 
-def _build_records_from_public(cfg: RuntimeConfig) -> List[ImageRecord]:
+def _build_records_from_public(cfg: RuntimeConfig, middle_slice: bool = False) -> List[ImageRecord]:
     records: List[ImageRecord] = []
     if cfg.csv_path:
         dataset = CSVImageDataset(cfg.csv_path, cfg.input_dir, cfg.image_column)
@@ -255,7 +260,7 @@ def _build_records_from_public(cfg: RuntimeConfig) -> List[ImageRecord]:
         if missing:
             print(f"[WARN] Skipped {missing} rows because files were not found under {cfg.input_dir}.")
     else:
-        for file in cfg.input_dir.iterdir():
+        for file in sorted(cfg.input_dir.iterdir()):
             if not file.is_file():
                 continue
             if file.suffix.lower() not in IMAGE_EXTENSIONS and file.suffix.lower() != ".npy":
@@ -264,6 +269,11 @@ def _build_records_from_public(cfg: RuntimeConfig) -> List[ImageRecord]:
 
     if not records:
         raise RuntimeError("No images found for inference.")
+    if middle_slice:
+        # Treat the (sorted) records as slices of one volume and keep only the center one.
+        middle = records[len(records) // 2]
+        print(f"[INFO] Middle slice {len(records) // 2 + 1}/{len(records)}: {middle.path}")
+        records = [middle]
     return records
 
 
@@ -319,7 +329,7 @@ def _build_records_from_uf(cfg: RuntimeConfig, args: argparse.Namespace) -> List
 def build_image_records(cfg: RuntimeConfig, args: argparse.Namespace) -> List[ImageRecord]:
     if cfg.category == "uf":
         return _build_records_from_uf(cfg, args)
-    return _build_records_from_public(cfg)
+    return _build_records_from_public(cfg, middle_slice=args.middle_slice)
 
 
 def create_model(args: argparse.Namespace) -> torch.nn.Module:
